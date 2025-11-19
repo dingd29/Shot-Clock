@@ -2,5 +2,5 @@ pandas==2.2.2
 plotly==5.24.1
 streamlit==1.40.0
 requests==2.31.0
-selenium==4.15.2
+
 nba-api==1.2.1
