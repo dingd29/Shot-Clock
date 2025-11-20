@@ -25,10 +25,10 @@ SHOT_CLOCK_LABELS = {
 def main() -> None:
     st.set_page_config(
         page_title="NBA Shot-Clock Performance Dashboard",
-        page_icon="⏱️",
+        page_icon="",
         layout="wide",
     )
-    st.title("⏱️ NBA Shot-Clock Performance Dashboard")
+    st.title("NBA Shot-Clock Performance Dashboard")
     st.caption(
         "Analyze how teams and players perform across different shot clock scenarios. "
         "Data from 2024-25 Regular Season."
@@ -358,7 +358,7 @@ def main() -> None:
         st.header("Top Performers Analysis")
         
         # Top teams by shot clock range
-        st.subheader("🏆 Top Teams by Shot Clock Range")
+        st.subheader("Top Teams by Shot Clock Range")
         
         for range_val in selected_ranges:
             range_data = team_filtered[team_filtered["SHOT_CLOCK_RANGE"] == range_val].copy()
@@ -383,7 +383,7 @@ def main() -> None:
         st.divider()
         
         # Top players by shot clock range
-        st.subheader("⭐ Top Players by Shot Clock Range")
+        st.subheader("Top Players by Shot Clock Range")
         
         # Filter for meaningful sample size
         player_analysis = player_filtered[player_filtered["FGA"] >= min_fga].copy()
