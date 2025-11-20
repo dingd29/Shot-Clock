@@ -97,7 +97,7 @@ def main() -> None:
         player_filtered = player_filtered[player_filtered["PLAYER_NAME"].isin(selected_players)]
 
     # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["Team Performance", "| Player Performance", "| Top Performers", "| Detailed Data"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Team Performance", "Player Performance", "Top Performers", "Detailed Data"])
 
     with tab1:
         st.header("Team Performance by Shot Clock Range")
