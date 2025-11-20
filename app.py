@@ -25,7 +25,7 @@ SHOT_CLOCK_LABELS = {
 def main() -> None:
     st.set_page_config(
         page_title="NBA Shot-Clock Performance Dashboard",
-        page_icon="",
+        page_icon="https://upload.wikimedia.org/wikipedia/en/thumb/0/03/National_Basketball_Association_logo.svg/529px-National_Basketball_Association_logo.svg.png",
         layout="wide",
     )
     st.title("NBA Shot-Clock Performance Dashboard")
