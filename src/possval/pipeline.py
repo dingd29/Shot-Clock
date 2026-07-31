@@ -96,7 +96,28 @@ def load_all_shots(first: int = 2015, last: int = 2024) -> pd.DataFrame:
         if not path.exists():
             continue
         shots = pd.read_parquet(path)
-        pbp = pd.read_parquet(pbp_clock_path(season), columns=["GAME_ID", "EVENTNUM", "SCOREMARGIN"])
+        pbp = pd.read_parquet(
+            pbp_clock_path(season),
+            columns=[
+                "GAME_ID", "EVENTNUM", "SCOREMARGIN",
+                "PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION",
+            ],
+        )
+        # shotdetail carries TEAM_NAME but no abbreviation; play-by-play has both, so the
+        # mapping is recovered from there rather than hard-coded.
+        teams = (
+            pbp[["PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION"]]
+            .dropna()
+            .drop_duplicates("PLAYER1_TEAM_ID")
+            .rename(
+                columns={
+                    "PLAYER1_TEAM_ID": "TEAM_ID",
+                    "PLAYER1_TEAM_ABBREVIATION": "TEAM_ABBREVIATION",
+                }
+            )
+        )
+        shots = shots.merge(teams, on="TEAM_ID", how="left")
+        shots["IS_HOME"] = (shots.TEAM_ABBREVIATION == shots.HTM).astype(int)
         frames.append(attach_game_state(shots, pbp))
     if not frames:
         raise SystemExit("no reconstructed seasons found — run `make clock` first")
@@ -141,9 +162,14 @@ def cmd_score(first: int, last: int) -> None:
     keep = [
         "PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION", "SEASON", "GAME_ID",
         "SHOT_CLOCK", "CHANCE_START_TYPE", "SHOT_ZONE_BASIC", "SHOT_DISTANCE",
-        "IS_3", "SHOT_MADE_FLAG", "PTS", "XPTS",
+        "IS_3", "IS_HOME", "SHOT_MADE_FLAG", "PTS", "XPTS",
     ]
-    scored = features[[c for c in keep if c in features.columns]]
+    # Fail loudly rather than filtering: quietly dropping an absent column is how
+    # TEAM_ABBREVIATION went missing here once already, taking IS_HOME down with it.
+    missing = [c for c in keep if c not in features.columns]
+    if missing:
+        raise SystemExit(f"scored output is missing expected columns: {missing}")
+    scored = features[keep]
     scored.to_parquet(PROCESSED / "shots_scored.parquet", index=False, compression="zstd")
 
     test = scored[scored.SEASON == 2024]

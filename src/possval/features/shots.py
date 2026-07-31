@@ -105,7 +105,12 @@ def build_shot_features(shots: pd.DataFrame, pbp: pd.DataFrame | None = None) ->
     df["SHOT_ANGLE"] = _shot_angle(df)
     df["GAME_SECONDS_REMAINING"] = _game_seconds_remaining(df)
     df["CLOCK_ELAPSED"] = 24.0 - df.SHOT_CLOCK
-    df["IS_HOME"] = (df.TEAM_ABBREVIATION == df.HTM).astype(int) if "TEAM_ABBREVIATION" in df else 0
+    if "IS_HOME" not in df:
+        df["IS_HOME"] = (
+            (df.TEAM_ABBREVIATION == df.HTM).astype(int)
+            if "TEAM_ABBREVIATION" in df
+            else 0
+        )
     df["IS_CLUTCH"] = (
         (df.GAME_SECONDS_REMAINING <= 300) & (df.SCORE_MARGIN.abs() <= 5)
         if "SCORE_MARGIN" in df
