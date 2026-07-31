@@ -312,6 +312,55 @@ outside the observed team range (max 0.961), making any application to them an e
 
 ---
 
+## 9. Player projection inputs
+
+**DARKO** (free, daily Google Sheet, 530 players) supplies offensive/defensive impact as the
+projection baseline. Bootstrapping rather than fitting our own RAPM is deliberate: RAPM is a
+solved problem and the largest available time sink, while this project's contribution lives
+in the possession layer. EPM was the alternative and is paywalled; BPM and nbarapm.com are
+free cross-checks. Fetches go through `requests` — `pandas.read_csv(url)` fails on macOS with
+a certificate error because it uses urllib.
+
+**Aging curves** are fitted here rather than taken from DARKO, precisely because DARKO's own
+aging prior is the component most likely to mislead at the extreme this project cares about.
+
+Method is the **delta (paired-change)** approach: for players appearing in consecutive
+seasons at ages *a* and *a+1*, average the change, weighted by the smaller of the two
+samples. Fitting mean performance *by age* instead would be dominated by selection — only
+good players are still in the league at 36.
+
+Change in points per attempt, 1,780 player-seasons:
+
+| Age | Δ pts/att | n pairs |
+|---|---|---|
+| 21→22 | +0.039 | 45 |
+| 24→25 | +0.013 | 154 |
+| 27→28 | +0.005 | 118 |
+| 31→32 | +0.001 | 61 |
+| 33→34 | +0.023 | 36 |
+| 37→38 | +0.021 | 11 |
+
+**Two things this table says out loud.** First, the deltas turn *positive* again at 33→34 and
+37→38, which is not a late-career renaissance — it is survivorship bias. A player who falls
+off a cliff is released and never records the second season of the pair, so observed declines
+at old ages are biased toward zero. Every curve here is optimistic at the tail and is treated
+as an upper bound.
+
+Second, and decisive for this project: support collapses at exactly the ages needed.
+
+| Age | Player-seasons in sample |
+|---|---|
+| 38 | 12 |
+| 39 | 5 |
+| 40 | 2 |
+| **41** | **1** |
+
+**LeBron is effectively the entire sample at 41.** Any aging adjustment applied to him is
+extrapolation with no independent support, and `project_metric` returns an explicit
+`extrapolated` flag rather than a bare number so this cannot be quietly forgotten downstream.
+
+---
+
 ## Open items
 
 - Free-throw points are excluded from PPA; joining FT events to chances would quantify how
