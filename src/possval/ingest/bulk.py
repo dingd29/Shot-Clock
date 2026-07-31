@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import io
 import tarfile
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -50,8 +51,16 @@ def _archive_url(dataset: str, season: int, playoffs: bool = False) -> str:
     return f"{BASE_URL}/{dataset}{suffix}_{season}.tar.xz"
 
 
-def download_archive(dataset: str, season: int, playoffs: bool = False) -> Path:
-    """Download a .tar.xz to data/raw/, skipping if already present."""
+def download_archive(
+    dataset: str, season: int, playoffs: bool = False, attempts: int = 4
+) -> Path:
+    """Download a .tar.xz to data/raw/, skipping if already present.
+
+    Retries on truncated responses: GitHub's raw endpoint intermittently closes a connection
+    mid-body, which surfaces as ChunkedEncodingError and killed a season of a 10-year
+    backfill. The download is written to a .partial file and only renamed on success, so a
+    failed attempt can never be mistaken for a complete archive.
+    """
     if season not in seasons_available(dataset):
         lo, hi = COVERAGE[dataset]
         raise ValueError(f"{dataset} covers {lo}-{hi}; asked for {season}")
@@ -63,14 +72,29 @@ def download_archive(dataset: str, season: int, playoffs: bool = False) -> Path:
         return dest
 
     url = _archive_url(dataset, season, playoffs)
-    with requests.get(url, stream=True, timeout=300) as resp:
-        resp.raise_for_status()
-        tmp = dest.with_suffix(".partial")
-        with open(tmp, "wb") as fh:
-            for chunk in resp.iter_content(chunk_size=1 << 20):
-                fh.write(chunk)
-        tmp.rename(dest)
-    return dest
+    tmp = dest.with_suffix(".partial")
+    last_error: Exception | None = None
+
+    for attempt in range(1, attempts + 1):
+        try:
+            with requests.get(url, stream=True, timeout=300) as resp:
+                resp.raise_for_status()
+                expected = int(resp.headers.get("Content-Length", 0))
+                with open(tmp, "wb") as fh:
+                    for chunk in resp.iter_content(chunk_size=1 << 20):
+                        fh.write(chunk)
+            written = tmp.stat().st_size
+            if expected and written != expected:
+                raise OSError(f"truncated: got {written} of {expected} bytes")
+            tmp.rename(dest)
+            return dest
+        except (requests.RequestException, OSError) as exc:
+            last_error = exc
+            tmp.unlink(missing_ok=True)
+            if attempt < attempts:
+                time.sleep(2**attempt)
+
+    raise RuntimeError(f"failed to download {url} after {attempts} attempts") from last_error
 
 
 def read_archive(path: Path) -> pd.DataFrame:

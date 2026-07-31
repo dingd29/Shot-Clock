@@ -177,8 +177,109 @@ The reference file is *per game*, so reconstructed totals are divided by games p
 
 ---
 
+## 5. Ten-season backfill
+
+2015-16 → 2024-25 reconstructed: **2,013,170 shots**. Calibration is re-run per season, since
+the 14-second rule arrives in 2018-19 and feed conventions drift.
+
+The `after_made_fg` delay came back at **2.0s in every season**, which is a useful robustness
+signal — an artefact of one season's data would not reproduce across ten.
+
+2017-18 initially failed on a truncated GitHub response (`ChunkedEncodingError`). The
+downloader now retries with backoff and verifies `Content-Length`, writing to a `.partial`
+file that is renamed only on success, so a truncated download can never masquerade as a
+complete archive.
+
+---
+
+## 6. xPTS: expected points per attempt
+
+Predicts P(make), converted to expected points via the attempt's value (2 or 3). And-1 free
+throws are excluded — the model values the field goal; foul-drawing is a separate skill and
+is modelled at possession level.
+
+**Ladder**, so the gain from flexibility is measured rather than assumed:
+league mean → logistic regression → gradient-boosted trees → isotonic calibration.
+
+**Splits are by season, never random**, and `SeasonSplit.assert_ordered` enforces it. A random
+split leaks: shots from the same possession land on both sides, and shooter priors are season
+aggregates. Train 2015-2022, validate 2023-24, test **2024-25**.
+
+Shooter priors use a cumulative-then-shifted join so a season's own shots never inform its own
+prior, with empirical-Bayes shrinkage (strength 50) toward the zone's league rate.
+
+Backend is sklearn's `HistGradientBoostingClassifier` rather than LightGBM: same algorithm,
+no `libomp` system dependency, so the repo clones and runs anywhere.
+
+### Out-of-sample results (2024-25, n=210,396)
+
+| Model | Log loss | Brier | AUC | vs league mean |
+|---|---|---|---|---|
+| League mean | 0.6914 | 0.2491 | 0.500 | — |
+| Logistic | 0.6539 | 0.2309 | 0.646 | 5.4% |
+| GBM | 0.6273 | 0.2202 | 0.676 | **9.3%** |
+| GBM + isotonic | 0.6274 | 0.2201 | 0.676 | 9.3% |
+
+Calibration tracks the diagonal across the full range (0.20 → 0.93 predicted). Isotonic barely
+moves aggregate metrics but matters downstream, where possession value and win probability
+need calibrated probabilities rather than merely ranked ones.
+
+### Feature value: ablation, not permutation importance
+
+Permutation importance was initially misleading here. `CLOCK_ELAPSED` is exactly
+`24 − SHOT_CLOCK`; permuting either left its perfect substitute in place, so both looked
+worthless. `CLOCK_ELAPSED` was dropped and feature groups are valued by **refitting without
+them** — "what if I never had this information", which is the question that matters for a
+feature we went to trouble to construct.
+
+| Removed | Log-loss cost | Share of total model gain |
+|---|---|---|
+| Action type | 0.00892 | 13.9% |
+| Game state | 0.00812 | 12.7% |
+| Location (distance, x/y, angle, zones) | 0.00484 | 7.6% |
+| **Shot clock + chance start type** | **0.00396** | **6.2%** |
+| Shooter prior | 0.00184 | 2.9% |
+| Shot clock alone | 0.00136 | 2.1% |
+
+Possession context is worth roughly as much as *every shot-location feature combined* —
+and location is what every public xPTS model already has. Shot clock alone is smaller because
+chance start type partially substitutes for it; the two are correlated by construction, since
+transition possessions carry a high clock.
+
+**Known ceiling:** no public feed carries shot-level defender proximity. This is a
+shot-*selection* model, not a contested-ness model, and the "making" residual below absorbs
+the ability to score over tight contests.
+
+---
+
+## 7. Shot Quality Grade
+
+Splits scoring into two near-orthogonal components:
+
+- **Selection** — mean xPTS per attempt. What quality of look does he generate or accept?
+- **Making** — (actual PTS − xPTS) per 100 attempts. How much does he beat the model?
+
+Face validity: the selection leaders are all rim-running centres (Jaxson Hayes 1.504, Gobert
+1.463, Gafford 1.397), which is what a metric measuring "only takes dunks" should produce.
+Gobert pairs the second-best selection with −12.5 making, the exact profile of a player who
+misses shots he should make.
+
+### Late-clock specialists, and why shrinkage was required
+
+Ranking players on raw (making late ≤7s) − (making early >15s) produced a leaderboard of
+small-sample rookies. Decomposing the variance shows why: **only 21.6% of the observed spread
+is signal; 78.4% is sampling noise.** A player with 80 late attempts carries a standard error
+near 13 points per 100.
+
+Ranking now uses a James-Stein shrunk estimate, `raw × signal_var / (signal_var + SE²)`. The
+resulting list — Curry, Kyrie Irving, Chris Paul, Kawhi Leonard, Bam Adebayo — matches the
+bail-out-creator archetype, which the raw list did not.
+
+---
+
 ## Open items
 
-- Golden + property tests for the state machine.
-- Backfill 2015-16 → 2025-26; re-run calibration per season (rule changes, feed changes).
-- xPTS shot-quality model; then player creation profiles for the synergy layer.
+- Free-throw points are excluded from PPA; joining FT events to chances would quantify how
+  much this understates late-clock possessions.
+- 2025-26 season (needs `nbastatsv3`, since `nbastats` stops at 2024).
+- Possession-level value model; player creation profiles; the projection system.
