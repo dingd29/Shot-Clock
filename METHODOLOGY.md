@@ -361,9 +361,65 @@ extrapolation with no independent support, and `project_metric` returns an expli
 
 ---
 
+## 10. Ratings and simulation
+
+**Game results** come from play-by-play. `SCORE` is written `"VISITOR - HOME"` — verified
+empirically rather than assumed, by checking which number moved after a known team's basket
+(in game 22400002 a Miami basket incremented the first, a Detroit basket the second).
+
+**Team ratings** use a least-squares Simple Rating System: every game asserts
+`margin = rating_home − rating_away + home_advantage`, solved across the season at once so
+schedule strength is adjusted for. The system is rank-deficient (a constant added to every
+rating leaves margins unchanged), so ratings are pinned to sum to zero.
+
+Face validity over 11,973 games: home win rate 0.5655, mean home margin +2.20, and 2024-25
+runs OKC +12.73 down to WAS −12.13.
+
+**Out-of-sample game prediction** (season *T* from season *T−1* ratings, 10,744 games):
+log loss 0.6555 against a 0.6852 base rate — a 4.3% improvement — Brier 0.2318.
+
+> **Shrinkage is the logistic scale.** Explicitly regressing stale ratings toward the mean
+> changes nothing once the scale is refit: log loss is identical from shrink 1.0 to 0.5 while
+> the fitted scale tracks 12.75 → 6.50. They are the same parameter. Ratings correlate 0.587
+> year over year.
+
+**Simulation** injects `rating_sd` — uncertainty in the ratings themselves, redrawn per
+simulation — because without it the win distribution reflects only game-level coin-flip noise
+and comes out far too narrow. The dominant uncertainty in a projection is whether the ratings
+are right, not how the coin lands.
+
+### The calibration gap, which bounds what can be claimed
+
+The roster→rating mapping is `sum(DPM × minutes) / 48`. It is **theoretical, not fitted**, and
+it fails an important check: a plus-minus metric must average zero over minutes actually
+played, so an average team must map to 0. It does not, and the error depends on an assumption
+the data cannot settle, since DARKO carries no minutes column:
+
+| Rotation size assumed | Mean DPM | Implied league-average team |
+|---|---|---|
+| 300 | +0.498 | +2.49 |
+| 350 | +0.259 | +1.29 |
+| 400 | +0.035 | +0.18 |
+
+`project_team` therefore returns `centered` under each assumption rather than a single
+number, and the spread is treated as uncertainty in the level rather than averaged away.
+
+**No title probability is quoted.** The simulator computes one, but a title number derived
+from an uncalibrated level would be false precision. Ingesting 2025-26 results via
+`nbastatsv3` would let the mapping be calibrated against observed team ratings in the same
+season — impossible today, because the DARKO snapshot (July 2026) postdates the game data
+(2024-25). That is the highest-value next step.
+
+---
+
 ## Open items
 
+- **Calibrate the DPM→rating mapping** against 2025-26 results (`nbastatsv3`). Blocks any
+  credible title probability.
+- Real NBA schedule instead of a balanced round robin, before quoting seeding odds —
+  strength of schedule genuinely differs by conference.
 - Free-throw points are excluded from PPA; joining FT events to chances would quantify how
   much this understates late-clock possessions.
-- 2025-26 season (needs `nbastatsv3`, since `nbastats` stops at 2024).
-- Possession-level value model; player creation profiles; the projection system.
+- Five-man lineup data (`nba_on_court`) to retest the overlap null at the level where
+  redundancy would actually bite.
+- Pre-register the projection with a timestamped tag before opening night (Oct 2026).

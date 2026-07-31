@@ -148,6 +148,50 @@ stars are negative defenders by DARKO (Brown −1.27, Maxey −0.91, LeBron −0
 the only plus defender in the starting five, and the bench sits below league median. That
 concern is untouched by this null result, and it is where the projection should focus.
 
+## 6. Philadelphia 2026-27: a projection, and why its level is soft
+
+**Rating layer works.** Least-squares SRS over 11,973 games reproduces reality: home win rate
+0.5655, mean home margin +2.20, and 2024-25 tops out at OKC **+12.73** — the team that won the
+title with a historic point differential — with WAS (−12.13) at the bottom. Out of sample,
+predicting each season from the previous season's ratings beats the base rate by **4.3% log
+loss** (0.6555 vs 0.6852), Brier 0.2318.
+
+*A useful negative result along the way:* explicitly shrinking stale ratings toward the mean
+does nothing once the logistic scale is refit — the two are the same parameter, and log loss
+is identical from shrink 1.0 down to 0.5 while the fitted scale tracks 12.75 → 6.50. Team
+ratings correlate 0.587 year over year.
+
+**The projection.** Minutes-weighted DARKO gives Philadelphia a raw **+2.99** points per game:
+**offense +4.22, defense −1.24.** The shape is the story — this is an elite offense attached
+to a below-average defense, exactly what a roster with three negative-defending stars implies.
+
+**Its level, however, is not trustworthy yet**, and the reason is worth stating rather than
+burying. A plus-minus metric must average zero over the minutes actually played, so the
+mapping from player DPM to team rating must put an average team at 0. It does not, and the
+error depends on how many players are assumed to carry rotation minutes:
+
+| Rotation size assumed | Implied league-average team | Philadelphia, centered |
+|---|---|---|
+| 300 players | +2.49 | **+0.50** |
+| 350 players | +1.29 | +1.70 |
+| 400 players | +0.18 | **+2.81** |
+
+DARKO carries no minutes column, so this cannot be read off the data. The honest projection
+is therefore a range:
+
+| Scenario | Projected wins | 80% interval | P(50+ wins) |
+|---|---|---|---|
+| Optimistic (+2.8) | **56.7** | 49-64 | 89% |
+| Pessimistic (+0.5) | **51.4** | 44-59 | 63% |
+
+**Roughly 51-57 wins — good, not dominant.** For scale, OKC won 68 games in 2024-25.
+
+**What would fix the level:** ingesting 2025-26 results via `nbastatsv3` would allow the
+DPM→rating mapping to be calibrated against observed team ratings in the same season, which
+is impossible today because the DARKO snapshot (July 2026) postdates the game data (2024-25).
+That is the single highest-value next step, and it is why no title probability is quoted here
+— a title number derived from an uncalibrated level would be false precision.
+
 ---
 
 ## Caveats
