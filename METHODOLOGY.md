@@ -277,6 +277,41 @@ bail-out-creator archetype, which the raw list did not.
 
 ---
 
+## 8. Creation profiles and the overlap test
+
+**Profile.** Per player, the distribution of attempts over (shot-clock bucket × zone), 18
+cells, Laplace-smoothed so no cell is zero. Requires the reconstruction; not computable from
+public data.
+
+**Overlap.** Pairwise similarity is `1 − JS divergence` between two profiles. Jensen-Shannon
+was chosen over KL because it is symmetric, bounded in [0,1], and finite when a player has
+zero attempts in a cell — none of which KL gives. Group overlap is the mean pairwise
+similarity weighted by the product of attempt volumes, since redundancy between two stars
+costs more than the same redundancy between two bench players.
+
+> A bug worth recording: `profiles["FGA"] = totals` silently became `('FGA','')` under
+> MultiIndex columns, so the "exclude FGA" filter never matched and a raw attempt count was
+> fed into the divergence. Similarity came out at −212. `tests/test_creation.py` now asserts
+> the [0,1] bound, symmetry, and unit diagonal — any measure with known bounds should assert
+> them.
+
+**The causal test.** Unit: team-season (270, 2016-17 → 2024-25). Outcome: team xPTS per
+attempt (shot quality generated) and points per attempt. Treatment: volume-weighted overlap
+among top-N creators. Control: the same players' **prior-season** points per attempt,
+volume-weighted, plus season fixed effects. The prior-season control is what makes this a
+test rather than a correlation — good teams have good players, and good players may cluster
+in usage.
+
+**Result: null.** See `reports/findings.md` §5. No specification is significant; at top-3 the
+sign is positive. Not reported as anything else.
+
+Limitations that keep alternatives alive: team-season is coarser than the five-man lineup
+where redundancy would actually bite; overlap is measured from realised usage, so it partly
+reflects coaching decisions rather than player preference; and Philadelphia's 0.973 is
+outside the observed team range (max 0.961), making any application to them an extrapolation.
+
+---
+
 ## Open items
 
 - Free-throw points are excluded from PPA; joining FT events to chances would quantify how

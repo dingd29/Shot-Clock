@@ -93,6 +93,63 @@ the 14-second rule correctly.
 
 ---
 
+## 5. Creation overlap does not predict offensive underperformance — a null result
+
+This was the project's headline hypothesis, and **it failed.**
+
+The reconstruction makes it possible to measure a player's *creation profile*: the
+distribution of his attempts over (shot-clock bucket × zone). Two players "overlap" when
+their profiles have the same shape — both want the ball at the same moments. The hypothesis
+was that high overlap costs a team offense, because four creators cannot all use the same
+possessions.
+
+**The descriptive half holds up.** Philadelphia's projected core is genuinely redundant:
+
+| Pair | Creation similarity |
+|---|---|
+| LeBron ↔ Jaylen Brown | **0.988** |
+| LeBron ↔ Maxey | 0.980 |
+| Brown ↔ Maxey | 0.975 |
+| Embiid ↔ Brown | 0.951 |
+| Embiid ↔ KCP | 0.836 |
+
+Volume-weighted, the big four score **0.973 — the 99th percentile** of random four-player
+groups (league mean 0.895, p90 0.958). Embiid is the only differentiated creator; LeBron,
+Brown and Maxey are close to interchangeable in *when* they generate offense.
+
+**The causal half does not.** Testing whether overlap predicts efficiency across 270
+team-seasons (2016-17 → 2024-25), controlling for the same players' prior-season scoring
+quality and season fixed effects:
+
+| Core size | Effect of +1 SD overlap on team xPTS/attempt | t |
+|---|---|---|
+| Top 3 creators | **+0.0029** | +1.62 |
+| Top 4 creators | +0.0020 | +1.23 |
+| Top 8 creators | −0.0001 | −0.03 |
+
+No specification reaches significance, and at the star level **the sign is positive** — the
+opposite of the hypothesis. The control behaves exactly as it should (prior quality t = 9.9,
+model R² = 0.53-0.61), so this is a real null rather than a broken test.
+
+**What this rules out, and what survives.** On this evidence there is no basis for projecting
+Philadelphia to underperform because its stars want the ball at the same time. Three
+explanations remain live and are not distinguished by this test:
+
+1. Redundancy may bite at five-man lineup level and wash out over a whole team-season,
+   since a team's top creators do not share the floor for all their minutes.
+2. Coaches may already solve it by staggering minutes — in which case the null reflects
+   successful adaptation rather than an absent problem.
+3. The Sixers' overlap (0.973) sits **outside the observed team-season range** (max 0.961),
+   so applying the fitted null to them is extrapolation either way.
+
+**The implication for the projection is a change of subject.** The evidence for a
+Philadelphia risk is not offensive fit — it is defense and availability. Three of the four
+stars are negative defenders by DARKO (Brown −1.27, Maxey −0.91, LeBron −0.27), Embiid is
+the only plus defender in the starting five, and the bench sits below league median. That
+concern is untouched by this null result, and it is where the projection should focus.
+
+---
+
 ## Caveats
 
 - Free throws are excluded, so PPA understates the value of possessions that draw fouls. Late
