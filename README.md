@@ -83,6 +83,16 @@ It is reported as a null. On this evidence there is no basis for projecting Phil
 for offensive fit; the defensible concern is defense and availability, where three of the
 four stars grade negative.
 
+**The projection bears that out.** Minutes-weighted DARKO gives Philadelphia a raw +2.99
+points per game — **offense +4.22, defense −1.24** — which simulates to roughly **51-57 wins**
+depending on the baseline. An elite offense attached to a below-average defense.
+
+The *level* is reported as a range on purpose. The roster→rating mapping fails the check that
+an average team must map to 0, and the error spans +0.18 to +2.49 depending on assumed
+rotation size — which DARKO cannot settle, since it carries no minutes column. **No title
+probability is quoted**: one derived from an uncalibrated level would be false precision.
+Calibrating against 2025-26 results is the next step.
+
 ## Layout
 
 ```
