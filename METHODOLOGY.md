@@ -193,24 +193,42 @@ the chance boundaries, a judgment independent of the 14-second rule.
 > chance's own events the mean comes out at 1.8 seconds — the interval between logged events,
 > not a possession. That error is silent: 1.8 is a plausible-looking number.
 
-1,036,415 chances, 220,848 treated. Standard errors clustered on **season** — ten clusters,
-because the identifying variation is between seasons and not between a million chances.
+> **2017-18 is dropped, because the feed changed that year.** The share of events immediately
+> following a rebound that carry the *identical* game clock as that rebound steps from 14.7%
+> to 18.7% in 2017-18 and stays near 18.5% forever after — a timestamping convention change,
+> measured by `timestamp_granularity`. Duration here is a game-clock difference, and the change
+> lands precisely on the events that *begin a treated chance*, so that season measures shorter
+> second chances for non-basketball reasons.
+>
+> It is also the only season with the new timestamping and the old 24-second reset, which is
+> why it surfaced as an outlier three ways before the cause was found: an anomalous DiD
+> baseline, 3.1% of shots at exactly 24 seconds against ~0.5% elsewhere, and a 14-second
+> fingerprint a year early. Dropping it cuts the long-chance standard error more than
+> fourfold.
+
+931,897 chances over nine seasons, 199,857 treated. Standard errors clustered on **season** —
+nine clusters, because the identifying variation is between seasons, not between a million
+chances.
 
 | Outcome | DiD | SE | t |
 |---|---|---|---|
-| P(chance lasts past 14s) | −0.030 | 0.007 | −4.39 |
-| Chance duration (s) | −0.351 | 0.128 | −2.75 |
-| Points per chance | −0.012 | 0.006 | −1.85 |
+| P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
+| Chance duration (s) | −0.202 | 0.042 | −4.81 |
+| Points per chance | −0.0159 | 0.0063 | −2.52 |
 
-The long-chance share falls 7.3% → 1.4% at the rule and stays there; the surviving 1.4% is the
-`max(remaining, 14)` case, where an early rebound keeps a clock above 14. **Efficiency does not
-move**, and the event study shows no break at 2018-19 in points per chance.
+The long-chance share falls 9.1% → 1.4% and stays; the surviving 1.4% is the
+`max(remaining, 14)` case, where an early rebound keeps a clock above 14. The event study is
+flat pre-rule (−0.0007, 0.000) and steps at 2018-19.
 
-2017-18 is an anomalous baseline (the gap narrows and returns), so `base_sensitivity` reports
-the estimate against each choice of pre-period. The long-chance effect survives all of them
-(−0.022 to −0.045); the duration estimate does not travel as well and is quoted as a range.
-`tests/test_rulechange.py` builds panels with a known effect, with none, and with a shared
-trend, and asserts the estimator recovers each.
+The efficiency result is the weakest of the three and is reported as suggestive: negative in
+all seven post-rule seasons, but the two remaining pre-seasons differ from each other by 0.014,
+nearly the size of the estimate. **An earlier version reported no effect**, which was wrong
+because the contaminated season's variance was burying the signal — removing bad data turned a
+null into a finding, the opposite of the usual direction.
+
+`report` returns the with-2017 estimates alongside, so the exclusion is visible rather than
+buried in a default. `tests/test_rulechange.py` builds panels with a known effect, with none,
+and with a shared trend, and asserts the estimator recovers each.
 
 ---
 

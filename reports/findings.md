@@ -87,11 +87,16 @@ largest one-second bucket) with a rim share of **42.4%**, against 26.1% at 15 se
 24.4% at 12 seconds.
 
 These are putbacks. The 2018-19 rule resets the clock to 14 after an offensive rebound, so
-every immediate second-chance attempt lands on that exact value. The discontinuity is a
-useful validation signal in its own right — it appears only because the reconstruction models
-the 14-second rule correctly.
+every immediate second-chance attempt lands on that exact value.
 
-## 4b. The 2018-19 rule took 10 seconds off second chances and cost offenses nothing
+*This is a consistency check, not independent validation, and the distinction matters.* The
+reconstruction only applies `max(remaining, 14)` from 2018-19 onward, so the spike moving to
+14 in that season is partly guaranteed by construction — pre-2018 the same putbacks are
+recorded at 24. What it confirms is that the rule flag fires in the right seasons, which is
+worth confirming but is a weaker claim than the bucket-share and per-player agreement in
+METHODOLOGY §4. The genuinely independent robustness result is finding 4c.
+
+## 4b. The 2018-19 rule change, and a feed artifact that nearly hid inside it
 
 The rule change is a natural experiment with a structure that is rare in basketball data,
 because the treatment is assigned by a rule rather than by anyone's choice:
@@ -100,56 +105,97 @@ because the treatment is assigned by a rule rather than by anyone's choice:
 - **Control** — chances starting with a *defensive* rebound. Untouched.
 
 Both are live-ball rebound starts, so they share the era's pace, spacing and officiating
-drift. 1,036,415 chances over ten seasons, 220,848 treated. Outcomes come from the **raw
-feed** — durations from game-clock differences, points from descriptions — never from the
-reconstruction, which implements the rule being tested and would recover it by construction.
+drift. Outcomes come from the **raw feed** — durations from game-clock differences, points
+from descriptions — never from the reconstruction, which implements the rule being tested and
+would otherwise recover it by construction.
+
+### First, the artifact
+
+**The NBA changed how it timestamps play-by-play in 2017-18**, one season before the rule.
+The share of events immediately following a rebound that carry the *identical* game clock as
+that rebound:
+
+| Season | 2015-16 | 2016-17 | **2017-18** | 2018-19 | … | 2024-25 |
+|---|---|---|---|---|---|---|
+| Identical clock after a rebound | 15.1% | 14.7% | **18.7%** | 18.5% | | 17.8% |
+
+It steps once and stays. Because chance duration here is measured from game-clock differences,
+and because the change lands specifically on the events that begin a *treated* chance, 2017-18
+measures shorter second chances for reasons that have nothing to do with basketball.
+
+That season is also the only one carrying the new timestamping *and* the old 24-second reset,
+which is why it surfaced as an outlier three separate ways before the cause was found: an
+anomalous DiD baseline, **3.1% of shots landing at exactly 24 seconds against ~0.5% in every
+other season**, and a 14-second fingerprint appearing a year early. It is dropped from the
+design. Doing so cuts the standard error on the long-chance effect more than fourfold.
+
+### The experiment
+
+931,897 chances across nine seasons, 199,857 treated, standard errors clustered on season.
+
+| Outcome | DiD | SE | t |
+|---|---|---|---|
+| P(chance lasts past 14s) | **−0.0223** | 0.0016 | **−13.77** |
+| Chance duration (seconds) | **−0.202** | 0.042 | **−4.81** |
+| Points per chance | −0.0159 | 0.0063 | −2.52 |
 
 **The rule bound almost entirely on the tail.** The share of second chances running past 14
 seconds collapses the year it takes effect and never returns:
 
-| | 2015-16 | 2016-17 | 2017-18 | **2018-19** | 2019-20 | … | 2024-25 |
-|---|---|---|---|---|---|---|---|
-| Off. rebound (treated) | 9.1% | 8.2% | 7.3% | **1.4%** | 1.3% | | 1.4% |
-| Def. rebound (control) | 27.8% | 26.8% | 23.7% | 21.6% | 22.2% | | 22.6% |
+| | 2015-16 | 2016-17 | **2018-19** | 2019-20 | … | 2024-25 |
+|---|---|---|---|---|---|---|
+| Off. rebound (treated) | 9.1% | 8.2% | **1.4%** | 1.3% | | 1.4% |
+| Def. rebound (control) | 27.8% | 26.8% | 21.6% | 22.2% | | 22.6% |
 
-An 81% drop against a control that drifts gently. The 1.4% that survives is not error: a team
-rebounding early enough keeps a clock above 14, since the reset is `max(remaining, 14)`.
+An 83% drop against a control that drifts gently, and the event study is textbook: the
+treated-minus-control gap sits at −0.0007 and 0.000 in the two pre-seasons, then steps to
+−0.016 and stays between −0.020 and −0.029 for seven years. The 1.4% that survives is not
+error — a team rebounding early enough keeps a clock above 14, since the reset is
+`max(remaining, 14)`.
 
-| Outcome | DiD | SE | t |
-|---|---|---|---|
-| P(chance lasts past 14s) | **−0.030** | 0.007 | **−4.39** |
-| Chance duration (seconds) | −0.351 | 0.128 | −2.75 |
-| **Points per chance** | **−0.012** | 0.006 | **−1.85** |
+Mean duration fell only 0.20 seconds, because second chances already averaged 6.1 seconds
+before the rule. The 24-second allowance was mostly optionality, and most of it went
+unexercised.
 
-Standard errors are clustered on season — ten clusters, not a million chances, because the
-variation being used is between seasons.
+### Did it cost offenses anything? Probably a little
 
-**The finding is the third row.** The league removed up to ten seconds from every second
-chance, eliminated four fifths of long ones, and **offensive efficiency did not measurably
-move.** The event study shows no break at 2018-19 in points per chance; its two most negative
-seasons are 2019-20 and 2022-23, neither adjacent to the change.
+**−0.016 points per chance, about −1.8% of second-chance efficiency, and this is the weakest
+of the three results.** It is negative in all seven post-rule seasons, which is not nothing.
+But with 2017-18 removed the pre-period is two seasons, and those two differ from each other
+by 0.014 — nearly the size of the estimate. One post-season (2022-23, −0.030) carries much of
+the average.
 
-That fits finding 3: the time removed was time teams rarely used. Second chances already
-averaged 6.1 seconds before the rule, so a 24-second allowance was mostly optionality, and
-optionality that goes unexercised is worth little. It also sets a ceiling on what the
-possession-length findings can be read to mean causally — if a third of a second of forced
-haste costs nothing, the late-clock collapse in finding 2 is about *which possessions survive
-to be late*, not about time pressure destroying value on its own.
-
-*One honest wrinkle.* 2017-18 is an anomalous baseline — the treated-control gap narrows
-there and returns afterwards — so the estimate depends on which pre-seasons anchor it:
-
-| Baseline | P(past 14s) | Duration | Points |
-|---|---|---|---|
-| vs 2017-18 only | −0.045 | −0.591 | −0.002 |
-| vs 2015-16 and 2016-17 | −0.022 | −0.200 | −0.017 |
-| vs all three | −0.030 | −0.330 | −0.012 |
-
-The long-chance effect survives every choice (−0.022 to −0.045, always large relative to a
-7% base). The duration estimate does not travel as well and is quoted as a range. The points
-null holds throughout, which is the result that matters.
+So: suggestive, not established. **An earlier version of this section reported no effect at
+all**, which was wrong for an instructive reason — the contaminated season inflated the
+standard error enough to bury a real signal. Removing bad data made a null into a finding,
+which is the opposite of the usual direction and worth stating plainly.
 
 *Reproduce:* `python -m possval.pipeline rulechange`.
+
+---
+
+## 4c. The curves replicate in all ten seasons
+
+Findings 1-3 are cut on 2024-25. The backfill makes them testable across the whole sample,
+and this is the check that matters most, because a shape derived from one season could be an
+era artifact — spacing, pace and three-point rate all moved substantially over these years.
+
+They are not. Every season's efficiency curve has the same shape:
+
+| | 2015-16 | 2017-18 | 2020-21 | 2022-23 | 2024-25 |
+|---|---|---|---|---|---|
+| PPA at 0s | 0.696 | 0.630 | 0.663 | 0.725 | 0.708 |
+| PPA at 7s | 0.963 | 1.010 | 1.038 | 1.046 | 1.047 |
+| PPA at 20s | 1.284 | 1.172 | 1.263 | 1.297 | 1.254 |
+| **Rise, 0s → 7s** | 0.268 | 0.380 | 0.376 | 0.321 | **0.339** |
+
+Across all ten seasons the 0s→7s rise averages **0.342 with a standard deviation of 0.035**,
+and the 7s→20s rise averages 0.238 (SD 0.047). Correlating each season's centred curve against
+2024-25's gives **r ≥ 0.939 in every season**, and ≥ 0.988 in eight of ten.
+
+The whole curve drifts *upward* over the decade — league efficiency rose, as it did on every
+other measure — but the shape does not move. The late-clock collapse is not a property of one
+season's offensive environment.
 
 ---
 

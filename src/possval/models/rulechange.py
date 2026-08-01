@@ -32,6 +32,54 @@ TREATED, CONTROL = "off_rebound", "def_rebound"
 MAX_CHANCE_SECONDS = 24
 SHORT_CLOCK = 14
 
+# 2017-18 is dropped from the design, and the reason is a property of the feed rather than a
+# convenience. The NBA changed how it timestamps play-by-play that season: the share of events
+# immediately following a rebound that carry the *identical* game clock as the rebound jumps
+# from 14.8% (2015-16, 2016-17) to 18.7%, and stays near 18.5% every season after. Because
+# duration here is measured from game-clock differences, and because the change lands
+# specifically on events after rebounds — which is exactly how a treated chance begins — that
+# season measures shorter chances for reasons that have nothing to do with the rule.
+#
+# It is also the only season carrying the new timestamping *and* the old 24-second reset,
+# which is why it showed up as an outlier three separate ways: an anomalous DiD baseline, a
+# 3.1% pile-up of shots at exactly 24 seconds against ~0.5% elsewhere, and a 14-second
+# fingerprint appearing a year early. Including it inflates the standard error on the
+# long-chance effect more than fourfold.
+CONTAMINATED_SEASONS = (2017,)
+
+
+def timestamp_granularity(first: int = 2015, last: int = 2024) -> pd.DataFrame:
+    """Share of events sharing their predecessor's game clock, per season.
+
+    A feed-quality measure, not a basketball one, and the diagnostic that identified the
+    2017-18 problem. Reported alongside the experiment because a design resting on
+    game-clock differences is only as good as the timestamps underneath it.
+    """
+    rows = []
+    for season in range(first, last + 1):
+        path = PROCESSED / f"pbp_clock_{season}.parquet"
+        if not path.exists():
+            continue
+        events = pd.read_parquet(
+            path, columns=["GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "GAME_CLOCK"]
+        ).sort_values(["GAME_ID", "EVENTNUM"])
+
+        same_game = (events.GAME_ID == events.GAME_ID.shift()) & (
+            events.PERIOD == events.PERIOD.shift()
+        )
+        identical = (events.GAME_CLOCK.diff() == 0) & same_game
+        after_rebound = (events.EVENTMSGTYPE.shift() == 4) & same_game
+        rows.append(
+            {
+                "SEASON": season,
+                "identical_clock_pct": 100 * identical.mean(),
+                "after_rebound_identical_pct": 100
+                * (identical & after_rebound).sum()
+                / max(after_rebound.sum(), 1),
+            }
+        )
+    return pd.DataFrame(rows).set_index("SEASON")
+
 
 def chance_table(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     """One row per chance: how it started, how long it lasted, what it scored.
@@ -131,15 +179,23 @@ def difference_in_differences(table: pd.DataFrame, outcome: str) -> dict:
     )["did"]
 
 
-def event_study(table: pd.DataFrame, outcome: str, base_season: int = 2017) -> pd.DataFrame:
-    """Treated-minus-control gap by season, relative to the season before the rule.
+def event_study(
+    table: pd.DataFrame, outcome: str, base_season: int | None = None
+) -> pd.DataFrame:
+    """Treated-minus-control gap by season, relative to the last clean pre-rule season.
 
     This is the check that decides whether the DiD is believable. A jump at 2018-19 with a
     flat run-up is the rule; a gap already drifting beforehand would mean the two groups were
     diverging for their own reasons and the design is invalid.
+
+    The base defaults to the newest pre-rule season still in the table, which is 2016-17 once
+    2017-18 is dropped — anchoring on a contaminated season is exactly how its measurement
+    artifact would be laundered into the estimate.
     """
     means = table.groupby(["SEASON", "START"])[outcome].mean().unstack()
     gap = means[TREATED] - means[CONTROL]
+    if base_season is None:
+        base_season = max(s for s in gap.index if s < RULE_SEASON)
     return pd.DataFrame(
         {
             "SEASON": gap.index,
@@ -164,18 +220,29 @@ def base_sensitivity(table: pd.DataFrame, outcome: str) -> pd.DataFrame:
     post = gap[gap.index >= RULE_SEASON].mean()
 
     rows = []
-    for label, seasons in {
-        "vs 2017-18 only": [RULE_SEASON - 1],
+    choices = {
         "vs 2015-16 and 2016-17": [RULE_SEASON - 3, RULE_SEASON - 2],
+        "vs 2017-18 only": [RULE_SEASON - 1],
         "vs all three pre-seasons": list(range(RULE_SEASON - 3, RULE_SEASON)),
-    }.items():
-        rows.append({"baseline": label, "change": float(post - gap.loc[seasons].mean())})
+    }
+    for label, seasons in choices.items():
+        present = [s for s in seasons if s in gap.index]
+        if not present:
+            continue
+        rows.append({"baseline": label, "change": float(post - gap.loc[present].mean())})
     return pd.DataFrame(rows)
 
 
-def report(first: int = 2015, last: int = 2024) -> dict:
-    """Run the whole experiment: DiD on three outcomes, plus the event study for each."""
-    table = chance_table(first, last)
+def report(
+    first: int = 2015, last: int = 2024, drop_contaminated: bool = True
+) -> dict:
+    """Run the whole experiment: DiD on three outcomes, plus the event study for each.
+
+    `drop_contaminated` removes 2017-18 — see `CONTAMINATED_SEASONS`. Both versions are
+    returned so the decision is visible rather than buried in a default.
+    """
+    full = chance_table(first, last)
+    table = full[~full.SEASON.isin(CONTAMINATED_SEASONS)] if drop_contaminated else full
     outcomes = {
         "RAN_LONG": "P(chance lasts past 14s)",
         "DURATION": "chance duration (seconds)",
@@ -193,9 +260,18 @@ def report(first: int = 2015, last: int = 2024) -> dict:
             for column, label in outcomes.items()
         ]
     )
+    with_contaminated = pd.DataFrame(
+        [
+            {"outcome": label, **difference_in_differences(full, column)}
+            for column, label in outcomes.items()
+        ]
+    )
     return {
         "n_chances": len(table),
         "n_treated": int(table.TREATED.sum()),
+        "dropped_seasons": list(CONTAMINATED_SEASONS) if drop_contaminated else [],
+        "estimates_including_2017": with_contaminated,
+        "timestamp_granularity": timestamp_granularity(first, last),
         "estimates": estimates,
         "baseline_sensitivity": sensitivity.pivot(
             index="outcome", columns="baseline", values="change"

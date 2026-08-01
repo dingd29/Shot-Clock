@@ -62,13 +62,19 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    proxy for transition, not a cause of efficiency.
 4. **Possession context is worth about as much as shot location** in the xPTS model — 6.2% of
    total model gain against 7.6% for every location feature combined, by ablation.
-5. **The 2018-19 rule took up to ten seconds off second chances and cost offenses nothing.**
-   A difference-in-differences over 1.04M chances — offensive rebounds treated, defensive
-   rebounds control — kills 81% of long second chances (7.3% → 1.4% past 14s, t = −4.4) with
-   **no measurable change in points per chance**.
-6. **Creation overlap does not predict offensive underperformance**, at team level or lineup
+5. **The 2018-19 rule change, and the feed artifact hiding inside it.** A
+   difference-in-differences over 932k chances — offensive rebounds treated, defensive
+   rebounds control — kills 83% of long second chances (9.1% → 1.4% past 14s, t = −13.8).
+   Getting there meant finding that **the NBA changed its play-by-play timestamping in
+   2017-18**, one season before the rule: events immediately after a rebound sharing that
+   rebound's exact clock jump from 14.7% to 18.7% and stay. Dropping the contaminated season
+   cut the standard error fourfold and turned an apparent null on efficiency into a small
+   negative effect.
+6. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.342 ± 0.035,
+   and each season's curve shape correlates r ≥ 0.939 with 2024-25's.
+7. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
-7. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against
+8. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against
    observed 2025-26 ratings), which is why the projection could not be levelled before.
 
 ## The Sixers question, and a hypothesis that failed
