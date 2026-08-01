@@ -62,9 +62,13 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    proxy for transition, not a cause of efficiency.
 4. **Possession context is worth about as much as shot location** in the xPTS model — 6.2% of
    total model gain against 7.6% for every location feature combined, by ablation.
-5. **Creation overlap does not predict offensive underperformance**, at team level or lineup
+5. **The 2018-19 rule took up to ten seconds off second chances and cost offenses nothing.**
+   A difference-in-differences over 1.04M chances — offensive rebounds treated, defensive
+   rebounds control — kills 81% of long second chances (7.3% → 1.4% past 14s, t = −4.4) with
+   **no measurable change in points per chance**.
+6. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
-6. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against
+7. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against
    observed 2025-26 ratings), which is why the projection could not be levelled before.
 
 ## The Sixers question, and a hypothesis that failed

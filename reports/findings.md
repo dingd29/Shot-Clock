@@ -91,6 +91,66 @@ every immediate second-chance attempt lands on that exact value. The discontinui
 useful validation signal in its own right — it appears only because the reconstruction models
 the 14-second rule correctly.
 
+## 4b. The 2018-19 rule took 10 seconds off second chances and cost offenses nothing
+
+The rule change is a natural experiment with a structure that is rare in basketball data,
+because the treatment is assigned by a rule rather than by anyone's choice:
+
+- **Treated** — chances starting with an *offensive* rebound. Reset cut from 24s to 14s.
+- **Control** — chances starting with a *defensive* rebound. Untouched.
+
+Both are live-ball rebound starts, so they share the era's pace, spacing and officiating
+drift. 1,036,415 chances over ten seasons, 220,848 treated. Outcomes come from the **raw
+feed** — durations from game-clock differences, points from descriptions — never from the
+reconstruction, which implements the rule being tested and would recover it by construction.
+
+**The rule bound almost entirely on the tail.** The share of second chances running past 14
+seconds collapses the year it takes effect and never returns:
+
+| | 2015-16 | 2016-17 | 2017-18 | **2018-19** | 2019-20 | … | 2024-25 |
+|---|---|---|---|---|---|---|---|
+| Off. rebound (treated) | 9.1% | 8.2% | 7.3% | **1.4%** | 1.3% | | 1.4% |
+| Def. rebound (control) | 27.8% | 26.8% | 23.7% | 21.6% | 22.2% | | 22.6% |
+
+An 81% drop against a control that drifts gently. The 1.4% that survives is not error: a team
+rebounding early enough keeps a clock above 14, since the reset is `max(remaining, 14)`.
+
+| Outcome | DiD | SE | t |
+|---|---|---|---|
+| P(chance lasts past 14s) | **−0.030** | 0.007 | **−4.39** |
+| Chance duration (seconds) | −0.351 | 0.128 | −2.75 |
+| **Points per chance** | **−0.012** | 0.006 | **−1.85** |
+
+Standard errors are clustered on season — ten clusters, not a million chances, because the
+variation being used is between seasons.
+
+**The finding is the third row.** The league removed up to ten seconds from every second
+chance, eliminated four fifths of long ones, and **offensive efficiency did not measurably
+move.** The event study shows no break at 2018-19 in points per chance; its two most negative
+seasons are 2019-20 and 2022-23, neither adjacent to the change.
+
+That fits finding 3: the time removed was time teams rarely used. Second chances already
+averaged 6.1 seconds before the rule, so a 24-second allowance was mostly optionality, and
+optionality that goes unexercised is worth little. It also sets a ceiling on what the
+possession-length findings can be read to mean causally — if a third of a second of forced
+haste costs nothing, the late-clock collapse in finding 2 is about *which possessions survive
+to be late*, not about time pressure destroying value on its own.
+
+*One honest wrinkle.* 2017-18 is an anomalous baseline — the treated-control gap narrows
+there and returns afterwards — so the estimate depends on which pre-seasons anchor it:
+
+| Baseline | P(past 14s) | Duration | Points |
+|---|---|---|---|
+| vs 2017-18 only | −0.045 | −0.591 | −0.002 |
+| vs 2015-16 and 2016-17 | −0.022 | −0.200 | −0.017 |
+| vs all three | −0.030 | −0.330 | −0.012 |
+
+The long-chance effect survives every choice (−0.022 to −0.045, always large relative to a
+7% base). The duration estimate does not travel as well and is quoted as a range. The points
+null holds throughout, which is the result that matters.
+
+*Reproduce:* `python -m possval.pipeline rulechange`.
+
 ---
 
 ## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level

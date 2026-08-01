@@ -175,6 +175,43 @@ The reference file is *per game*, so reconstructed totals are divided by games p
   corrections, 1-second game-clock quantisation) bias reconstructed clocks *high*: we miss
   resets rather than inventing them.
 
+### The 2018-19 rule as a natural experiment
+
+`models/rulechange.py`. Treatment is assigned by rule rather than by choice: from 2018-19 the
+clock resets to 14 after an offensive rebound, and not after a defensive one. Treated =
+off-rebound chances, control = def-rebound chances. Both are live-ball rebound starts, so the
+era's pace and officiating drift differences out; using "all other chances" as control would
+not work, since made-basket and foul starts carry dead-ball time that moves independently.
+
+**Outcomes never touch the reconstruction.** Duration comes from game-clock differences,
+points from descriptions. The reconstruction implements the rule under test, so a
+reconstructed-clock outcome would recover it by construction. The reconstruction supplies only
+the chance boundaries, a judgment independent of the 14-second rule.
+
+> **Chance duration is the gap to the *previous* chance's last event.** Play-by-play logs
+> events, not clock starts, so a chance begins when the one before it ended. Measured within a
+> chance's own events the mean comes out at 1.8 seconds — the interval between logged events,
+> not a possession. That error is silent: 1.8 is a plausible-looking number.
+
+1,036,415 chances, 220,848 treated. Standard errors clustered on **season** — ten clusters,
+because the identifying variation is between seasons and not between a million chances.
+
+| Outcome | DiD | SE | t |
+|---|---|---|---|
+| P(chance lasts past 14s) | −0.030 | 0.007 | −4.39 |
+| Chance duration (s) | −0.351 | 0.128 | −2.75 |
+| Points per chance | −0.012 | 0.006 | −1.85 |
+
+The long-chance share falls 7.3% → 1.4% at the rule and stays there; the surviving 1.4% is the
+`max(remaining, 14)` case, where an early rebound keeps a clock above 14. **Efficiency does not
+move**, and the event study shows no break at 2018-19 in points per chance.
+
+2017-18 is an anomalous baseline (the gap narrows and returns), so `base_sensitivity` reports
+the estimate against each choice of pre-period. The long-chance effect survives all of them
+(−0.022 to −0.045); the duration estimate does not travel as well and is quoted as a range.
+`tests/test_rulechange.py` builds panels with a known effect, with none, and with a shared
+trend, and asserts the estimator recovers each.
+
 ---
 
 ## 5. Ten-season backfill

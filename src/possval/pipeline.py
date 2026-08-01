@@ -341,13 +341,36 @@ def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None
     print(f"\nwritten: {out}, {REPORTS / 'aging_sensitivity.csv'}")
 
 
+def cmd_rulechange(first: int, last: int) -> None:
+    """The 2018-19 shot-clock rule as a difference-in-differences."""
+    from possval.models.rulechange import report
+
+    pd.set_option("display.width", 200)
+    result = report(first, last)
+    print(f"chances: {result['n_chances']:,} ({result['n_treated']:,} treated)")
+
+    print("\n=== difference-in-differences (season-clustered) ===")
+    print(result["estimates"].round(4).to_string(index=False))
+
+    print("\n=== sensitivity to the pre-period baseline ===")
+    print(result["baseline_sensitivity"].round(4).to_string())
+
+    for outcome, study in result["event_studies"].items():
+        print(f"\n=== event study: {outcome} ===")
+        print(study.round(4).to_string(index=False))
+        study.to_csv(REPORTS / f"rulechange_event_study_{outcome.lower()}.csv", index=False)
+
+    result["estimates"].to_csv(REPORTS / "rulechange_did.csv", index=False)
+    print(f"\nwritten: {REPORTS / 'rulechange_did.csv'} and event studies")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="possval.pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("ingest", "clock", "validate"):
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
-    for name in ("backfill", "train", "score", "lineups", "lineup-test"):
+    for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
@@ -374,6 +397,7 @@ def main() -> None:
         "score": cmd_score,
         "lineups": cmd_lineups,
         "lineup-test": cmd_lineup_test,
+        "rulechange": cmd_rulechange,
     }
     if args.command in ranged:
         ranged[args.command](args.first, args.last)
