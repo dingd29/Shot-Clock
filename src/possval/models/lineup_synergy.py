@@ -120,12 +120,51 @@ def lineup_efficiency(
     return grouped
 
 
+def usage_rates(events_with_lineups: pd.DataFrame) -> pd.Series:
+    """Shot attempts per 100 on-court offensive chances, per player-season.
+
+    This is the **incumbent** measure of redundancy — how much of the ball a player wants —
+    against which the creation-profile measure has to justify itself. Every public
+    diminishing-returns adjustment is some version of this: five players whose usage demands
+    sum past what one offense can supply must give something up.
+
+    It is computed on-court rather than per game, which is the fair version: a player's shot
+    rate should be measured against the chances he was actually present for, not against his
+    team's whole season.
+    """
+    df = events_with_lineups.assign(
+        CHANCE_UID=events_with_lineups.GAME_ID.astype(str)
+        + ":"
+        + events_with_lineups.CHANCE_ID.astype(str)
+    )
+    on_court = df.melt(
+        id_vars=["SEASON", "CHANCE_UID"],
+        value_vars=[f"OFF_P{i}" for i in range(1, 6)],
+        value_name="PLAYER_ID",
+    )
+    chances = on_court.groupby(["PLAYER_ID", "SEASON"]).CHANCE_UID.nunique()
+
+    attempts = (
+        df[df.EVENTMSGTYPE.isin([1, 2])]
+        .groupby(["PLAYER1_ID", "SEASON"])
+        .size()
+        .rename_axis(["PLAYER_ID", "SEASON"])
+    )
+    rate = 100 * attempts / chances
+    return rate.dropna()
+
+
 def build_lineup_panel(
     lineup_efficiency_table: pd.DataFrame,
     profiles_by_season: dict[int, pd.DataFrame],
     prior_quality: pd.DataFrame,
+    usage: pd.Series | None = None,
 ) -> pd.DataFrame:
-    """Attach overlap and a prior-quality control to each lineup-season."""
+    """Attach overlap and a prior-quality control to each lineup-season.
+
+    `usage` adds the incumbent redundancy measure: the five players' combined shot demand,
+    carried as `USAGE_SUM`, so the two hypotheses can be raced on identical rows.
+    """
     rows = []
     for record in lineup_efficiency_table.itertuples(index=False):
         profiles = profiles_by_season.get(record.SEASON)
@@ -140,17 +179,21 @@ def build_lineup_panel(
         if quality.notna().sum() < 4:
             continue
 
-        rows.append(
-            {
-                "SEASON": record.SEASON,
-                "TEAM_ID": record.TEAM_ID,
-                "LINEUP_KEY": record.LINEUP_KEY,
-                "CHANCES": record.CHANCES,
-                "PTS_PER_CHANCE": record.PTS_PER_CHANCE,
-                "OVERLAP": lineup_overlap(profiles, ids),
-                "PRIOR_QUALITY": float(quality.mean(skipna=True)),
-            }
-        )
+        row = {
+            "SEASON": record.SEASON,
+            "TEAM_ID": record.TEAM_ID,
+            "LINEUP_KEY": record.LINEUP_KEY,
+            "CHANCES": record.CHANCES,
+            "PTS_PER_CHANCE": record.PTS_PER_CHANCE,
+            "OVERLAP": lineup_overlap(profiles, ids),
+            "PRIOR_QUALITY": float(quality.mean(skipna=True)),
+        }
+        if usage is not None:
+            demands = usage.reindex([(p, record.SEASON) for p in ids])
+            # A lineup missing a player's usage would otherwise get a quietly smaller sum,
+            # which reads as *less* redundancy — a bias toward the incumbent's null.
+            row["USAGE_SUM"] = float(demands.sum()) if demands.notna().all() else np.nan
+        rows.append(row)
     panel = pd.DataFrame(rows)
     panel["TEAM_SEASON"] = (
         panel.TEAM_ID.astype("Int64").astype(str) + ":" + panel.SEASON.astype(str)
@@ -163,6 +206,7 @@ def fit_lineup_overlap(
     outcome: str = "PTS_PER_CHANCE",
     fixed_effects: str = "season",
     cluster: str | None = "TEAM_SEASON",
+    regressors: list[str] | None = None,
 ) -> dict:
     """Weighted least squares of lineup efficiency on overlap.
 
@@ -181,10 +225,20 @@ def fit_lineup_overlap(
     share players wholesale — a starter appears in dozens of rows — so treating each lineup
     as an independent observation understates the standard errors badly.
     """
-    df = panel.dropna(subset=[outcome, "OVERLAP", "PRIOR_QUALITY"]).copy()
+    regressors = list(regressors or ["OVERLAP"])
+    df = panel.dropna(subset=[outcome, "PRIOR_QUALITY", *regressors]).copy()
 
-    design = [np.ones(len(df)), df.OVERLAP.to_numpy(), df.PRIOR_QUALITY.to_numpy()]
-    names = ["intercept", "overlap", "prior_quality"]
+    design = [np.ones(len(df))]
+    names = ["intercept"]
+    for regressor in regressors:
+        # Standardised so coefficients read as "per one standard deviation" and are
+        # comparable between measures on completely different scales — a similarity in
+        # [0,1] against a sum of shot rates in the tens.
+        column = df[regressor].to_numpy(dtype=float)
+        design.append((column - column.mean()) / column.std())
+        names.append(regressor.lower())
+    design.append(df.PRIOR_QUALITY.to_numpy())
+    names.append("prior_quality")
 
     if fixed_effects == "season":
         groups = sorted(df.SEASON.unique())[1:]
@@ -265,22 +319,52 @@ def specification_curve(
     The effect is reported per one standard deviation of overlap, in points per chance, so
     the columns are comparable across rows with different samples.
     """
-    reference_sd = float(panel.OVERLAP.std())
     rows = []
     for label, fixed_effects, cluster, min_chances in specifications or SPECIFICATIONS:
         subset = panel[panel.CHANCES >= min_chances]
         fit = fit_lineup_overlap(subset, fixed_effects=fixed_effects, cluster=cluster)
+        # Regressors are standardised inside the fit, so the coefficient already reads as
+        # the effect of one standard deviation.
         overlap = fit["coefficients"].set_index("term").loc["overlap"]
-        effect = overlap.estimate * reference_sd
-        margin = 1.96 * overlap.std_error * reference_sd
+        margin = 1.96 * overlap.std_error
         rows.append(
             {
                 "specification": label,
                 "n_lineups": fit["n_lineups"],
-                "per_1sd": effect,
-                "ci_low": effect - margin,
-                "ci_high": effect + margin,
+                "per_1sd": overlap.estimate,
+                "ci_low": overlap.estimate - margin,
+                "ci_high": overlap.estimate + margin,
                 "t": overlap.t,
             }
         )
+    return pd.DataFrame(rows)
+
+
+def head_to_head(panel: pd.DataFrame, **kwargs) -> pd.DataFrame:
+    """Race the creation-profile measure against the incumbent usage measure.
+
+    The plan's actual scientific claim is not that overlap predicts anything on its own — it
+    is that *when* players want the ball carries information that *how much* they want it
+    does not. That requires all three fits on identical rows: each measure alone, and both
+    together, where a measure that only proxies the other collapses.
+    """
+    subset = panel.dropna(subset=["OVERLAP", "USAGE_SUM", "PTS_PER_CHANCE", "PRIOR_QUALITY"])
+    rows = []
+    for label, regressors in [
+        ("usage only (incumbent)", ["USAGE_SUM"]),
+        ("creation overlap only", ["OVERLAP"]),
+        ("both", ["USAGE_SUM", "OVERLAP"]),
+    ]:
+        fit = fit_lineup_overlap(subset, regressors=regressors, **kwargs)
+        coefficients = fit["coefficients"].set_index("term")
+        row = {"model": label, "n_lineups": fit["n_lineups"], "r2": fit["r2"]}
+        for regressor in ("usage_sum", "overlap"):
+            row[regressor] = (
+                coefficients.loc[regressor, "estimate"] if regressor in coefficients.index
+                else np.nan
+            )
+            row[f"{regressor}_t"] = (
+                coefficients.loc[regressor, "t"] if regressor in coefficients.index else np.nan
+            )
+        rows.append(row)
     return pd.DataFrame(rows)

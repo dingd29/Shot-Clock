@@ -209,10 +209,12 @@ def cmd_lineup_test(first: int, last: int) -> None:
     from possval.models.creation import creation_profiles
     from possval.models.lineup_synergy import (
         build_lineup_panel,
+        head_to_head,
         lineup_efficiency,
         offensive_lineups,
         player_team_map,
         specification_curve,
+        usage_rates,
     )
 
     shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
@@ -254,7 +256,7 @@ def cmd_lineup_test(first: int, last: int) -> None:
     prior["PRIOR_PPA"] = prior.PTS / prior.FGA
     prior_lookup = prior.set_index("PLAYER_ID").PRIOR_PPA.groupby(level=0).mean().to_frame()
 
-    panel = build_lineup_panel(efficiency, profiles, prior_lookup)
+    panel = build_lineup_panel(efficiency, profiles, prior_lookup, usage=usage_rates(events))
     panel.to_parquet(PROCESSED / "lineup_panel.parquet", index=False)
     print(f"panel rows: {len(panel):,}")
 
@@ -266,7 +268,16 @@ def cmd_lineup_test(first: int, last: int) -> None:
           f"(mean {np.average(panel.PTS_PER_CHANCE, weights=panel.CHANCES):.4f} pts/chance) ===")
     print(curve.round(4).to_string(index=False))
     curve.to_csv(REPORTS / "lineup_overlap_specifications.csv", index=False)
-    print(f"\nwritten: {REPORTS / 'lineup_overlap_specifications.csv'}")
+
+    # The project's actual claim: that *when* players want the ball carries information the
+    # incumbent *how much* measure does not. Racing them needs identical rows.
+    race = head_to_head(panel, fixed_effects="team_season", cluster="TEAM_SEASON")
+    print("\n=== head-to-head: creation profiles vs the incumbent usage measure ===")
+    print("(coefficients are points per chance per +1 SD; team-season FE, clustered)")
+    print(race.round(4).to_string(index=False))
+    race.to_csv(REPORTS / "lineup_overlap_head_to_head.csv", index=False)
+    print(f"\nwritten: {REPORTS / 'lineup_overlap_specifications.csv'}, "
+          f"{REPORTS / 'lineup_overlap_head_to_head.csv'}")
 
 
 def cmd_backfill(first: int, last: int) -> None:

@@ -185,6 +185,38 @@ solve redundancy by staggering minutes, in which case the null reflects successf
 rather than an absent problem. And the Sixers' overlap (0.973) sits **outside the observed
 team-season range** (max 0.961), so applying any fitted coefficient to them is extrapolation.
 
+**The head-to-head, which the novel feature loses.** The point of building creation profiles
+was a specific, falsifiable claim: that *when* players want the ball carries information that
+the standard *how much* measure does not. Every public diminishing-returns adjustment is some
+version of summed usage. The incumbent here is that measure — the five players' combined shot
+attempts per 100 on-court chances — raced against creation overlap on identical rows:
+
+| Model | Usage sum | Creation overlap | R² |
+|---|---|---|---|
+| Usage only (incumbent) | **+0.0135** (t=9.27) | — | 0.2755 |
+| Creation overlap only | — | +0.0076 (t=2.89) | 0.2604 |
+| **Both** | **+0.0133** (t=8.37) | **+0.0013 (t=0.49)** | 0.2756 |
+
+Coefficients are points per chance per +1 SD, team-season fixed effects, clustered.
+
+**Creation overlap adds nothing.** Its coefficient collapses by 83% and its t-statistic from
+2.89 to 0.49 the moment usage is in the model, while usage barely moves. R² rises from 0.2755
+to 0.2756 — one ten-thousandth. The two correlate 0.33 within a team-season, and on this
+evidence overlap's standalone effect *was* that shared component. The expensive feature — the
+one requiring a shot clock that exists in no public feed — is a worse version of a measure
+anyone can compute from a box score.
+
+That is the answer to the question the project posed, and it is a negative one. It is reported
+as the headline result rather than buried, because the alternative would have been to report
+the standalone t=2.89 and not run the race.
+
+*Two caveats that cut against over-reading even the incumbent.* Both measures are
+contemporaneous with the outcome, so neither is causal — the race is fair because both share
+the weakness, but "usage sum predicts efficiency" is not "wanting the ball more helps."
+And the positive sign almost certainly reflects talent rather than usage: players who take
+more shots per chance are players who do not turn the ball over, and prior-season points per
+attempt (the control) does not capture that — it correlates just 0.03 with usage sum.
+
 **The implication for the projection is a change of subject.** The evidence for a
 Philadelphia risk is not offensive fit — it is defense and availability. Three of the four
 stars are negative defenders by DARKO (Brown −1.27, Maxey −0.91, LeBron −0.27), Embiid is

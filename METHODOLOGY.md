@@ -353,6 +353,32 @@ by staggering minutes, in which case the null reflects adaptation rather than ab
 Philadelphia's 0.973 is outside the observed team range (max 0.961), making any application to
 them an extrapolation.
 
+### Head-to-head against the incumbent
+
+The plan's scientific claim was not that overlap predicts efficiency — it was that overlap adds
+predictive power **on top of** the standard approach. That requires racing it.
+
+**Incumbent.** `usage_rates` computes each player-season's field-goal attempts per 100 on-court
+offensive chances; a lineup's `USAGE_SUM` is the five players' combined demand. On-court rather
+than per-game is the fair version — a shot rate should be measured against the chances a player
+was present for. Mean 70.2 attempts per 100 chances, consistent with ~95 FGA per 100 possessions
+at ~1.3 chances per possession. Both regressors are standardised inside the fit, so a similarity
+bounded in [0,1] and a sum of shot rates in the tens produce comparable coefficients.
+
+**Result (`reports/lineup_overlap_head_to_head.csv`).** Usage alone: +0.0135 per SD, t = 9.27,
+R² = 0.2755. Overlap alone: +0.0076, t = 2.89, R² = 0.2604. Both: usage +0.0133 (t = 8.37),
+**overlap +0.0013 (t = 0.49)**, R² = 0.2756.
+
+**Creation profiles lose.** The overlap coefficient falls 83% and R² gains one ten-thousandth.
+The measures correlate 0.33 within team-season, and overlap's standalone effect is that shared
+component. `tests/test_lineup_synergy.py` verifies the race can detect this pattern by
+constructing a panel where one measure is a known noisy proxy of the other.
+
+Neither measure is causal: both are contemporaneous with the outcome. The race is fair because
+both share that weakness, but the positive sign on usage most likely reflects talent — players
+who attempt more shots per chance turn the ball over less — which the prior-PPA control does
+not capture (it correlates 0.03 with usage sum).
+
 ---
 
 ## 9. Player projection inputs

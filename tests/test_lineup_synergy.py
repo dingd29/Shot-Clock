@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from possval.models.lineup_synergy import event_points, fit_lineup_overlap
+from possval.models.lineup_synergy import event_points, fit_lineup_overlap, head_to_head
 
 
 def test_event_points_reads_shot_value_and_free_throw_result():
@@ -113,3 +113,40 @@ def test_weights_favour_lineups_that_actually_played():
 
     coefficient = lambda fit: fit["coefficients"].set_index("term").loc["overlap", "estimate"]  # noqa: E731
     assert coefficient(strong) > coefficient(weak)
+
+
+def test_regressors_are_standardised_so_measures_are_comparable():
+    """The head-to-head races a [0,1] similarity against a sum of shot rates in the tens.
+
+    Without standardising, the two coefficients would differ by orders of magnitude for
+    reasons that have nothing to do with which measure carries more information.
+    """
+    panel = synthetic_panel(seed=7)
+    panel["USAGE_SUM"] = 70 + 6 * np.random.default_rng(1).normal(size=len(panel))
+
+    fit = fit_lineup_overlap(panel, regressors=["OVERLAP", "USAGE_SUM"])
+    coefficients = fit["coefficients"].set_index("term")
+    assert {"overlap", "usage_sum"} <= set(coefficients.index)
+    # Both are noise here, so both should sit near zero on the standardised scale.
+    assert coefficients.loc["overlap", "estimate"] == pytest.approx(0, abs=0.02)
+    assert coefficients.loc["usage_sum", "estimate"] == pytest.approx(0, abs=0.02)
+
+
+def test_a_redundant_measure_collapses_when_raced():
+    """The head-to-head must be able to detect a measure that is only a proxy.
+
+    Built so USAGE_SUM drives efficiency and OVERLAP is a noisy copy of it. A correct race
+    keeps usage and collapses overlap — which is exactly what the real data shows.
+    """
+    rng = np.random.default_rng(11)
+    panel = synthetic_panel(seed=5)
+    panel["USAGE_SUM"] = rng.normal(70, 6, len(panel))
+    panel["OVERLAP"] = 0.89 + 0.005 * (panel.USAGE_SUM - 70) + rng.normal(0, 0.03, len(panel))
+    panel["PTS_PER_CHANCE"] = (
+        0.86 + 0.004 * (panel.USAGE_SUM - 70) + rng.normal(0, 0.05, len(panel))
+    )
+
+    race = head_to_head(panel, fixed_effects="team_season").set_index("model")
+    assert abs(race.loc["creation overlap only", "overlap_t"]) > 2
+    assert abs(race.loc["both", "usage_sum_t"]) > 4
+    assert abs(race.loc["both", "overlap_t"]) < 2
