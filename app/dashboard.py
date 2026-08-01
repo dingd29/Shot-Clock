@@ -26,7 +26,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from possval.clock.validate import BUCKET_ORDER, assign_bucket  # noqa: E402
-from possval.paths import PROCESSED  # noqa: E402
+from possval.paths import PROCESSED, REPORTS  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import theme  # noqa: E402
@@ -64,6 +64,23 @@ def load_csv(name: str) -> pd.DataFrame:
     return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
+@st.cache_data
+def load_report(name: str, index_col: int | None = None) -> pd.DataFrame:
+    path = REPORTS / name
+    return pd.read_csv(path, index_col=index_col) if path.exists() else pd.DataFrame()
+
+
+@st.cache_data(show_spinner="Fitting the DPM calibration…")
+def load_calibration_panel() -> pd.DataFrame:
+    """Team-level DPM-implied vs observed ratings. Empty if the inputs are not present."""
+    from possval.models.dpm_calibration import calibration_panel
+
+    try:
+        return calibration_panel()
+    except (FileNotFoundError, KeyError):
+        return pd.DataFrame()
+
+
 shots = load_shots()
 
 # --------------------------------------------------------------------------- filters
@@ -90,8 +107,9 @@ view = shots[season == shots.SEASON]
 if team != "All teams":
     view = view[team == view.TEAM_ABBREVIATION]
 
-tab_curve, tab_valid, tab_grade, tab_late, tab_data = st.tabs(
-    ["Efficiency curve", "Validation", "Shot Quality Grade", "Late clock", "Data"]
+tab_curve, tab_valid, tab_grade, tab_late, tab_proj, tab_data = st.tabs(
+    ["Efficiency curve", "Validation", "Shot Quality Grade", "Late clock",
+     "2026-27 projection", "Data"]
 )
 
 # --------------------------------------------------------------------------- curve
@@ -293,6 +311,119 @@ with tab_late:
             "Positive = shot-making holds up under time pressure. The shrunk ranking "
             "surfaces the bail-out creator archetype; the raw one surfaced rookies with "
             "80-attempt samples."
+        )
+
+# --------------------------------------------------------------------------- projection
+
+with tab_proj:
+    st.subheader("Projected 2026-27, all thirty teams")
+    st.caption(
+        "Rosters valued at current DARKO, calibrated onto the observed rating scale against "
+        "2025-26 results, then simulated 20,000 times with conference brackets. Philadelphia "
+        "is highlighted; every other roster is frozen at its 2025-26 shape."
+    )
+
+    projection = load_report("league_projection_2026_27.csv", index_col=0)
+    if projection.empty:
+        st.info("No projection found. Run `python -m possval.pipeline project --games 70`.")
+    else:
+        ordered = projection.sort_values("WINS")
+        highlight = ordered.index == "PHI"
+        # Two colours only, and they encode one thing: the team in question versus the rest.
+        # Ranking is already carried by position, so colouring by rank would be redundant.
+        marker_colors = np.where(highlight, C[1], C[0])
+
+        fig = go.Figure()
+        for team, row in ordered.iterrows():
+            fig.add_trace(go.Scatter(
+                x=[row.WINS_P10, row.WINS_P90], y=[team, team],
+                mode="lines", showlegend=False, hoverinfo="skip",
+                line={"color": C[1] if team == "PHI" else PAL["axis"], "width": 2},
+            ))
+        fig.add_trace(go.Scatter(
+            x=ordered.WINS, y=ordered.index, mode="markers", showlegend=False,
+            marker={"color": marker_colors, "size": 11,
+                    "line": {"width": 2, "color": PAL["surface"]}},
+            customdata=np.column_stack([ordered.RATING, ordered.TITLE * 100]),
+            hovertemplate=(
+                "<b>%{y}</b><br>%{x:.1f} wins<br>rating %{customdata[0]:+.2f}"
+                "<br>title %{customdata[1]:.1f}%<extra></extra>"
+            ),
+        ))
+        fig.add_vline(x=41, line={"color": PAL["grid"], "width": 2, "dash": "dot"})
+        fig.update_layout(
+            template=TEMPLATE, height=760,
+            xaxis={"title": "Projected wins (dot) with 80% interval (line)"},
+            yaxis={"title": ""},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        philadelphia = projection.loc["PHI"]
+        rank = int((projection.RATING > philadelphia.RATING).sum()) + 1
+        a, b, c, d = st.columns(4)
+        a.metric("Rating", f"{philadelphia.RATING:+.2f}")
+        b.metric("Wins", f"{philadelphia.WINS:.1f}",
+                 help=f"80% interval {philadelphia.WINS_P10:.0f}-{philadelphia.WINS_P90:.0f}")
+        c.metric("Title odds", f"{philadelphia.TITLE:.1%}")
+        d.metric("League rank", f"{rank} of 30")
+
+        st.markdown(
+            "**The superteam is not one.** Philadelphia's 2025-26 base was 18th. LeBron at 41 "
+            "plus Jaylen Brown minus Paul George is about +2 DPM of talent, and it displaces "
+            "bench minutes rather than replacing bad starters. New York, Oklahoma City and "
+            "San Antonio sit roughly six points ahead and take 72% of simulated titles."
+        )
+
+        st.markdown("##### The calibration this rests on")
+        st.caption(
+            "Observed 2025-26 team rating against the one implied by minutes-weighted DPM. "
+            "The textbook identity assumes the dotted line; the fitted slope is 1.433, so it "
+            "compresses real spread by 43%."
+        )
+
+        panel = load_calibration_panel()
+        if panel.empty:
+            st.info("Calibration panel unavailable.")
+        else:
+            fit = np.polyfit(panel.PRED, panel.SRS, 1)
+            grid = np.linspace(panel.PRED.min(), panel.PRED.max(), 50)
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=grid, y=grid, mode="lines", name="Theoretical 1:1",
+                line={"color": PAL["axis"], "width": 2, "dash": "dot"},
+            ))
+            fig.add_trace(go.Scatter(
+                x=grid, y=fit[1] + fit[0] * grid, mode="lines", name="Fitted (slope 1.43)",
+                line={"color": C[2], "width": 2},
+            ))
+            fig.add_trace(go.Scatter(
+                x=panel.PRED, y=panel.SRS, mode="markers+text", name="Team",
+                text=panel.index, textposition="top center",
+                textfont={"size": 9, "color": PAL["muted"]},
+                marker={"color": np.where(panel.index == "PHI", C[1], C[0]), "size": 9,
+                        "line": {"width": 2, "color": PAL["surface"]}},
+                hovertemplate=(
+                    "<b>%{text}</b><br>implied %{x:+.2f}"
+                    "<br>actual %{y:+.2f}<extra></extra>"
+                ),
+            ))
+            fig.update_layout(
+                template=TEMPLATE, height=520,
+                xaxis={"title": "DPM-implied rating (5 × minutes-weighted DPM)"},
+                yaxis={"title": "Observed 2025-26 SRS"},
+                legend={"orientation": "h", "y": 1.08, "x": 0},
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.dataframe(
+            projection.reset_index().rename(columns={"index": "TEAM"}),
+            use_container_width=True, hide_index=True,
+        )
+        st.download_button(
+            "Download projection (CSV)",
+            projection.reset_index().to_csv(index=False).encode(),
+            file_name="league_projection_2026_27.csv",
+            mime="text/csv",
         )
 
 # --------------------------------------------------------------------------- data

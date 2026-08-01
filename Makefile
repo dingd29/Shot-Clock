@@ -1,6 +1,8 @@
-.PHONY: install data clock validate test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy project test lint app clean
 
 SEASON ?= 2024
+FIRST  ?= 2015
+LAST   ?= 2024
 PY := .venv/bin/python
 
 install:
@@ -15,11 +17,29 @@ clock:  ## reconstruct shot clock for one season
 validate:  ## reconstruction vs NBA's published aggregates (2024-25 only)
 	$(PY) -m possval.pipeline validate --season 2024
 
+backfill:  ## ingest + reconstruct every season in FIRST..LAST
+	$(PY) -m possval.pipeline backfill --first $(FIRST) --last $(LAST)
+
+train:  ## fit and evaluate the xPTS model
+	$(PY) -m possval.pipeline train --first $(FIRST) --last $(LAST)
+
+score:  ## score every shot and write the grade tables
+	$(PY) -m possval.pipeline score --first $(FIRST) --last $(LAST)
+
+lineups:  ## derive on-court lineups from substitutions
+	$(PY) -m possval.pipeline lineups --first $(FIRST) --last $(LAST)
+
+synergy:  ## lineup-level overlap test + head-to-head against usage
+	$(PY) -m possval.pipeline lineup-test --first $(FIRST) --last $(LAST)
+
+project:  ## calibrate DPM and simulate 2026-27 for all thirty teams
+	$(PY) -m possval.pipeline project --games 70
+
 test:
 	$(PY) -m pytest tests/ -q
 
 lint:
-	.venv/bin/ruff check src tests
+	.venv/bin/ruff check src app tests
 
 app:
 	.venv/bin/streamlit run app/dashboard.py
