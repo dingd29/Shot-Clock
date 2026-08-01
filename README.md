@@ -126,12 +126,22 @@ and it will be scored on game-level Brier and log loss as the season runs.
 src/possval/
   ingest/     bulk download of pre-scraped archives, retried and length-verified
   clock/      the state machine, its rules, calibration, and the validation harness
-  features/   shot-level features with strict no-leakage shooter priors
-  models/     xPTS, Shot Quality Grade, creation profiles, the overlap test
+  features/   shot features with no-leakage shooter priors; on-court lineups
+  models/
+    xpts, grade         expected points per attempt; selection vs making
+    creation, synergy   creation profiles and the team-season overlap test
+    lineup_synergy      the lineup-level retest and the head-to-head
+    rulechange          2018-19 as a difference-in-differences
+    ratings, aging      SRS from game results; paired-change aging curves
+    dpm_calibration     DPM -> observed rating, fitted
+    league, simulate    all thirty rosters -> win totals -> title odds
 app/          Streamlit dashboard + CVD-validated chart theme
-reports/      findings
-tests/        golden sequences, invariants, and bounds
+reports/      findings and generated tables
+tests/        golden sequences, invariants, bounds, and estimator recovery
 ```
+
+Every stage is a `make` target: `data`, `clock`, `validate`, `backfill`, `train`, `score`,
+`lineups`, `synergy`, `project`, `app`.
 
 ## Notes on method
 
@@ -142,5 +152,13 @@ tests/        golden sequences, invariants, and bounds
   exactly `24 − SHOT_CLOCK`, so permuting either left its perfect substitute in place and
   made both look worthless.
 - The late-clock leaderboard is **shrunk**: only 21.6% of its raw spread is signal.
+- **Standard errors are clustered where the variation lives** — on team-season for lineups
+  (4,233 lineups come from 300 clusters and share players), on season for the rule change
+  (nine clusters, not a million chances). Treating lineups as independent had inflated a
+  t-statistic from 2.9 to 5.0.
+- **Specification curves, not single numbers**, wherever the answer moves with defensible
+  choices. The lineup-overlap effect is significant pooled and not significant once the
+  sample is restricted to lineups that actually played; reporting one cell would have been a
+  choice about which answer to believe.
 - **Known ceiling:** no public feed carries shot-level defender proximity, so this is a
   shot-*selection* model, not a contested-ness model.
