@@ -93,7 +93,7 @@ the 14-second rule correctly.
 
 ---
 
-## 5. Creation overlap does not predict offensive underperformance — a null result
+## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level
 
 This was the project's headline hypothesis, and **it failed.**
 
@@ -131,30 +131,85 @@ No specification reaches significance, and at the star level **the sign is posit
 opposite of the hypothesis. The control behaves exactly as it should (prior quality t = 9.9,
 model R² = 0.53-0.61), so this is a real null rather than a broken test.
 
-**What this rules out, and what survives.** On this evidence there is no basis for projecting
-Philadelphia to underperform because its stars want the ball at the same time. Three
-explanations remain live and are not distinguished by this test:
+**The obvious objection — and the retest that answers it.** A team's top creators do not
+share the floor for all their minutes, so a real five-on-five effect could average away
+across a season and leave the team-season test showing nothing. That objection is testable,
+and testing it required on-court lineups: 5.57M events across ten seasons, resolved from
+substitution sequences, giving **4,233 five-man lineup-seasons with at least 100 chances
+together — 1,112,380 chances in total.**
 
-1. Redundancy may bite at five-man lineup level and wash out over a whole team-season,
-   since a team's top creators do not share the floor for all their minutes.
-2. Coaches may already solve it by staggering minutes — in which case the null reflects
-   successful adaptation rather than an absent problem.
-3. The Sixers' overlap (0.973) sits **outside the observed team-season range** (max 0.961),
-   so applying the fitted null to them is extrapolation either way.
+The retest does not rescue the hypothesis. It also does not cleanly confirm the null, and
+the reason is worth stating precisely, because a single number here would be a choice about
+which answer to believe:
+
+| Specification | n | Effect of +1 SD overlap (pts/chance) | 95% CI | t |
+|---|---|---|---|---|
+| Season FE, unclustered | 4,233 | +0.0064 | +0.0039, +0.0090 | +5.01 |
+| Season FE, clustered by team-season | 4,233 | +0.0064 | +0.0031, +0.0098 | +3.77 |
+| Team-season FE, clustered | 4,233 | +0.0076 | +0.0024, +0.0127 | +2.89 |
+| Team-season FE, ≥200 chances | 1,650 | +0.0068 | −0.0007, +0.0143 | +1.78 |
+| Team-season FE, ≥400 chances | 599 | −0.0024 | −0.0145, +0.0096 | −0.39 |
+| Team-season FE, ≥800 chances | 205 | −0.0192 | −0.0512, +0.0127 | −1.18 |
+
+Three things happened on the way down that table, and each is a correction of a real error:
+
+1. **Clustering.** 4,233 lineups come from 300 team-seasons and share players wholesale — one
+   starter appears in dozens of rows. Treating them as independent inflated t from 2.89 to
+   5.01. The naive number was never the right one.
+2. **Team-season fixed effects.** Without them the coefficient is identified partly by good
+   teams having high-overlap lineups, which is confounded: the front offices that assemble
+   talent also assemble modern shot diets. Comparing only lineups fielded by the same team in
+   the same year strips that out. The effect survives this.
+3. **Restricting to lineups that actually played.** Here it does not survive. The estimate
+   loses significance by 200 chances and changes sign by 400.
+
+That last row is the one that matters, and it must not be oversold: a formal test of
+heterogeneity — overlap interacted with log chances — comes back at **t = −0.56**, so the
+drift across thresholds is *within noise*. The honest reading is not "the effect reverses
+among real lineups." It is that **the positive pooled estimate is not robust**, and the
+sample of heavily-used lineups is too small to say anything sharp.
+
+**What this can and cannot rule out.** For the heavily-used lineups the Sixers question
+actually concerns (≥800 chances, roughly a starting unit's season), the interval is
+−0.051 to +0.013 points per chance — **−5.9% to +1.5% of league-average efficiency.** So:
+
+- A large redundancy penalty is excluded. The 10–15% offensive haircut that naive
+  diminishing-returns adjustments apply to multi-creator teams is outside this interval at
+  every level of aggregation tested.
+- A modest penalty — a few percent among the most-used lineups — is entirely consistent with
+  this data and cannot be ruled out. Distinguishing it would need far more high-usage
+  lineup-seasons than ten years of basketball contains.
+
+Two explanations also remain live and are untouched by either test. Coaches may already
+solve redundancy by staggering minutes, in which case the null reflects successful adaptation
+rather than an absent problem. And the Sixers' overlap (0.973) sits **outside the observed
+team-season range** (max 0.961), so applying any fitted coefficient to them is extrapolation.
 
 **The implication for the projection is a change of subject.** The evidence for a
 Philadelphia risk is not offensive fit — it is defense and availability. Three of the four
 stars are negative defenders by DARKO (Brown −1.27, Maxey −0.91, LeBron −0.27), Embiid is
 the only plus defender in the starting five, and the bench sits below league median. That
-concern is untouched by this null result, and it is where the projection should focus.
+concern is untouched by both results, and it is where the projection should focus.
+
+*Reproduce:* `python -m possval.pipeline lineup-test --first 2015 --last 2024`, which writes
+`reports/lineup_overlap_specifications.csv`.
 
 ## 6. Philadelphia 2026-27: a projection, and why its level is soft
 
-**Rating layer works.** Least-squares SRS over 11,973 games reproduces reality: home win rate
-0.5655, mean home margin +2.20, and 2024-25 tops out at OKC **+12.73** — the team that won the
+**Rating layer works.** Least-squares SRS over 11,968 games reproduces reality: home win rate
+0.5649, mean home margin +2.19, and 2024-25 tops out at OKC **+12.66** — the team that won the
 title with a historic point differential — with WAS (−12.13) at the bottom. Out of sample,
-predicting each season from the previous season's ratings beats the base rate by **4.3% log
-loss** (0.6555 vs 0.6852), Brier 0.2318.
+predicting each season from the previous season's ratings beats the base rate by **4.4% log
+loss** (0.6554 vs 0.6854).
+
+*Scores are summed from scoring events, not read off the feed's `SCORE` column.* That column
+carries stale trailing rows — game 22300902 ends "112 - 118" and then logs a spurious
+"15 - 26" — which left **4.8% of 2015-16 games with a wrong final score**, some off by more
+than 100 points. Event-summed totals match the score string's running maximum on 96–100% of
+games and reproduce published league scoring averages exactly (2015-16: 205.4 combined
+points per game; 2024-25: 227.7). The correction moves individual team ratings by up to 0.53
+points and the league mean by 0.06 — small in aggregate because the errors largely cancel,
+which is precisely why it survived unnoticed.
 
 *A useful negative result along the way:* explicitly shrinking stale ratings toward the mean
 does nothing once the logistic scale is refit — the two are the same parameter, and log loss

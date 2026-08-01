@@ -305,10 +305,53 @@ in usage.
 **Result: null.** See `reports/findings.md` §5. No specification is significant; at top-3 the
 sign is positive. Not reported as anything else.
 
-Limitations that keep alternatives alive: team-season is coarser than the five-man lineup
-where redundancy would actually bite; overlap is measured from realised usage, so it partly
-reflects coaching decisions rather than player preference; and Philadelphia's 0.973 is
-outside the observed team range (max 0.961), making any application to them an extrapolation.
+### The lineup-level retest
+
+The stated weakness of the team-season test was that a five-on-five effect could average away
+over a season. That is now tested directly rather than left as a caveat.
+
+**Lineups.** `nba_on_court` reads each period's substitutions backwards to recover who started
+it, then walks forward. Run over ten seasons: ~5.57M events, 7 unresolved games out of ~12,300.
+Not trusted blindly — `validate_lineups` asserts ten distinct players and five per side on
+every row (100%), and independently the shooter is among the ten on-court players on 100% of
+shots. `lineups_for_season` raises if more than 2% of games fail, because a silently truncated
+lineup table would poison every downstream regression while looking healthy.
+
+**Unit.** Lineup-season with ≥100 offensive chances: 4,233 rows, 1,112,380 chances.
+Points come from `event_points`, which reads shot value and free-throw result off the
+play-by-play description (the feed has no column for either). Weighted least squares with
+weight `sqrt(chances)`.
+
+**Three specification choices, each of which changes the answer**, so all six are reported as
+a specification curve (`reports/lineup_overlap_specifications.csv`) rather than one number:
+
+1. *Clustering by team-season.* 4,233 lineups come from 300 team-seasons and share players
+   wholesale. Treating them as independent inflates t from 2.89 to 5.01. Cluster-robust
+   sandwich SEs with the standard finite-cluster correction.
+2. *Team-season fixed effects.* Without them the coefficient is partly identified by good
+   teams having high-overlap lineups — confounded, since the same front offices assemble both
+   talent and modern shot diets. The effect survives this (t = 2.89).
+3. *Minimum chances.* It does not survive here: significance is gone by 200 chances and the
+   sign flips by 400.
+
+**Result: the pooled positive estimate is not robust.** A formal heterogeneity test (overlap ×
+log chances) returns t = −0.56, so the drift across thresholds is within noise and must not be
+reported as a reversal. What the data supports is a bound: among heavily-used lineups the 95%
+interval is −5.9% to +1.5% of league-average efficiency, which excludes the 10–15% haircut
+that naive diminishing-returns adjustments apply, but cannot exclude a penalty of a few percent.
+
+Two diagnostics support the estimator rather than the effect. A placebo shuffling overlap
+within team-season gives mean t = +0.20 (2 of 20 draws exceed |t| > 1.96, about nominal), so
+the estimator is not manufacturing significance. And efficiency rises monotonically with usage
+(0.833 pts/chance at 100–150 chances to 0.889 at 800+) while within-team overlap correlates
++0.048 with usage — controlling for log chances shrinks the coefficient by 27% (t 2.89 → 2.26),
+so part of the pooled effect is coaches playing their better lineups more.
+
+Limitations that keep alternatives alive: overlap is measured from realised usage, so it partly
+reflects coaching decisions rather than player preference; coaches may already solve redundancy
+by staggering minutes, in which case the null reflects adaptation rather than absence; and
+Philadelphia's 0.973 is outside the observed team range (max 0.961), making any application to
+them an extrapolation.
 
 ---
 
@@ -363,20 +406,40 @@ extrapolation with no independent support, and `project_metric` returns an expli
 
 ## 10. Ratings and simulation
 
-**Game results** come from play-by-play. `SCORE` is written `"VISITOR - HOME"` — verified
-empirically rather than assumed, by checking which number moved after a known team's basket
-(in game 22400002 a Miami basket incremented the first, a Detroit basket the second).
+**Game results** come from play-by-play, **summed from scoring events** rather than read off
+the `SCORE` column. Points per event come from `event_points`, which parses shot value and
+free-throw result out of the description text (the feed carries a column for neither); the
+scoring side is given by which of `HOMEDESCRIPTION`/`VISITORDESCRIPTION` is populated, an
+assignment that is never ambiguous — no scoring event fills both or neither.
+
+> **Why not the `SCORE` column.** It was the original source, taking the last value per game,
+> and it was wrong on **4.8% of 2015-16 games**, some by more than 100 points. The column
+> carries stale trailing rows: game 22300902 reaches "112 - 118" and then logs "15 - 26" as
+> its final entry. The errors largely cancel across a season — league mean rating moved 0.06,
+> worst team 0.53 — which is exactly why nothing downstream looked broken.
+>
+> Three independent checks that the replacement is right. Event-summed totals match the score
+> string's running *maximum* (immune to stale rows, since scores only increase) on 96–100% of
+> games. At event level, score increments equal derived points on 99.77% of 145,245 scoring
+> events, and the exceptions come in offsetting pairs (+3 then −1) — the column lagging, not
+> the parse. And season scoring averages reproduce published figures: 205.4 combined points
+> per game in 2015-16, 227.7 in 2024-25. `game_results` keeps the string as a cross-check and
+> raises if agreement within ±5 points falls below 90% of games.
+
+For the record, `SCORE` is written `"VISITOR - HOME"` — verified empirically rather than
+assumed, by checking which number moved after a known team's basket (in game 22400002 a Miami
+basket incremented the first, a Detroit basket the second).
 
 **Team ratings** use a least-squares Simple Rating System: every game asserts
 `margin = rating_home − rating_away + home_advantage`, solved across the season at once so
 schedule strength is adjusted for. The system is rank-deficient (a constant added to every
 rating leaves margins unchanged), so ratings are pinned to sum to zero.
 
-Face validity over 11,973 games: home win rate 0.5655, mean home margin +2.20, and 2024-25
-runs OKC +12.73 down to WAS −12.13.
+Face validity over 11,968 games: home win rate 0.5649, mean home margin +2.19, and 2024-25
+runs OKC +12.66 down to WAS −12.13.
 
-**Out-of-sample game prediction** (season *T* from season *T−1* ratings, 10,744 games):
-log loss 0.6555 against a 0.6852 base rate — a 4.3% improvement — Brier 0.2318.
+**Out-of-sample game prediction** (season *T* from season *T−1* ratings, 10,738 games):
+log loss 0.6554 against a 0.6854 base rate — a 4.4% improvement.
 
 > **Shrinkage is the logistic scale.** Explicitly regressing stale ratings toward the mean
 > changes nothing once the scale is refit: log loss is identical from shrink 1.0 to 0.5 while

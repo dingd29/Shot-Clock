@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import argparse
 
+import numpy as np
 import pandas as pd
 
 from possval.clock import reconstruct_season
 from possval.clock import validate as V
 from possval.ingest import load_season
-from possval.paths import PROCESSED, ensure_dirs
+from possval.paths import PROCESSED, REPORTS, ensure_dirs
 
 CLOCK_COLUMNS = [
     "GAME_ID", "EVENTNUM", "SHOT_CLOCK", "CHANCE_ID",
@@ -180,6 +181,94 @@ def cmd_score(first: int, last: int) -> None:
     print(f"scored {len(scored):,} shots; wrote grade tables for 2024-25")
 
 
+def lineups_path(season: int):
+    return PROCESSED / f"lineups_{season}.parquet"
+
+
+def cmd_lineups(first: int, last: int) -> None:
+    """Derive on-court lineups for each season and validate the result."""
+    from possval.features.lineups import lineups_for_season, validate_lineups
+
+    for season in range(first, last + 1):
+        if not pbp_clock_path(season).exists():
+            continue
+        pbp = load_season("nbastats", season)
+        lineups = lineups_for_season(pbp)
+        report = validate_lineups(lineups)
+        lineups.to_parquet(lineups_path(season), index=False, compression="zstd")
+        failed = len(lineups.attrs.get("failed_games", []))
+        print(
+            f"{season}: {len(lineups):,} events | ten distinct on "
+            f"{report['pct_ten_distinct']:.2%} | unresolved games {failed}",
+            flush=True,
+        )
+
+
+def cmd_lineup_test(first: int, last: int) -> None:
+    """Retest the creation-overlap hypothesis at five-man lineup level."""
+    from possval.models.creation import creation_profiles
+    from possval.models.lineup_synergy import (
+        build_lineup_panel,
+        lineup_efficiency,
+        offensive_lineups,
+        player_team_map,
+        specification_curve,
+    )
+
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    profiles = {
+        season: creation_profiles(shots[shots.SEASON == season], min_attempts=150)
+        for season in range(first, last + 1)
+        if (shots.SEASON == season).any()
+    }
+
+    frames = []
+    for season in range(first, last + 1):
+        if not lineups_path(season).exists():
+            continue
+        lineups = pd.read_parquet(lineups_path(season))
+        pbp = pd.read_parquet(
+            pbp_clock_path(season),
+            columns=[
+                "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "CHANCE_ID",
+                "OFF_TEAM_ID", "PLAYER1_ID", "PLAYER1_TEAM_ID", "HOMEDESCRIPTION",
+                "VISITORDESCRIPTION",
+            ],
+        )
+        merged = pbp.merge(lineups, on=["GAME_ID", "EVENTNUM"], how="inner")
+        merged["SEASON"] = season
+        # Shot value and free-throw result are derived inside `event_points`, from the same
+        # descriptions, so they are no longer precomputed here.
+        frames.append(offensive_lineups(merged, player_team_map(pbp)))
+        print(f"  {season}: {len(merged):,} events with lineups", flush=True)
+
+    events = pd.concat(frames, ignore_index=True)
+    efficiency = lineup_efficiency(events)
+    print(f"\nlineup-seasons with >=100 chances: {len(efficiency):,}")
+
+    prior = (
+        shots.groupby(["PLAYER_ID", "SEASON"])
+        .agg(PTS=("PTS", "sum"), FGA=("PTS", "size"))
+        .reset_index()
+    )
+    prior["PRIOR_PPA"] = prior.PTS / prior.FGA
+    prior_lookup = prior.set_index("PLAYER_ID").PRIOR_PPA.groupby(level=0).mean().to_frame()
+
+    panel = build_lineup_panel(efficiency, profiles, prior_lookup)
+    panel.to_parquet(PROCESSED / "lineup_panel.parquet", index=False)
+    print(f"panel rows: {len(panel):,}")
+
+    # A single specification would be misleading here: the headline estimate is significant
+    # under some reasonable choices and not others, and that fragility is the actual result.
+    # The whole curve is printed so a reader sees the spread rather than the best cell.
+    curve = specification_curve(panel)
+    print(f"\n=== lineup-level overlap test — specification curve "
+          f"(mean {np.average(panel.PTS_PER_CHANCE, weights=panel.CHANCES):.4f} pts/chance) ===")
+    print(curve.round(4).to_string(index=False))
+    curve.to_csv(REPORTS / "lineup_overlap_specifications.csv", index=False)
+    print(f"\nwritten: {REPORTS / 'lineup_overlap_specifications.csv'}")
+
+
 def cmd_backfill(first: int, last: int) -> None:
     """Ingest + reconstruct every season in [first, last]."""
     for season in range(first, last + 1):
@@ -196,16 +285,21 @@ def main() -> None:
     for name in ("ingest", "clock", "validate"):
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
-    for name in ("backfill", "train", "score"):
+    for name in ("backfill", "train", "score", "lineups", "lineup-test"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
 
     args = parser.parse_args()
-    if args.command in ("backfill", "train", "score"):
-        {"backfill": cmd_backfill, "train": cmd_train, "score": cmd_score}[args.command](
-            args.first, args.last
-        )
+    ranged = {
+        "backfill": cmd_backfill,
+        "train": cmd_train,
+        "score": cmd_score,
+        "lineups": cmd_lineups,
+        "lineup-test": cmd_lineup_test,
+    }
+    if args.command in ranged:
+        ranged[args.command](args.first, args.last)
         return
     {"ingest": cmd_ingest, "clock": cmd_clock, "validate": cmd_validate}[args.command](
         args.season

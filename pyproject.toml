@@ -8,10 +8,13 @@ dependencies = [
     "polars>=1.0",
     "pyarrow>=16.0",
     "duckdb>=1.0",
-    "numpy>=1.26",
+    # Lower bound: scipy>=1.18 uses numpy 2 APIs. Upper bound: numba (via shap) needs <2.5.
+    # nba-on-court declares numpy<2 but does not use any removed API, so its pin is ignored.
+    "numpy>=2.1,<2.5",
     "requests>=2.31",
     "tqdm>=4.66",
     "nba_api>=1.4",
+    "nba-on-court>=0.2.1",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +35,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+# SIM300 reads pandas boolean masks (`df.CHANCES >= min_chances`) as Yoda conditions and
+# wants them reversed, which inverts the natural column-first reading of every filter.
+ignore = ["SIM300"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
