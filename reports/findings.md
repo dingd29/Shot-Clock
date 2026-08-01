@@ -401,12 +401,23 @@ optimistic. These odds describe a league that will not exist on opening night.
 
 ## Caveats
 
-- Free throws are excluded, so PPA understates the value of possessions that draw fouls. Late
-  clock plausibly draws more fouls, which means finding 2 may *overstate* the late-clock
-  penalty somewhat. Quantifying this requires joining FT events to chances — planned.
+- **The free-throw caveat was backwards, and is now measured.** Findings 1-3 exclude free
+  throws, because `shotdetail` carries no FT rows. This was recorded as a reason finding 2
+  might *overstate* the late-clock penalty, on the assumption that late clock draws more
+  fouls. It draws fewer: the share of chances producing a free throw falls from 13.6% at 20
+  seconds to **2.1% at 0 seconds**. Free throws are 15.4% of a chance's value at 20s and only
+  10.4% at 0s, so including them makes the decline **steeper**, not shallower — the rise from
+  0s to 7s is +0.527 on field goals alone against +0.589 with free throws counted, and from
+  7s to 20s, +0.397 against +0.519. **Finding 2 understates the late-clock penalty by roughly
+  a quarter.** (Chance-level and therefore not directly comparable to the shot-level curve;
+  the direction and rough size are the point.)
+- Chance-level analyses — the rule-change experiment, the lineup work — *do* include free
+  throws, via `event_points`. Shot-level findings do not. The two units are labelled
+  throughout and should not be read off the same axis.
 - Shots at exactly 24 seconds (n=906, PPA 0.954) are an edge case: tips and putbacks landing
   on the reset instant. Small sample, treated as noise.
 - 4.2% of shots have no reconstructed clock (low-confidence chances) and are excluded rather
   than imputed. See METHODOLOGY.md §2.
-- Single season. Ten-season backfill will establish whether these curves are stable and
-  whether the 2018-19 rule change moved them.
+- The curves in findings 1-3 are 2024-25. The backfill now covers ten seasons, and finding 4b
+  uses all of it; re-cutting the continuous curves per season to test their stability across
+  the sample is not yet done.
