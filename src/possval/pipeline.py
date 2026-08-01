@@ -347,10 +347,15 @@ def cmd_rulechange(first: int, last: int) -> None:
 
     pd.set_option("display.width", 200)
     result = report(first, last)
-    print(f"chances: {result['n_chances']:,} ({result['n_treated']:,} treated)")
+    print(f"chances: {result['n_chances']:,} ({result['n_treated']:,} treated)"
+          f"; dropped seasons: {result['dropped_seasons'] or 'none'}")
 
     print("\n=== difference-in-differences (season-clustered) ===")
     print(result["estimates"].round(4).to_string(index=False))
+
+    print("\n=== play-by-play timestamp granularity (the 2017-18 artifact) ===")
+    print(result["timestamp_granularity"].round(2).to_string())
+    result["timestamp_granularity"].to_csv(REPORTS / "rulechange_timestamps.csv")
 
     print("\n=== sensitivity to the pre-period baseline ===")
     print(result["baseline_sensitivity"].round(4).to_string())

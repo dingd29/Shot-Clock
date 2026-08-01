@@ -107,9 +107,9 @@ view = shots[season == shots.SEASON]
 if team != "All teams":
     view = view[team == view.TEAM_ABBREVIATION]
 
-tab_curve, tab_valid, tab_grade, tab_late, tab_proj, tab_data = st.tabs(
-    ["Efficiency curve", "Validation", "Shot Quality Grade", "Late clock",
-     "2026-27 projection", "Data"]
+tab_curve, tab_valid, tab_rule, tab_grade, tab_late, tab_proj, tab_data = st.tabs(
+    ["Efficiency curve", "Validation", "2018-19 rule change", "Shot Quality Grade",
+     "Late clock", "2026-27 projection", "Data"]
 )
 
 # --------------------------------------------------------------------------- curve
@@ -312,6 +312,91 @@ with tab_late:
             "surfaces the bail-out creator archetype; the raw one surfaced rookies with "
             "80-attempt samples."
         )
+
+# --------------------------------------------------------------------------- rule change
+
+with tab_rule:
+    st.subheader("A rule change as a natural experiment")
+    st.caption(
+        "From 2018-19 the clock resets to 14 after an offensive rebound and not after a "
+        "defensive one. Treatment is assigned by rule rather than by anyone's choice, so "
+        "offensive-rebound chances are treated and defensive-rebound chances are control — "
+        "both live-ball rebound starts, sharing the era's pace and officiating drift."
+    )
+
+    study = load_report("rulechange_event_study_ran_long.csv")
+    estimates = load_report("rulechange_did.csv")
+    if study.empty:
+        st.info("No rule-change output found. Run `python -m possval.pipeline rulechange`.")
+    else:
+        fig = go.Figure()
+        for i, (column, label) in enumerate(
+            [("treated_mean", "Offensive rebound (treated)"),
+             ("control_mean", "Defensive rebound (control)")]
+        ):
+            fig.add_trace(go.Scatter(
+                x=study.SEASON, y=study[column] * 100, name=label, mode="lines+markers",
+                line={"color": C[i], "width": 2},
+                marker={"size": 9, "line": {"width": 2, "color": PAL["surface"]}},
+                hovertemplate=f"{label}<br>%{{x}}-%{{x}} · %{{y:.1f}}%<extra></extra>",
+            ))
+        # The rule lands between 2016-17 and 2018-19; 2017-18 is absent from the series
+        # because it is dropped, so the marker sits in the gap it left.
+        fig.add_vline(x=2017, line={"color": PAL["muted"], "width": 2, "dash": "dash"})
+        fig.add_annotation(
+            x=2017, y=28, text="rule effective 2018-19<br>(2017-18 dropped)",
+            showarrow=False, font={"size": 11, "color": PAL["text_secondary"]},
+            xanchor="left", xshift=6,
+        )
+        fig.update_layout(
+            template=TEMPLATE, height=460,
+            xaxis={"title": "Season", "dtick": 1},
+            yaxis={"title": "Chances lasting past 14 seconds (%)"},
+            legend={"orientation": "h", "y": 1.1, "x": 0},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(
+            "Long second chances fall **9.1% → 1.4%** the season the rule takes effect and "
+            "never come back, against a control that only drifts. The 1.4% that survives is "
+            "not error: the reset is `max(remaining, 14)`, so a team rebounding early enough "
+            "keeps a clock above 14."
+        )
+        if not estimates.empty:
+            st.dataframe(estimates.round(4), use_container_width=True, hide_index=True)
+
+        st.warning(
+            "**2017-18 is excluded, and finding it is half the result.** The NBA changed its "
+            "play-by-play timestamping that season: events immediately after a rebound "
+            "carrying that rebound's exact game clock step from 14.7% to 18.7% and stay "
+            "there. Chance duration here is a game-clock difference, and the change lands "
+            "precisely on the events that begin a *treated* chance. That season is also the "
+            "only one with the new timestamping and the old 24-second reset — which is why "
+            "it showed up as an outlier three separate ways before the cause was found. "
+            "Dropping it cut the standard error more than fourfold and turned an apparent "
+            "null on efficiency into a small negative effect.",
+            icon="⚠️",
+        )
+
+        granularity = load_report("rulechange_timestamps.csv", index_col=0)
+        if not granularity.empty:
+            fig = go.Figure(go.Scatter(
+                x=granularity.index, y=granularity.after_rebound_identical_pct,
+                mode="lines+markers", line={"color": C[3], "width": 2},
+                marker={"size": 9, "line": {"width": 2, "color": PAL["surface"]}},
+                hovertemplate="%{x} · %{y:.1f}%<extra></extra>", showlegend=False,
+            ))
+            fig.add_vline(x=2016.5, line={"color": PAL["muted"], "width": 2, "dash": "dash"})
+            fig.update_layout(
+                template=TEMPLATE, height=340,
+                xaxis={"title": "Season", "dtick": 1},
+                yaxis={"title": "Events after a rebound sharing its clock (%)"},
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption(
+                "The artifact itself. A feed-quality measure, not a basketball one — and the "
+                "diagnostic that identified the problem."
+            )
 
 # --------------------------------------------------------------------------- projection
 
