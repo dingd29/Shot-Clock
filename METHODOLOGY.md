@@ -477,27 +477,90 @@ simulation — because without it the win distribution reflects only game-level 
 and comes out far too narrow. The dominant uncertainty in a projection is whether the ratings
 are right, not how the coin lands.
 
-### The calibration gap, which bounds what can be claimed
+### Closing the calibration gap
 
-The roster→rating mapping is `sum(DPM × minutes) / 48`. It is **theoretical, not fitted**, and
-it fails an important check: a plus-minus metric must average zero over minutes actually
-played, so an average team must map to 0. It does not, and the error depends on an assumption
-the data cannot settle, since DARKO carries no minutes column:
+The roster→rating mapping is `sum(DPM x minutes) / 48`, and it was **theoretical, not fitted**.
+It failed an obvious check: a plus-minus metric averages zero over minutes played, so an
+average team must map to 0. It did not, and the error depended on how many players were
+assumed to hold rotation minutes — an assumption DARKO's minutes-free sheet cannot settle,
+worth 2.3 points of Philadelphia's projection between the 300- and 400-player choices.
 
-| Rotation size assumed | Mean DPM | Implied league-average team |
-|---|---|---|
-| 300 | +0.498 | +2.49 |
-| 350 | +0.259 | +1.29 |
-| 400 | +0.035 | +0.18 |
+**Now fitted.** 2025-26 is the one season with both halves available: observed ratings from
+`nbastatsv3`, and a DARKO snapshot covering the players who produced them. Minutes come from
+the box score (`leaguedashplayerstats`) rather than being re-derived from v3 substitutions.
 
-`project_team` therefore returns `centered` under each assumption rather than a single
-number, and the spread is treated as uncertainty in the level rather than averaged away.
+| Fit | Slope | SE | r | Residual SD |
+|---|---|---|---|---|
+| **Overall, vs SRS** | **1.433** | 0.103 | 0.935 | 2.15 |
+| Offence, vs points scored *(diagnostic)* | 0.903 | 0.208 | 0.633 | 2.66 |
+| Defence, vs points allowed *(diagnostic)* | 1.782 | 0.275 | 0.775 | 3.12 |
 
-**No title probability is quoted.** The simulator computes one, but a title number derived
-from an uncalibrated level would be false precision. Ingesting 2025-26 results via
-`nbastatsv3` would let the mapping be calibrated against observed team ratings in the same
-season — impossible today, because the DARKO snapshot (July 2026) postdates the game data
-(2024-25). That is the highest-value next step.
+The theoretical 1:1 is rejected at over four standard errors — the identity compresses spread
+by 43% — and the fitted intercept (+0.23) supersedes the rotation-size guess entirely, since
+the fit uses every player's real minutes. Players outside DARKO's 530 (1.6% of minutes) take
+a replacement value; the slope moves only 1.39→1.45 across a −4.0 to −1.0 sweep.
+
+> **The component split is a trap, and the two diagnostic rows are kept to show why.**
+> Fitting offence and defence against points scored and allowed suggests DARKO compresses
+> defensive spread twice as hard as offensive (1.78 vs 0.90) — which for an offence-heavy
+> roster would be decisive. It is an artifact of the targets: both are per-game and
+> pace-contaminated, so a fast team looks better on offence and worse on defence in ways
+> that cancel in its net rating. Against a *common* target the slopes are 1.466 and 1.312
+> and an F-test cannot separate them (F = 1.09, p = 0.31). One slope, applied to the total.
+> The split would have put Philadelphia at +2.80 rather than +5.11.
+
+**Honest limits.** n = 30, one season, and the DARKO snapshot postdates the season it is
+scored against — so the fit statistics are optimistic and 2.15 is a *lower bound* on forward
+error, not an estimate of it. It is not out-of-sample validation and is not reported as such.
+
+### Two simulator bugs found by looking at the output
+
+Both were in plumbing nobody checks, and both were caught only because a number downstream
+looked wrong.
+
+1. **The schedule was not balanced.** `balanced_schedule` enumerated all ordered pairs,
+   repeated the list, and truncated it to the right *total* number of games. The total was
+   the only thing that was right: truncation kept whichever pairs sorted first, so teams
+   played between **70 and 99 games** and hosted between 29 and 58. Philadelphia drew a short
+   schedule and came out at 34 wins on a rating worth 43. Replaced with the circle method —
+   every team now plays exactly 82, hosting 40 to 42.
+
+2. **The margin scale was the wrong one.** `DEFAULT_MARGIN_SCALE` was 10.5, the value fitted
+   against *prior-season* ratings. A simulator is handed ratings it must treat as true, so
+   the correct scale is the contemporaneous one, **7.0** (11,968 games). At 10.5 a +12.7 team
+   projected to 60 wins; Oklahoma City won 68 at that rating. At 7.0 the implied totals track
+   history — win-total MAE 3.15, correlation 0.949 against actual team-seasons.
+
+3. **Rating uncertainty never reached the bracket.** `rating_sd` was injected into the regular
+   season only, so the playoffs treated ratings as exactly known. The tell was that title odds
+   were *identical* at every level of season uncertainty — 2.15 and 5.0 gave the same answer to
+   four decimals. Now redrawn per simulated postseason, which is what makes the odds respond
+   to the projection's actual confidence.
+
+`tests/test_simulate.py` asserts game counts, home/away balance, win conservation, and that
+implied win totals match the historical scale.
+
+### From calibrated ratings to title odds
+
+`league.py` projects all 30 teams, because a title probability is not a property of one team.
+Rosters start from 2025-26 minutes, transactions move players between teams, and minutes are
+re-fitted to the 240 a game supplies — without that step Philadelphia keeps every existing
+rotation minute *and* adds LeBron's 1,989 and Brown's 2,443 on top, averaging two stars
+against a bench that would not play, which diluted the rating to +0.71.
+
+**Rating uncertainty is set to 3.95**, the residual from predicting each season's SRS from the
+previous season's across ten seasons — how far a team actually moves in a year. Not the 2.15
+calibration residual, which would be right only if a roster snapshot were the whole story.
+This is the most consequential single parameter in the projection: the best team's title odds
+run 38.5% at 2.15, 30.2% at 3.95, and 26.0% at 5.0.
+
+Playoffs run as two eight-team conference brackets meeting in a final. Treating the field as
+one sixteen-team ladder is not a simplification but an error here — the three strongest teams
+are split across conferences, and a single ladder can eliminate two of them against each other
+in a round that could never occur.
+
+**Philadelphia: +3.49, 49.0 wins (36-61), 2.1% title, 9th of 30** under health-adjusted
+minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See `reports/findings.md` §6.
 
 ---
 

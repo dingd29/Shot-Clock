@@ -26,9 +26,19 @@ import pandas as pd
 # assumed; this is the initial value only.
 DEFAULT_HOME_ADVANTAGE = 2.2
 
-# Converts a point-margin edge into a win probability. A logistic scale of ~10.5 points per
-# logit is the long-standing NBA value; `fit_margin_scale` re-estimates it from the sample.
-DEFAULT_MARGIN_SCALE = 10.5
+# Converts a point-margin edge into a win probability.
+#
+# **The right value depends on what the ratings are.** Fitted against *prior-season* ratings
+# — noisy predictors of the season being played — the scale comes out near 10.5, because the
+# fit has to flatten predictions that are only partly informative. A simulator is not in that
+# situation: it is handed the ratings it is asked to treat as true, so the correct scale is
+# the one fitted against *contemporaneous* ratings, which is 7.0 (11,968 games, 2015-2025).
+#
+# Using 10.5 here compresses everything. A +12.7 team came out at 60 wins rather than the 68
+# Oklahoma City actually won in 2024-25, and the same compression flowed into title odds.
+CONTEMPORANEOUS_MARGIN_SCALE = 7.0
+PRIOR_SEASON_MARGIN_SCALE = 10.5
+DEFAULT_MARGIN_SCALE = CONTEMPORANEOUS_MARGIN_SCALE
 
 
 def win_probability(
@@ -103,15 +113,35 @@ def simulate_season(
 
 
 def balanced_schedule(teams: list[str], games_each: int = 82) -> pd.DataFrame:
-    """A round-robin schedule with equal home/away splits.
+    """A round-robin schedule where every team plays exactly `games_each` games.
 
-    A stand-in for the real NBA schedule, which is conference-weighted. Good enough for a
-    win *distribution*; replace with the published schedule before quoting seeding odds,
-    since strength of schedule genuinely differs by conference.
+    Built by the circle method: one team is held fixed, the rest rotate, and each round
+    pairs them off so every team plays exactly once per round. Home and away alternate by
+    round, so the split is even to within one game.
+
+    > The previous implementation enumerated all ordered pairs, repeated the list, and
+    > truncated it to the right total number of games. The total was right and nothing else
+    > was: truncation kept whichever pairs happened to sort first, so teams played between
+    > **70 and 99 games** and hosted between 29 and 58 of them. Philadelphia drew a short
+    > schedule and came out at 34 wins on a rating that deserved 43. A schedule generator is
+    > exactly the kind of plumbing that looks obviously fine and is checked by nobody, so
+    > `tests/test_simulate.py` now asserts the counts.
+
+    Still a stand-in for the real NBA schedule, which is conference-weighted. Good enough for
+    a win *distribution*; replace with the published schedule before quoting seeding odds.
     """
-    pairs = [(h, a) for h in teams for a in teams if h != a]
-    reps = int(np.ceil(games_each * len(teams) / 2 / len(pairs)))
-    rows = (pairs * reps)[: games_each * len(teams) // 2]
+    if len(teams) % 2:
+        raise ValueError("circle-method scheduling needs an even number of teams")
+
+    fixed, rotating = teams[0], list(teams[1:])
+    rounds = len(teams) - 1
+    rows = []
+    for round_index in range(games_each):
+        order = [fixed, *rotating[round_index % rounds :], *rotating[: round_index % rounds]]
+        for i in range(len(teams) // 2):
+            home, away = order[i], order[len(teams) - 1 - i]
+            # Alternate by round so neither side of a pairing always hosts.
+            rows.append((home, away) if round_index % 2 == 0 else (away, home))
     return pd.DataFrame(rows, columns=["HOME", "AWAY"])
 
 
@@ -121,14 +151,28 @@ def simulate_playoffs(
     n_sims: int = 10_000,
     home_advantage: float = DEFAULT_HOME_ADVANTAGE,
     scale: float = DEFAULT_MARGIN_SCALE,
+    conferences: dict[str, str] | None = None,
+    rating_sd: float = 0.0,
     seed: int = 0,
 ) -> pd.Series:
-    """Best-of-seven bracket from an ordered 16-seed field; returns P(title) per team.
+    """Best-of-seven bracket from an ordered seed field; returns P(title) per team.
 
     Home-court follows the 2-2-1-1-1 format, so the higher seed hosts four of seven.
+
+    `conferences` maps team to conference. Passing it runs two eight-team brackets meeting
+    in a final, as the league does. Omitting it runs one ladder over the whole field, which
+    is only correct if conference has no bearing on who plays whom — it does.
+
+    `rating_sd` redraws each team's rating once per simulated postseason, and leaving it at
+    zero is a mistake worth naming: with the ratings treated as exactly known, the bracket
+    is a near-deterministic ladder and the best team's title odds barely respond to how
+    uncertain the projection actually is. Injecting it in the regular season alone changes
+    win totals and nothing else — the title numbers came out identical at every level of
+    season uncertainty, which is how this surfaced.
     """
     rng = np.random.default_rng(seed)
-    base = {team: ratings[team] for team in seeds}
+    fixed = {team: float(ratings[team]) for team in seeds}
+    base = dict(fixed)
     titles = dict.fromkeys(seeds, 0)
 
     def series_winner(a: str, b: str) -> str:
@@ -146,12 +190,29 @@ def simulate_playoffs(
                 break
         return a if wins_a == 4 else b
 
-    for _ in range(n_sims):
-        field = list(seeds)
+    def bracket(field: list[str]) -> str:
         while len(field) > 1:
             # Seeds are re-paired highest-vs-lowest each round; the earlier entry holds home.
             field = [series_winner(field[i], field[-1 - i]) for i in range(len(field) // 2)]
-        titles[field[0]] += 1
+        return field[0]
+
+    for _ in range(n_sims):
+        if rating_sd:
+            draw = rng.normal(0.0, rating_sd, len(seeds))
+            base = {team: fixed[team] + shift for team, shift in zip(seeds, draw, strict=True)}
+        if conferences is None:
+            titles[bracket(list(seeds))] += 1
+            continue
+        # Two eight-team brackets meeting in the final, which is how the league actually
+        # works and is not a detail: the three strongest teams in this projection are split
+        # across conferences, so a single sixteen-team ladder can pit two of them against
+        # each other in a semi-final that could never happen.
+        finalists = [
+            bracket([team for team in seeds if conferences.get(team) == side][:8])
+            for side in sorted({conferences[team] for team in seeds})
+        ]
+        higher, lower = sorted(finalists, key=lambda team: seeds.index(team))
+        titles[series_winner(higher, lower)] += 1
 
     return pd.Series({team: count / n_sims for team, count in titles.items()}).sort_values(
         ascending=False

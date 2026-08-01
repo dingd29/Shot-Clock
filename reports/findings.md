@@ -248,36 +248,76 @@ does nothing once the logistic scale is refit — the two are the same parameter
 is identical from shrink 1.0 down to 0.5 while the fitted scale tracks 12.75 → 6.50. Team
 ratings correlate 0.587 year over year.
 
-**The projection.** Minutes-weighted DARKO gives Philadelphia a raw **+2.99** points per game:
-**offense +4.22, defense −1.24.** The shape is the story — this is an elite offense attached
-to a below-average defense, exactly what a roster with three negative-defending stars implies.
+**The DPM→rating mapping is now calibrated**, which is what previously blocked quoting a
+title number. 2025-26 is the one season where both halves exist: observed team ratings from
+`nbastatsv3`, and a DARKO snapshot covering the players who produced them. Regressing the
+first on the second across all 30 teams:
 
-**Its level, however, is not trustworthy yet**, and the reason is worth stating rather than
-burying. A plus-minus metric must average zero over the minutes actually played, so the
-mapping from player DPM to team rating must put an average team at 0. It does not, and the
-error depends on how many players are assumed to carry rotation minutes:
+**slope 1.433 ± 0.103, intercept +0.23, r = 0.935, residual SD 2.15.**
 
-| Rotation size assumed | Implied league-average team | Philadelphia, centered |
-|---|---|---|
-| 300 players | +2.49 | **+0.50** |
-| 350 players | +1.29 | +1.70 |
-| 400 players | +0.18 | **+2.81** |
+Two things fall out. The textbook identity — team rating = minutes-weighted DPM — is
+**compressed by 43%**, and 1.0 sits more than four standard errors away, so this is not a
+detail. And the fitted intercept replaces the old rotation-size guess entirely: because the
+fit uses every player's actual 2025-26 minutes, the centering that used to swing the
+projection by 2.3 points is now estimated rather than assumed.
 
-DARKO carries no minutes column, so this cannot be read off the data. The honest projection
-is therefore a range:
+*A trap avoided.* Calibrating offence and defence separately against points scored and
+allowed gives slopes of 0.90 and 1.78 — apparently showing DARKO compresses defensive spread
+twice as hard, which for an offence-heavy roster like Philadelphia's would matter enormously.
+It is an artifact. Both targets are per-game and pace-contaminated, and a fast team looks
+better on offence and worse on defence for reasons that cancel in its net rating. Against a
+common target the slopes are 1.47 and 1.31 and cannot be distinguished (F = 1.09, p = 0.31).
+Using the split would have put Philadelphia at +2.80 instead of +5.11 — a 2.3-point error
+biting hardest on exactly the roster shape this project exists to evaluate.
 
-| Scenario | Projected wins | 80% interval | P(50+ wins) |
+**The projection.** All 30 teams are projected, because a title probability is not a property
+of one team. Each roster starts from 2025-26 minutes valued at current DARKO; the trade moves
+LeBron and Brown to Philadelphia and Paul George to Boston; minutes are re-fitted to the 240
+a game actually provides. 20,000 simulated seasons, conference brackets, uncertainty of 3.95
+points per team.
+
+| Scenario | Rating | Wins | 80% interval | Title | League rank |
+|---|---|---|---|---|---|
+| Minutes as played (injuries repeat) | +2.50 | **47.1** | 34-60 | 1.5% | 11th |
+| Health-adjusted (70 games each) | +3.49 | **49.0** | 36-61 | **2.1%** | 9th |
+
+**The superteam is a 47-49 win team with roughly a 2% title chance.** That is the headline,
+and it is much colder than the premise. Three things drive it:
+
+1. **The base was mediocre.** Philadelphia's 2025-26 SRS was −0.31, 18th in the league. The
+   trade is an upgrade on a middling team, not an addition to a contender.
+2. **The upgrade is smaller than it sounds.** LeBron (1.31 DPM, age 41) plus Brown (1.78)
+   minus Paul George (1.07) is about +2 DPM of talent, and it displaces *bench* minutes
+   rather than replacing bad starters.
+3. **Three teams are far ahead.** New York (+10.5), Oklahoma City (+10.7) and San Antonio
+   (+8.8) occupy a tier Philadelphia is six points below. Those three take 72% of titles.
+
+**Availability is the largest single lever on this roster.** Embiid played 38 games in
+2025-26. Projecting every player to 70 games is worth a full point of rating and doubles the
+lower tail — the entire difference between the two scenarios above is his health and Brown's.
+
+**How much of this is model and how much is knowledge.** The title odds are acutely sensitive
+to how uncertain the ratings are, and that parameter is not observable:
+
+| Rating uncertainty | Best team's title odds | Philadelphia | Top-3 share |
 |---|---|---|---|
-| Optimistic (+2.8) | **56.7** | 49-64 | 89% |
-| Pessimistic (+0.5) | **51.4** | 44-59 | 63% |
+| 2.15 (calibration residual — a floor) | 38.5% | 0.8% | 87% |
+| **3.95 (year-over-year, used)** | **30.2%** | **2.0%** | **73%** |
+| 5.00 | 26.0% | 2.7% | 65% |
 
-**Roughly 51-57 wins — good, not dominant.** For scale, OKC won 68 games in 2024-25.
+3.95 is the residual from predicting each season's SRS from the previous season's over ten
+seasons — the amount a team actually moves in a year. The 2.15 floor would be right only if
+the roster snapshot were the whole story; it is not, and quoting it would have made the
+favourites look far more certain than any honest reading supports.
 
-**What would fix the level:** ingesting 2025-26 results via `nbastatsv3` would allow the
-DPM→rating mapping to be calibrated against observed team ratings in the same season, which
-is impossible today because the DARKO snapshot (July 2026) postdates the game data (2024-25).
-That is the single highest-value next step, and it is why no title probability is quoted here
-— a title number derived from an uncalibrated level would be false precision.
+**What this projection does not know.** Only the Philadelphia trade is modelled — the other
+29 rosters are frozen at their 2025-26 shape, so any rival's offseason is invisible. No
+aging is applied, which matters most for LeBron entering an age-42 season. And the
+calibration's DARKO snapshot postdates the season it was scored against, so its residual is
+optimistic. These odds describe a league that will not exist on opening night.
+
+*Reproduce:* `python -m possval.pipeline project --games 70`, which writes
+`reports/league_projection_2026_27.csv`.
 
 ---
 

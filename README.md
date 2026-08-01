@@ -76,22 +76,30 @@ groups. LeBron and Jaylen Brown sit at 0.988. Embiid is the only differentiated 
 
 **The causal half does not.** Across 270 team-seasons, controlling for the same players'
 prior-season quality and season fixed effects, overlap does not significantly predict
-efficiency — and among top-3 creators the sign is *positive*, the opposite of the
-hypothesis. The control behaves correctly (t = 9.9), so this is a real null.
+efficiency — and among top-3 creators the sign is *positive*, the opposite of the hypothesis.
+The retest at five-man lineup level (4,233 lineup-seasons, 1.11M chances) does not rescue it
+either: the pooled estimate is positive and significant but does not survive restricting the
+sample to lineups that actually played.
 
-It is reported as a null. On this evidence there is no basis for projecting Philadelphia down
-for offensive fit; the defensible concern is defense and availability, where three of the
-four stars grade negative.
+**And the feature loses its head-to-head.** Raced against the incumbent measure every public
+model already uses — the five players' combined shot demand — creation overlap adds nothing.
+Its t-statistic falls from 2.89 to **0.49** once usage is in the model, and R² improves by one
+ten-thousandth. The expensive feature, the one requiring a shot clock that exists in no public
+feed, turns out to be a worse version of something computable from a box score. That is
+reported as the headline result rather than buried.
 
-**The projection bears that out.** Minutes-weighted DARKO gives Philadelphia a raw +2.99
-points per game — **offense +4.22, defense −1.24** — which simulates to roughly **51-57 wins**
-depending on the baseline. An elite offense attached to a below-average defense.
+**The projection, now calibrated.** The DPM→rating mapping is fitted against observed
+2025-26 ratings: **slope 1.433 ± 0.103** — the textbook identity compresses spread by 43%, and
+1.0 is over four standard errors away. Simulating all 30 teams (conference brackets, 20,000
+seasons, year-over-year rating uncertainty of 3.95):
 
-The *level* is reported as a range on purpose. The roster→rating mapping fails the check that
-an average team must map to 0, and the error spans +0.18 to +2.49 depending on assumed
-rotation size — which DARKO cannot settle, since it carries no minutes column. **No title
-probability is quoted**: one derived from an uncalibrated level would be false precision.
-Calibrating against 2025-26 results is the next step.
+**Philadelphia projects to 49.0 wins (36-61), a 2.1% title chance, and 9th in the league.**
+
+The superteam is not one. Their 2025-26 base was 18th (SRS −0.31); LeBron at 41 plus Brown
+minus Paul George is about +2 DPM, and it displaces bench minutes rather than bad starters.
+New York, Oklahoma City and San Antonio sit six points ahead and take 72% of titles. The
+largest single lever is Embiid's availability — he played 38 games, and projecting the roster
+to 70 games each is worth a full point of rating.
 
 ## Layout
 

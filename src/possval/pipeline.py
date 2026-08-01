@@ -290,6 +290,45 @@ def cmd_backfill(first: int, last: int) -> None:
             print(f"  FAILED: {type(exc).__name__}: {exc}", flush=True)
 
 
+def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
+    """Calibrate DPM onto the rating scale, then simulate 2026-27 for all thirty teams."""
+    from possval.models.dpm_calibration import calibrate, calibration_panel, slopes_differ
+    from possval.models.league import CONFERENCES, PHILADELPHIA, project_league
+
+    pd.set_option("display.width", 200)
+    fits = calibrate()
+    print("=== DPM -> rating calibration (2025-26, n=30) ===")
+    print(fits.round(3).to_string(index=False))
+
+    test = slopes_differ(calibration_panel())
+    print(
+        f"\noffence and defence against a common target: {test['offence_slope']:.3f} vs "
+        f"{test['defence_slope']:.3f}, F={test['f']:.2f}, p={test['p']:.3f} "
+        "-> one slope, applied to the total"
+    )
+
+    result = project_league(n_sims=n_sims, games=games, extra_rating_sd=rating_sd)
+    summary = result["summary"]
+    summary.insert(0, "CONF", [CONFERENCES[team] for team in summary.index])
+
+    label = "minutes as played" if games is None else f"health-adjusted to {games} games"
+    print(f"\n=== projected 2026-27 ({label}, rating_sd={result['rating_sd']:.2f}, "
+          f"{result['n_sims']:,} sims) ===")
+    print(summary.round(3).to_string())
+
+    philadelphia = summary.loc[PHILADELPHIA]
+    print(
+        f"\n{PHILADELPHIA}: rating {philadelphia.RATING:+.2f} | "
+        f"wins {philadelphia.WINS:.1f} ({philadelphia.WINS_P10:.0f}-{philadelphia.WINS_P90:.0f}) | "
+        f"title {philadelphia.TITLE:.1%} | "
+        f"rank {list(summary.index).index(PHILADELPHIA) + 1} of 30"
+    )
+
+    out = REPORTS / "league_projection_2026_27.csv"
+    summary.to_csv(out)
+    print(f"\nwritten: {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="possval.pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -301,7 +340,22 @@ def main() -> None:
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
 
+    project = sub.add_parser("project")
+    project.add_argument("--sims", type=int, default=20_000)
+    project.add_argument(
+        "--games", type=int, default=None,
+        help="project every player to this many games; omit to keep 2025-26 minutes as played",
+    )
+    project.add_argument(
+        "--rating-sd", type=float, default=None,
+        help="rating uncertainty; defaults to the year-over-year figure (3.95)",
+    )
+
     args = parser.parse_args()
+    if args.command == "project":
+        cmd_project(args.sims, args.games, args.rating_sd)
+        return
+
     ranged = {
         "backfill": cmd_backfill,
         "train": cmd_train,
