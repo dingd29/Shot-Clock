@@ -124,13 +124,28 @@ def project_games(minutes: pd.DataFrame, games: int | None) -> pd.DataFrame:
     return projected
 
 
+def load_darko() -> pd.DataFrame:
+    return pd.read_csv(REFERENCE / "darko_2026_07.csv")
+
+
+def age_player(darko: pd.DataFrame, player: str, decline: float) -> pd.DataFrame:
+    """Return a copy of DARKO with one player's impact reduced by `decline`."""
+    aged = darko.copy()
+    matched = aged.PLAYER_NAME == player
+    if not matched.any():
+        raise KeyError(f"{player} is not in DARKO")
+    aged.loc[matched, "DPM"] -= decline
+    return aged
+
+
 def league_ratings(
     moves: list[tuple[str, str]] | None = None,
     replacement: float = REPLACEMENT_DPM,
     games: int | None = None,
+    darko: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Calibrated 2026-27 rating for every team."""
-    darko = pd.read_csv(REFERENCE / "darko_2026_07.csv")
+    darko = load_darko() if darko is None else darko
     minutes = project_games(load_minutes(2025), games)
     minutes = rebalance_minutes(apply_transactions(minutes, moves))
 
@@ -179,6 +194,47 @@ def forward_rating_sd() -> float:
     x, y = np.asarray(prior), np.asarray(following)
     slope, intercept = np.polyfit(x, y, 1)
     return float((y - (intercept + slope * x)).std(ddof=2))
+
+
+def aging_sensitivity(
+    player: str = "LeBron James",
+    declines: tuple[float, ...] = (0.0, 0.5, 1.0, 1.5, 2.0),
+    games: int | None = 70,
+) -> pd.DataFrame:
+    """How much one player's decline moves his team, swept over plausible declines.
+
+    No aging is applied to the projection itself, and that is a deliberate refusal rather
+    than an oversight. Aging DPM needs a DPM aging curve, which needs DARKO across seasons;
+    only one snapshot exists here. The curve this project *can* fit is on shot efficiency,
+    and its support collapses exactly where the question lives — 12 player-seasons at age 38,
+    one at 41. Applying an extrapolated curve to the single player it matters most for would
+    dress an assumption up as a measurement.
+
+    A sweep is the honest substitute: rather than guess the decline, show whether the answer
+    depends on it. For LeBron entering an age-42 season it does not much — a full two points
+    of DPM, far beyond any plausible one-year fall, moves Philadelphia from 9th to 14th and
+    never near contention.
+    """
+    darko = load_darko()
+    roster = apply_transactions(load_minutes(2025))
+    named = roster[roster.PLAYER_NAME == player]
+    if named.empty:
+        raise KeyError(f"{player} is not in the minutes table")
+    team = named.TEAM_ABBREVIATION.iloc[0]
+
+    rows = []
+    for decline in declines:
+        ratings = league_ratings(games=games, darko=age_player(darko, player, decline))
+        rows.append(
+            {
+                "player": player,
+                "team": team,
+                "decline": decline,
+                "rating": float(ratings.loc[team, "RATING"]),
+                "rank": list(ratings.index).index(team) + 1,
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def project_league(

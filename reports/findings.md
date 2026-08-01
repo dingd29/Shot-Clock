@@ -310,9 +310,27 @@ seasons — the amount a team actually moves in a year. The 2.15 floor would be 
 the roster snapshot were the whole story; it is not, and quoting it would have made the
 favourites look far more certain than any honest reading supports.
 
+**No aging is applied, and that is a refusal rather than an oversight.** Aging DPM needs a
+DPM aging curve, which needs DARKO across multiple seasons; only one snapshot exists. The
+curve this project *can* fit is on shot efficiency, and its support collapses precisely where
+the question lives — 12 player-seasons at age 38, one at 41. Applying an extrapolated curve to
+the single player it matters most for would dress an assumption up as a measurement.
+
+The sweep answers the question instead:
+
+| LeBron's DPM decline | Philadelphia rating | League rank |
+|---|---|---|
+| 0.0 (as modelled) | +3.49 | 9th |
+| 0.5 | +3.08 | 9th |
+| 1.0 | +2.67 | 11th |
+| 2.0 (implausibly steep) | +1.86 | 14th |
+
+**The conclusion does not depend on it.** Even a two-point collapse — far beyond any plausible
+one-year fall — leaves Philadelphia a mid-table playoff team rather than moving it toward or
+away from contention. Embiid's decline sweeps almost identically.
+
 **What this projection does not know.** Only the Philadelphia trade is modelled — the other
-29 rosters are frozen at their 2025-26 shape, so any rival's offseason is invisible. No
-aging is applied, which matters most for LeBron entering an age-42 season. And the
+29 rosters are frozen at their 2025-26 shape, so any rival's offseason is invisible. And the
 calibration's DARKO snapshot postdates the season it was scored against, so its residual is
 optimistic. These odds describe a league that will not exist on opening night.
 

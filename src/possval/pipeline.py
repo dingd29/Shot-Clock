@@ -293,7 +293,12 @@ def cmd_backfill(first: int, last: int) -> None:
 def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
     """Calibrate DPM onto the rating scale, then simulate 2026-27 for all thirty teams."""
     from possval.models.dpm_calibration import calibrate, calibration_panel, slopes_differ
-    from possval.models.league import CONFERENCES, PHILADELPHIA, project_league
+    from possval.models.league import (
+        CONFERENCES,
+        PHILADELPHIA,
+        aging_sensitivity,
+        project_league,
+    )
 
     pd.set_option("display.width", 200)
     fits = calibrate()
@@ -324,9 +329,16 @@ def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None
         f"rank {list(summary.index).index(PHILADELPHIA) + 1} of 30"
     )
 
+    # No aging is applied — see `aging_sensitivity` for why — so the question of whether
+    # that omission changes the answer is settled by sweeping it rather than asserted.
+    sweep = aging_sensitivity(games=games)
+    print("\n=== if LeBron declines (no aging is applied; this is the sensitivity) ===")
+    print(sweep.round(3).to_string(index=False))
+
     out = REPORTS / "league_projection_2026_27.csv"
     summary.to_csv(out)
-    print(f"\nwritten: {out}")
+    sweep.to_csv(REPORTS / "aging_sensitivity.csv", index=False)
+    print(f"\nwritten: {out}, {REPORTS / 'aging_sensitivity.csv'}")
 
 
 def main() -> None:

@@ -559,6 +559,13 @@ one sixteen-team ladder is not a simplification but an error here — the three 
 are split across conferences, and a single ladder can eliminate two of them against each other
 in a round that could never occur.
 
+**Aging is deliberately not applied.** Aging DPM requires a DPM aging curve, which requires
+DARKO across seasons; one snapshot exists. The curve fittable here is on shot efficiency, and
+§9 already records that its support collapses where it matters — 12 player-seasons at 38, one
+at 41. `aging_sensitivity` sweeps the decline instead of guessing it: LeBron losing 1.0 DPM
+moves Philadelphia from 9th to 11th, and a 2.0 collapse to 14th. The answer does not turn on
+the assumption, which is the only reason omitting it is acceptable.
+
 **Philadelphia: +3.49, 49.0 wins (36-61), 2.1% title, 9th of 30** under health-adjusted
 minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See `reports/findings.md` §6.
 
