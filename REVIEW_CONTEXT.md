@@ -5,6 +5,12 @@ Written for someone landing cold with no history of the project. `README.md` sel
 what can be checked without rebuilding anything, and hands over the weak points rather than
 making you find them.
 
+## If you cannot run code
+
+Use [`reports/REVIEW_BRIEF.md`](reports/REVIEW_BRIEF.md) instead of this file. It is
+self-contained — every number inline, no navigation — and aimed at direction-level review
+rather than verification. The rest of this document assumes a terminal.
+
 ## Read in this order
 
 1. **`README.md`** — what the project claims, ~15 minutes.
