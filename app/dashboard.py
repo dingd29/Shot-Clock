@@ -119,9 +119,10 @@ if team != "All teams":
 if not keep_heaves:
     view = view[view.GAME_CLOCK_EXPIRING == 0]
 
-tab_curve, tab_valid, tab_rule, tab_grade, tab_late, tab_proj, tab_data = st.tabs(
-    ["Efficiency curve", "Validation", "2018-19 rule change", "Shot Quality Grade",
-     "Late clock", "2026-27 projection", "Data"]
+(tab_curve, tab_stop, tab_valid, tab_rule, tab_grade, tab_late, tab_proj,
+ tab_data) = st.tabs(
+    ["Efficiency curve", "Shoot or hold", "Validation", "2018-19 rule change",
+     "Shot Quality Grade", "Late clock", "2026-27 projection", "Data"]
 )
 
 # --------------------------------------------------------------------------- curve
@@ -190,6 +191,77 @@ with tab_curve:
         "basket, the curve is nearly flat from 12s to 21s.",
         icon="⚠️",
     )
+
+# --------------------------------------------------------------------------- stopping
+
+with tab_stop:
+    st.subheader("Shooting as an option, and when teams exercise it")
+    st.caption(
+        "The efficiency curve is a selected sample at every second — possessions alive at 5 "
+        "seconds are the ones where nothing worked earlier. This asks a question that is "
+        "answerable instead: at each moment, is the shot on offer worth more than holding?"
+    )
+
+    values = load_report("stopping_continuation_value.csv")
+    boundary = load_report("stopping_boundary.csv")
+    ratios = load_report("stopping_relaxation.csv")
+    if values.empty or boundary.empty:
+        st.info("No stopping output found. Run `python -m possval.pipeline stopping`.")
+    else:
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(
+            x=values.SECOND, y=values.V_CONT, name="V(t): value of holding",
+            mode="lines", line={"color": C[0], "width": 2},
+            hovertemplate="%{x}s left · holding worth %{y:.3f}<extra></extra>",
+        ))
+        fig.add_trace(go.Scatter(
+            x=boundary.SECOND, y=boundary.BOUNDARY,
+            name="Marginal accepted shot (5th pct)", mode="lines",
+            line={"color": C[1], "width": 2},
+            hovertemplate="%{x}s left · accepted down to %{y:.3f}<extra></extra>",
+        ))
+        fig.update_layout(
+            template=TEMPLATE, height=460, hovermode="x unified",
+            xaxis={"title": "Seconds remaining on the shot clock", "dtick": 2},
+            yaxis={"title": "Expected points"},
+            legend={"orientation": "h", "y": 1.1, "x": 0},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown(
+            "**Optimal exercise requires the two lines to converge as the clock expires.** "
+            "Holding an option worth nothing should mean accepting almost anything. Instead "
+            "the accepted standard falls by only about half as much as the value of waiting "
+            "does — offenses stay picky while the option runs out."
+        )
+
+        if not ratios.empty:
+            a, b = st.columns(2)
+            a.metric("Relaxation ratio", f"{ratios.relaxation_ratio.mean():.2f}",
+                     help="1.0 would mean the standard falls exactly as fast as V(t). "
+                          "Range across quantile choices: "
+                          f"{ratios.relaxation_ratio.min():.2f}-"
+                          f"{ratios.relaxation_ratio.max():.2f}")
+            b.metric("Excess demand late vs early",
+                     f"+{ratios.excess_late_demand.mean():.2f} pts",
+                     help="How much more a shot must be worth, relative to holding, at 1-3s "
+                          "than at 8s or more.")
+
+        st.warning(
+            "**The level of that orange line is not identified — only its shape.** Calling "
+            "the 5th percentile of accepted shots 'the threshold' rather than the 2nd or the "
+            "20th moves the gap against V(t) from −0.22 to +0.14, which flips the sign of "
+            "'too aggressive' versus 'too patient'. The relaxation ratio is reported because "
+            "it comes out at 0.46–0.60 whichever quantile is used. And a declined shot leaves "
+            "no record, so none of this can see whether a better shot was actually available.",
+            icon="⚠️",
+        )
+
+        st.dataframe(
+            values.merge(boundary[["SECOND", "BOUNDARY", "GAP"]], on="SECOND", how="left")
+            .round(4),
+            use_container_width=True, hide_index=True,
+        )
 
 # --------------------------------------------------------------------------- validation
 
