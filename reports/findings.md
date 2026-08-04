@@ -1,76 +1,65 @@
-# Findings: shot clock and shot efficiency
+# Findings
 
-2024-25 regular season. 210,394 shots with a reconstructed shot clock (95.8% of all FGA).
-Points per attempt (PPA) counts field-goal points only — free throws are excluded, since
-`shotdetail` contains no FT rows. Method and validation: [METHODOLOGY.md](../METHODOLOGY.md).
+2024-25 regular season unless noted. 210,394 shots with a reconstructed shot clock, 95.8% of
+all field-goal attempts. Points per attempt (PPA) counts field-goal points only, since the shot
+detail feed has no free-throw rows. Method and validation in [METHODOLOGY.md](../METHODOLOGY.md).
 
-**Buzzer-beater heaves are excluded throughout findings 1-3** — shots with under 3 seconds of
-*game* clock left in the period, 1.85% of attempts. They are not shot-clock decisions, and a
-third of all shots at 1 second or less on the shot clock are one. Leaving them in made the
-late-clock collapse look **36% steeper than it is**; see the note in finding 2. Every number
-below is on the excluded-heaves basis, flagged in the data as `GAME_CLOCK_EXPIRING`.
+Buzzer-beater heaves are excluded throughout sections 1 to 3. Those are shots with under 3
+seconds of *game* clock left in the period, 1.85% of attempts, flagged as `GAME_CLOCK_EXPIRING`.
+A third of all shots at 1 second or less on the shot clock are one of these, and they aren't
+shot-clock decisions. Section 2 has the size of the effect.
 
 ---
 
-## 1. NBA's published buckets hide the steepest part of the curve
+## 1. Where the published buckets lose information
 
-NBA publishes six shot-clock ranges. Their widths are wildly mismatched to where efficiency
-actually changes, so the reported bucket average conceals very different amounts of variation.
+The NBA publishes six shot-clock ranges. Their widths don't match where efficiency actually
+changes, so some bucket averages describe their contents well and others hide a lot.
 
 | Bucket | Bucket PPA | Within-bucket range | Spread |
 |---|---|---|---|
-| 24-22 | 1.243 | 0.954 – 1.365 | **0.411** |
+| 24-22 | 1.243 | 0.954 – 1.365 | 0.411 |
 | 22-18 | 1.216 | 1.149 – 1.313 | 0.164 |
 | 18-15 | 1.122 | 1.111 – 1.131 | 0.020 |
 | 15-7 | 1.096 | 1.047 – 1.132 | 0.085 |
 | 7-4 | 1.037 | 1.009 – 1.049 | 0.040 |
-| **4-0** | 0.933 | **0.831 – 0.989** | **0.158** |
+| 4-0 | 0.933 | 0.831 – 0.989 | 0.158 |
 
-The `4-0` bucket reports a single number, 0.933, for a region where true efficiency falls
-from 0.989 to 0.831 — a **17% swing collapsed into one figure**, and the second-widest spread
-of the six. Meanwhile `18-15` spans a range of just 0.020 and is genuinely well summarised by
-its average.
+`4-0` reports one number, 0.933, for a region running from 0.989 down to 0.831. `18-15` spans
+0.020 and is well summarised by its average. A team studying its own late-clock offense from the
+published splits can't tell a possession dying with 4 seconds left from one dying with 1, and
+those are different things.
 
-(With heaves left in, `4-0` reads 0.879 over a 0.708–0.989 range. Almost the entire apparent
-extra spread was buzzer-beaters, which is the point of excluding them.)
+(With heaves included, `4-0` reads 0.879 over a 0.708 to 0.989 range. Nearly all of that extra
+spread is buzzer-beaters.)
 
-A team studying its own late-clock offense from the published splits cannot distinguish a
-possession that dies with 4 seconds left from one that dies with 1. Those are very different
-outcomes.
+## 2. Efficiency and time remaining
 
-## 2. Efficiency declines steeply into the late clock — descriptively
+PPA falls from 1.047 at 7 seconds to 0.831 at 0, a drop of 0.216. Two things need saying about
+that number.
 
-**PPA falls from 1.047 at 7 seconds to 0.831 at 0 seconds, a drop of 0.216.** Stated
-carefully, because two things have to be said about that number.
+**It isn't a causal estimate of time pressure.** Possessions surviving to 5 seconds are selected
+on everything earlier having failed: the pass that wasn't there, the drive that got cut off.
+Conditioning on how the possession *started* doesn't address selection on what happened during
+it, and no version of this curve can. The honest statement is descriptive: conditional on
+possession-start type, observed efficiency declines as the clock runs down. Whether time pressure
+degrades shot quality, or bad possessions are simply the ones that last, isn't identified here.
+Section 7 is the attempt to get at it properly.
 
-**What it is not: a causal estimate of time pressure.** Possessions surviving to 5 seconds are
-selected on everything earlier having failed — the pass that was not there, the drive that was
-cut off. Conditioning on how the possession *started* does not address selection on what
-happened *during* it, and no version of this curve can. The honest statement is descriptive:
-*conditional on possession-start type, observed efficiency declines as the clock runs down.*
-Whether time pressure degrades shot quality, or bad possessions are simply the ones that last,
-is **not identified here**. Finding 3 makes exactly this argument about the early-clock end of
-the curve, and finding 2 is held to the same standard. The identification strategy is the
-optimal-stopping model in the open items — conditioning on the *decision* rather than the
-*outcome* is what dissolves the selection problem.
+**It's a lower bound on the descriptive decline.** Three measurement issues pull in different
+directions and the net is conservative.
 
-**What it is: a lower bound on the descriptive decline.** Two measurement biases push in
-opposite directions, and the net is conservative:
+Heaves inflated it. Excluding buzzer-beaters cut the 0s-to-7s figure from 0.339 to 0.216, so 36%
+of the apparent collapse was end-of-period garbage rather than late-clock offense.
 
-- *Heaves inflated it.* Buzzer-beaters are now excluded, which cut the 0s→7s figure from
-  0.339 to **0.216** — 36% of the apparent collapse was end-of-period garbage, not late-clock
-  offense.
-- *Clock error attenuates what remains.* Every documented reconstruction error biases clocks
-  **high** (missed resets rather than invented ones — METHODOLOGY §2, §4), so genuinely-late
-  shots are placed one bucket early, flattening the true decline. eFG is biased high by
-  1.78pp, worst late.
-- *Excluding free throws attenuates it too.* Late clock draws **fewer** fouls, not more: 2.1%
-  of chances produce a free throw at 0s against 13.6% at 20s (see Caveats).
+Clock error attenuates what remains. Every documented reconstruction error biases clocks high,
+since the failure mode is a missed reset rather than an invented one (METHODOLOGY §2, §4), which
+places genuinely-late shots one bucket early and flattens the true decline.
 
-So 0.216 is a floor on the descriptive decline once heaves are removed, not a possibly-inflated
-figure.
+Excluding free throws attenuates it too. Late clock draws fewer fouls, not more: 2.1% of chances
+produce a free throw at 0 seconds against 13.6% at 20. See Caveats.
 
-**It holds across every possession-start type, though not uniformly:**
+**The decline holds across every possession-start type, though not uniformly:**
 
 | Start type | PPA at 7s | PPA at 0s | Drop | n at 0s |
 |---|---|---|---|---|
@@ -79,11 +68,9 @@ figure.
 | After defensive rebound | 1.020 | 0.671 | −0.349 | 292 |
 | After offensive rebound | 1.091 | 0.489 | −0.603 | 176 |
 
-The sign is the same everywhere, which is what rules out the decline being an artifact of one
-start type. The *magnitude* varies four-fold and the three smallest groups have under 300
-attempts at 0s, so the ordering should not be over-read. (An earlier version of this table
-described the collapse as appearing "identically" across start types; that was true only with
-heaves included, which flattened the differences by adding near-zero attempts everywhere.)
+Same sign everywhere, which rules out the decline being an artifact of one start type. The
+magnitude varies four-fold and the three smallest groups have under 300 attempts at 0 seconds, so
+don't read much into the ordering.
 
 **The shot mix moves as the clock runs out.** Teams end up off the rim and in the mid-range:
 
@@ -92,111 +79,100 @@ heaves included, which flattened the differences by adding near-zero attempts ev
 | 23s | 65.3% | 11.3% | 23.4% |
 | 15s | 26.1% | 29.3% | 44.6% |
 | 5s | 20.6% | 38.3% | 41.1% |
-| 0s | 17.4% | **44.6%** | 38.0% |
+| 0s | 17.4% | 44.6% | 38.0% |
 
-Rim attempts fall by nearly three quarters, and the mid-range share nearly quadruples.
+Rim attempts fall by nearly three quarters and the mid-range share nearly quadruples. This table
+also validates the heave exclusion: with buzzer-beaters in, the 3PT share at 0 seconds reads 50.1%
+and has to be explained away as desperation launches. Excluding them the spike disappears (38.0%,
+below its 15-second peak) and what's left is a clean monotone shift from rim to mid-range.
 
-*This table also validates the heave exclusion.* With buzzer-beaters left in, the 3PT share at
-0s read **50.1%** and had to be explained away as desperation launches. Excluding them the
-spike disappears — 3PT share at 0s is 38.0%, *below* its 15s peak — and the pattern is a clean
-monotone shift from rim to mid-range. The previous explanation was correct about what those
-shots were; removing them makes the explanation unnecessary.
+## 3. Early-clock efficiency is mostly transition
 
-## 3. Early-clock efficiency is mostly transition, not "shooting early"
+This is where a naive reading of the curve goes wrong. Raw PPA rises steeply above about 18
+seconds, which looks like an argument for shooting earlier. It isn't.
 
-This is where the naive reading of the curve goes wrong. Raw PPA rises steeply above ~18
-seconds, which looks like an argument for shooting earlier. It is not.
-
-**Controlling for how the possession started removes most of the effect.** For possessions
-beginning after a made basket — a dead-ball, half-court start — PPA is essentially flat from
-12 seconds to 21 seconds (1.097 → 1.107). The apparent early-clock advantage is driven by
-*which possessions are able to produce a shot that early*:
+Controlling for how the possession started removes most of the effect. For possessions beginning
+after a made basket, a dead-ball half-court start, PPA is nearly flat from 12 to 21 seconds (1.097
+→ 1.107). The apparent early-clock advantage comes from *which* possessions can produce a shot
+that early:
 
 | Clock | After made FG | After turnover | After def. rebound |
 |---|---|---|---|
 | 5s | 57.7% | 9.9% | 22.0% |
-| 20s | **7.5%** | **34.3%** | **54.5%** |
+| 20s | 7.5% | 34.3% | 54.5% |
 
-Shares are **among the four main possession starts** (made FG, turnover, defensive rebound,
-offensive rebound), which is worth stating because the denominators differ: those four are 99%
-of attempts at 20 seconds but only 75% at 5 seconds, the remainder being made free throws and
-defensive fouls. Comparing the rows without that caveat compares different bases.
+Shares are among the four main possession starts (made FG, turnover, defensive rebound, offensive
+rebound). Worth stating because the denominators differ: those four are 99% of attempts at 20
+seconds but only 75% at 5 seconds, the rest being made free throws and defensive fouls.
 
-At 20 seconds remaining, only 7.5% of shots come from a half-court inbound start, while 34%
-come off live-ball turnovers. Those are fast breaks against a broken defense. The clock is a
-*proxy* for transition, not a cause of efficiency.
+At 20 seconds only 7.5% of shots come from a half-court inbound start while 34% come off live-ball
+turnovers. Those are fast breaks against a broken defense. The clock is a proxy for transition
+rather than a cause of efficiency.
 
-**The 4.2% of shots dropped for low clock confidence do not explain this.** The drop is not
-random — it concentrates at the high-clock end, exactly where this finding lives — so the
-objection is fair and gets a test rather than an argument. Restoring every dropped shot at its
-chance's start value, over the region at or above 20 seconds:
+So "shoot earlier in the clock" isn't supported here. "Generate live-ball turnovers and defensive
+rebounds" is, because those create the transition opportunities that produce early-clock shots.
+
+**The 4.2% of shots dropped for low clock confidence don't explain this.** The drop isn't random,
+it concentrates at the high-clock end, which is exactly where this finding lives. So the objection
+is fair and gets a test. Restoring every dropped shot at its chance's start value, over the region
+at or above 20 seconds:
 
 | Basis | n | Half-court | Transition |
 |---|---|---|---|
-| Dropped (default) | 17,319 | 7.4% | **84.0%** |
-| Imputed at chance start | 26,421 | 10.5% | **81.3%** |
-| Worst case: every unclassifiable shot counted as half-court | 26,421 | 38.6% | **55.8%** |
+| Dropped (default) | 17,319 | 7.4% | 84.0% |
+| Imputed at chance start | 26,421 | 10.5% | 81.3% |
+| Every unclassifiable shot counted as half-court | 26,421 | 38.6% | 55.8% |
 
-86% of the dropped shots carry an `inferred_*` start type — the reconstruction could not tell
-how the chance began — so they contribute no start type of their own and imputation barely
-moves the split. The third row is the stress test: hand *every* ambiguous attempt to the
-half-court side, the most adverse assumption available, and transition still leads by 17
-points. The conclusion is not an artifact of the missingness.
+86% of the dropped shots carry an `inferred_*` start type, meaning the reconstruction couldn't
+tell how the chance began, so they contribute no start type of their own and imputation barely
+moves the split. The third row hands every ambiguous attempt to the half-court side, the most
+adverse assumption available, and transition still leads by 17 points.
 
-*Reproduce:* `possval.clock.validate.low_confidence_sensitivity(2024)`.
+Reproduce: `possval.clock.validate.low_confidence_sensitivity(2024)`.
 
-**Practical implication:** "shoot earlier in the clock" is not supported by this data. What is
-supported is "generate live-ball turnovers and defensive rebounds," because those create the
-transition opportunities that produce early-clock shots in the first place.
+## 4. The 14-second reset shows up in the data
 
-## 4. The 14-second reset leaves a visible fingerprint
+Shots at exactly 14 seconds are unusual: 15,251 attempts, 7.2% of all shots and the single largest
+one-second bucket, with a rim share of 42.4% against 26.1% at 15 seconds and 24.4% at 12.
 
-Shots at exactly 14 seconds are anomalous: 15,251 attempts (7.2% of all shots, the single
-largest one-second bucket) with a rim share of **42.4%**, against 26.1% at 15 seconds and
-24.4% at 12 seconds.
+Those are putbacks. Since 2018-19 the clock resets to 14 after an offensive rebound, so every
+immediate second-chance attempt lands on that value.
 
-These are putbacks. The 2018-19 rule resets the clock to 14 after an offensive rebound, so
-every immediate second-chance attempt lands on that exact value.
+This is a consistency check rather than independent validation. The reconstruction only applies
+`max(remaining, 14)` from 2018-19 onward, so the spike moving to 14 in that season is partly
+guaranteed by construction, and pre-2018 the same putbacks are recorded at 24. What it confirms is
+that the rule flag fires in the right seasons. The bucket-share and per-player agreement in
+METHODOLOGY §4 are the stronger checks, and section 6 is the genuinely independent one.
 
-*This is a consistency check, not independent validation, and the distinction matters.* The
-reconstruction only applies `max(remaining, 14)` from 2018-19 onward, so the spike moving to
-14 in that season is partly guaranteed by construction — pre-2018 the same putbacks are
-recorded at 24. What it confirms is that the rule flag fires in the right seasons, which is
-worth confirming but is a weaker claim than the bucket-share and per-player agreement in
-METHODOLOGY §4. The genuinely independent robustness result is finding 4c.
+## 5. The 2018-19 rule change
 
-## 4b. The 2018-19 rule change, and a feed artifact that nearly hid inside it
+The rule change gives a natural experiment with a clean structure, because treatment is assigned
+by rule rather than by anyone's choice. Treated: chances starting with an offensive rebound, reset
+cut from 24s to 14s. Control: chances starting with a defensive rebound, untouched.
 
-The rule change is a natural experiment with a structure that is rare in basketball data,
-because the treatment is assigned by a rule rather than by anyone's choice:
+Both are live-ball rebound starts, so they share the era's pace, spacing and officiating drift.
+Outcomes come from the raw feed (durations from game-clock differences, points from descriptions)
+rather than from the reconstruction, which implements the rule being tested and would otherwise
+recover it by construction.
 
-- **Treated** — chances starting with an *offensive* rebound. Reset cut from 24s to 14s.
-- **Control** — chances starting with a *defensive* rebound. Untouched.
+### A feed artifact worth knowing about
 
-Both are live-ball rebound starts, so they share the era's pace, spacing and officiating
-drift. Outcomes come from the **raw feed** — durations from game-clock differences, points
-from descriptions — never from the reconstruction, which implements the rule being tested and
-would otherwise recover it by construction.
+The NBA changed how it timestamps play-by-play in 2017-18, one season before the rule. The share
+of events immediately following a rebound that carry the identical game clock as that rebound:
 
-### First, the artifact
-
-**The NBA changed how it timestamps play-by-play in 2017-18**, one season before the rule.
-The share of events immediately following a rebound that carry the *identical* game clock as
-that rebound:
-
-| Season | 2015-16 | 2016-17 | **2017-18** | 2018-19 | … | 2024-25 |
+| Season | 2015-16 | 2016-17 | 2017-18 | 2018-19 | … | 2024-25 |
 |---|---|---|---|---|---|---|
-| Identical clock after a rebound | 15.1% | 14.7% | **18.7%** | 18.5% | | 17.8% |
+| Identical clock after a rebound | 15.1% | 14.7% | 18.7% | 18.5% | | 17.8% |
 
-It steps once and stays. Because chance duration here is measured from game-clock differences,
-and because the change lands specifically on the events that begin a *treated* chance, 2017-18
-measures shorter second chances for reasons that have nothing to do with basketball.
+It steps once and stays. Since chance duration here is measured from game-clock differences, and
+the change lands specifically on the events that begin a treated chance, 2017-18 measures shorter
+second chances for reasons that have nothing to do with basketball.
 
-That season is also the only one carrying the new timestamping *and* the old 24-second reset,
-which is why it surfaced as an outlier three separate ways before the cause was found: an
-anomalous DiD baseline, **3.1% of shots landing at exactly 24 seconds against ~0.5% in every
-other season**, and a 14-second fingerprint appearing a year early. It is dropped from the
-design. Doing so cuts the standard error on the long-chance effect more than fourfold.
+That season is also the only one carrying the new timestamping and the old 24-second reset, which
+is why it showed up as an outlier three separate ways before the cause was found: an odd baseline
+in the difference-in-differences, 3.1% of shots landing at exactly 24 seconds against about 0.5%
+in every other season, and a 14-second fingerprint appearing a year early. It's dropped from the
+design, which cuts the standard error on the long-chance effect more than fourfold.
 
 ### The experiment
 
@@ -204,412 +180,364 @@ design. Doing so cuts the standard error on the long-chance effect more than fou
 
 | | Outcome | DiD | SE | t |
 |---|---|---|---|---|
-| **First stage** | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
-| **Reduced form** | Chance duration (seconds) | −0.202 | 0.042 | −4.81 |
-| **Result** | **Points per chance** | **−0.0159** | 0.0063 | **−2.52** |
+| First stage | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
+| Reduced form | Chance duration (seconds) | −0.202 | 0.042 | −4.81 |
+| Result | Points per chance | −0.0159 | 0.0063 | −2.52 |
 
-**The first row is a manipulation check, not a finding.** After 2018-19 an offensive rebound
-with under 14 seconds left resets to exactly 14, so a treated chance essentially *cannot* run
-past 14 seconds. Confirming that long chances vanished confirms the rule took effect and that
-the reconstruction implements the reset correctly — worth establishing, and the flat pre-trend
-and sharp step are exactly what a clean first stage should look like. It is not evidence about
-behaviour, and reading it as the headline effect would be reading the treatment back out of
-itself.
+The first row is a manipulation check rather than a finding. After 2018-19 an offensive rebound
+with under 14 seconds left resets to exactly 14, so a treated chance essentially cannot run past
+14 seconds. Confirming that long chances vanished confirms the rule took effect and that the
+reconstruction implements the reset correctly, which is worth establishing, but it's close to
+mechanically implied by the treatment.
 
-The first stage is nonetheless strong, which is what licenses the rest:
+The first stage is strong, which is what licenses the rest. The share of second chances running
+past 14 seconds collapses the year it takes effect and never returns:
 
-| | 2015-16 | 2016-17 | **2018-19** | 2019-20 | … | 2024-25 |
+| | 2015-16 | 2016-17 | 2018-19 | 2019-20 | … | 2024-25 |
 |---|---|---|---|---|---|---|
-| Off. rebound (treated) | 9.1% | 8.2% | **1.4%** | 1.3% | | 1.4% |
+| Off. rebound (treated) | 9.1% | 8.2% | 1.4% | 1.3% | | 1.4% |
 | Def. rebound (control) | 27.8% | 26.8% | 21.6% | 22.2% | | 22.6% |
 
-An 83% drop against a control that drifts gently, and the event study is textbook: the
-treated-minus-control gap sits at −0.0007 and 0.000 in the two pre-seasons, then steps to
-−0.016 and stays between −0.020 and −0.029 for seven years. The 1.4% that survives is not
-error — a team rebounding early enough keeps a clock above 14, since the reset is
-`max(remaining, 14)`.
+An 83% drop against a control that only drifts. The event study is clean: the treated-minus-control
+gap sits at −0.0007 and 0.000 in the two pre-seasons, then steps to −0.016 and stays between −0.020
+and −0.029 for seven years. The 1.4% that survives isn't error, since a team rebounding early
+enough keeps a clock above 14.
 
-**The behavioural response is small.** Mean duration fell only 0.20 seconds, because second
-chances already averaged 6.1 seconds before the rule. The 24-second allowance was mostly
-optionality, and most of it went unexercised — which is the reduced-form fact worth carrying
-forward, and the reason the efficiency effect is small too.
+Mean duration fell only 0.20 seconds, because second chances already averaged 6.1 seconds before
+the rule. The 24-second allowance was mostly optionality that went unexercised, which is also why
+the efficiency effect is small.
 
-### The result: did it cost offenses anything? Probably a little
+### Did it cost offenses anything?
 
-**−0.016 points per chance, about −1.8% of second-chance efficiency. This is the finding** —
-the only one of the three rows that is about behaviour rather than about the rule — and it is
-also the weakest of the three statistically. It is negative in all seven post-rule seasons, which is not nothing.
-But with 2017-18 removed the pre-period is two seasons, and those two differ from each other
-by 0.014 — nearly the size of the estimate. One post-season (2022-23, −0.030) carries much of
-the average.
+About 1.8% of second-chance efficiency, −0.016 points per chance. This is the row about behaviour
+rather than about the rule, and it's also the weakest of the three statistically. It's negative in
+all seven post-rule seasons, which isn't nothing. But with 2017-18 removed the pre-period is two
+seasons, and those two differ from each other by 0.014, nearly the size of the estimate. One
+post-season (2022-23, −0.030) carries much of the average. Suggestive rather than established.
 
-So: suggestive, not established. **An earlier version of this section reported no effect at
-all**, which was wrong for an instructive reason — the contaminated season inflated the
-standard error enough to bury a real signal. Removing bad data made a null into a finding,
-which is the opposite of the usual direction and worth stating plainly.
+Treatment assignment isn't contaminated either, and that's checkable. The design rests on
+classifying each chance as beginning with an offensive or defensive rebound, and error there is
+measurement error in treatment, which attenuates the estimate. The classification uses the feed's
+team ids and event ordering plus tracking of who shot last, never the reconstructed clock or the
+14-second rule.
 
-**Treatment assignment is not contaminated either, and this is checkable.** The design rests
-on classifying each chance as beginning with an offensive or a defensive rebound; error there
-is measurement error *in treatment*, which attenuates the estimate. The classification uses the
-feed's team ids and event ordering plus our tracking of who shot last — never the reconstructed
-clock or the 14-second rule, so it cannot inherit the outcome.
+It agrees with an independent label 99.815% of the time (105,827 rebounds, 196 disagreements). That
+label is the feed's own bookkeeping: descriptions carry each player's running rebound counters,
+`REBOUND (Off:1 Def:2)`, and whichever increments identifies the type.
 
-It agrees with an independent label **99.815% of the time** (105,827 rebounds, 196
-disagreements). That independent label is the feed's own bookkeeping: descriptions carry each
-player's running rebound counters, `REBOUND (Off:1 Def:2)`, and whichever increments identifies
-the type. At that rate, attenuation from treatment misclassification is negligible.
-
-*Reproduce:* `python -m possval.pipeline rulechange`;
+Reproduce: `python -m possval.pipeline rulechange`,
 `possval.models.rulechange.treatment_label_agreement(2024)`.
 
----
+## 6. Season-to-season stability
 
-## 4c. The curves replicate in all ten seasons
+Sections 1 to 3 are cut on 2024-25. The backfill makes them testable across the whole sample, which
+matters because a shape derived from one season could be an era artifact. Spacing, pace and
+three-point rate all moved a lot over these years.
 
-Findings 1-3 are cut on 2024-25. The backfill makes them testable across the whole sample,
-and this is the check that matters most, because a shape derived from one season could be an
-era artifact — spacing, pace and three-point rate all moved substantially over these years.
-
-They are not. Every season's efficiency curve has the same shape:
+They hold. Every season's efficiency curve has the same shape:
 
 | | 2015-16 | 2017-18 | 2020-21 | 2022-23 | 2024-25 |
 |---|---|---|---|---|---|
 | PPA at 0s | 0.788 | 0.793 | 0.791 | 0.845 | 0.831 |
 | PPA at 7s | 0.963 | 1.010 | 1.038 | 1.046 | 1.047 |
 | PPA at 20s | 1.284 | 1.172 | 1.263 | 1.297 | 1.254 |
-| **Rise, 0s → 7s** | 0.176 | 0.218 | 0.247 | 0.201 | **0.216** |
+| Rise, 0s → 7s | 0.176 | 0.218 | 0.247 | 0.201 | 0.216 |
 
-Across all ten seasons the 0s→7s rise averages **0.211 with a standard deviation of 0.022**,
-and the 7s→20s rise averages 0.238 (SD 0.047). Excluding heaves makes the late-clock figure
-*more* stable, not less — the standard deviation falls from 0.035 to 0.022 while the mean
-drops, because buzzer-beater frequency varied by season and was adding noise as well as bias.
+Across all ten seasons the 0s-to-7s rise averages 0.211 with a standard deviation of 0.022, and the
+7s-to-20s rise averages 0.238 (SD 0.047). Excluding heaves makes the late-clock figure more stable
+rather than less, since the standard deviation falls from 0.035 to 0.022 while the mean drops.
+Buzzer-beater frequency varied by season and was adding noise as well as bias.
 
-Correlating each season's centred curve against 2024-25's gives **r ≥ 0.967 for every season
-under the 14-second rule** (2018-19 onward), rising to 0.99. Pre-2018 seasons sit lower, at
-0.82–0.91, which is expected rather than troubling: the 14-second reset changes the shape of
-the curve around 14 seconds, so a pre-rule season *should* correlate less well with a post-rule
-one. That the split falls exactly at the rule is itself a check.
+Correlating each season's centred curve against 2024-25 gives r ≥ 0.967 for every season under the
+14-second rule, rising to 0.99. Pre-2018 seasons sit lower at 0.82 to 0.91, which is expected rather
+than troubling: the 14-second reset changes the shape of the curve around 14 seconds, so a pre-rule
+season should correlate less well with a post-rule one. That the split falls exactly at the rule is
+itself a check.
 
-The whole curve drifts *upward* over the decade — league efficiency rose, as it did on every
-other measure — but the shape does not move. The late-clock collapse is not a property of one
-season's offensive environment.
+The whole curve drifts upward over the decade, since league efficiency rose on every measure, but
+the shape doesn't move.
 
----
+## 7. Shooting as an option
 
-## 4d. Teams relax their shot standard only half as fast as the clock demands
+Sections 1 to 3 are descriptive and say so. The efficiency-versus-clock curve is a selected sample
+at every point, so its slope can't separate time pressure degrading shot quality from bad
+possessions being the ones that last.
 
-Findings 1-3 are descriptive and say so. The efficiency-versus-clock curve is a **selected
-sample at every point** — possessions alive at 5 seconds are the ones where nothing
-materialised earlier — so its slope cannot separate time pressure degrading shot quality from
-bad possessions being the ones that last. Conditioning on possession-start type does not fix
-this, because the selection happens *within* the chance.
+This changes the question rather than the controls. At every moment the offense holds a live
+decision: shoot now at whatever is available, or decline and draw again from a distribution whose
+value decays as the clock runs. That's American option exercise, and it's answerable because it
+conditions on the decision (a shot was taken at second *t* with model value *q*) rather than on the
+outcome.
 
-This finding changes the question rather than the controls. At every moment the offense holds
-a live decision: shoot now at whatever is available, or decline and draw again from a
-distribution whose value decays as the clock runs. That is **American option exercise**, and
-it is answerable, because it conditions on the **decision** — a shot was taken at second *t*
-with model value *q* — rather than on the outcome.
+What's identified and what isn't: taken shots are observed with their model value, so premature
+exercise, shooting when holding was worth more, is measurable. The converse isn't. A shot passed up
+leaves no record of what it would have been worth, so this can't measure teams holding too long.
+Every number here is a one-sided lower bound on total decision error.
 
-### The continuation value
+### Continuation value
 
-`V(t)` is the expected points from *declining* to shoot with `t` seconds left: among chances
-still live at `t`, the mean outcome of those that did not end there. Estimated over **2.86
-million chances**, ten seasons:
+`V(t)` is the expected points from declining to shoot with `t` seconds left: among chances still
+live at `t`, the mean outcome of those that didn't end there. Estimated over 2.86 million chances
+across ten seasons:
 
 | Seconds left | 1 | 3 | 7 | 12 | 17 | 23 |
 |---|---|---|---|---|---|---|
-| `V(t)` — value of holding | 0.361 | 0.465 | 0.621 | 0.719 | 0.761 | 0.808 |
+| `V(t)`, value of holding | 0.361 | 0.465 | 0.621 | 0.719 | 0.761 | 0.808 |
 | P(shoot this second) | 53% | 31% | 18% | 11% | 6% | 2% |
 
-It behaves as the theory requires: monotone in time remaining, flattening above ~20 seconds
+It behaves the way theory requires: monotone in time remaining, flattening above about 20 seconds
 where extra clock stops helping, and collapsing toward zero as the option expires.
 
-*Chances ending because the **period** expired are removed before this is fitted, not after.*
-They are not shot-clock decisions, and they concentrate exactly where the model is most
-sensitive: **33% of chances ending with 2 or fewer seconds on the shot clock are period
-expiries.** Leaving them in depresses `V(1)` by 0.056 and inflates the headline below by about
-a tenth — the fit was run both ways and the clean one is reported.
+Chances ending because the *period* expired are removed before this is fitted rather than after.
+They aren't shot-clock decisions and they concentrate where the model is most sensitive: 33% of
+chances ending with 2 or fewer seconds on the shot clock are period expiries. Leaving them in
+depresses `V(1)` by 0.056 and inflates the headline below by about a tenth.
 
-### The exercise boundary, and what is not identified
+### The exercise boundary
 
-If offenses followed a threshold rule — shoot iff value ≥ `b(t)` — the bottom of the accepted
-distribution would estimate `b(t)`. **The level of that boundary is not identified**, and this
-is worth stating plainly because it would have been easy to publish and wrong: calling the 5th
-percentile of accepted shots "the threshold" rather than the 2nd or the 20th moves the
-estimated gap from −0.22 to +0.14. The sign of *too aggressive* versus *too patient* is a free
-parameter. No claim here rests on it.
+If offenses followed a threshold rule, shoot iff value ≥ `b(t)`, the bottom of the accepted
+distribution would estimate `b(t)`. **The level of that boundary isn't identified**, and this is
+worth stating because it would have been easy to publish and wrong. Calling the 5th percentile of
+accepted shots the threshold rather than the 2nd or the 20th moves the estimated gap against `V(t)`
+from −0.22 to +0.14. The sign of "too aggressive" versus "too patient" is a free parameter. No claim
+rests on it.
 
-**The shape survives the choice.** Optimal exercise requires the threshold to track the option
-it is compared against: as `V(t)` collapses, the standard should collapse with it.
+The shape survives the choice. Optimal exercise requires the threshold to track the option it's
+compared against: as `V(t)` collapses, the standard should collapse with it.
 
 | Quantile used as the boundary | 2% | 5% | 10% | 20% | 25% |
 |---|---|---|---|---|---|
 | Boundary falls, 23s → 1s | 0.281 | 0.302 | 0.232 | 0.256 | 0.246 |
 | `V(t)` falls over the same range | 0.447 | 0.447 | 0.447 | 0.447 | 0.447 |
-| **Relaxation ratio** | **0.63** | **0.67** | **0.52** | **0.57** | **0.55** |
+| Relaxation ratio | 0.63 | 0.67 | 0.52 | 0.57 | 0.55 |
 | Excess demand at 1-3s vs 8-23s | +0.144 | +0.147 | +0.170 | +0.173 | +0.166 |
 
-**Offenses lower their standard by only about 55-65% of what the collapse in continuation
-value warrants**, at every quantile. Equivalently, relative to what holding is worth, they
-demand roughly **0.16 points more** from a shot with 1-3 seconds left than from one with 8 or
-more. The clock runs out on an option they are still pricing as though it had time left.
+**Offenses lower their standard by only about 55 to 65% of what the collapse in continuation value
+calls for**, at every quantile. Put another way, relative to what holding is worth, they demand
+roughly 0.16 points more from a shot with 1-3 seconds left than from one with 8 or more. The clock
+runs out on an option they're still pricing as though it had time left.
 
-The estimator can return the optimal answer: on synthetic offenses that accept exactly at
-`V(t)`, the ratio comes back above 0.85 (`tests/test_stopping.py`). The measured ~0.5 is a
-deviation, not a property of the method.
+The estimator can return the optimal answer. On synthetic offenses that accept exactly at `V(t)`,
+the ratio comes back above 0.85 (`tests/test_stopping.py`), so the measured 0.5 is a deviation
+rather than a property of the method.
 
-### What this does and does not license
+### What this licenses
 
-**Exercise is broadly sound.** Taken shots beat their continuation value by **+0.39 points on
-average**, and only **7.0% fall below it** — about 2.1 points per game across both teams. NBA
-offenses are not routinely throwing away possessions, and any story about them doing so has to
-survive that number first.
+Exercise is broadly sound. Taken shots beat their continuation value by 0.39 points on average and
+only 7.0% fall below it, about 2.1 points per game across both teams. NBA offenses aren't routinely
+throwing away possessions, and any story about them doing so has to get past that number first.
 
-**The asymmetry is real but its cause is not pinned down.** A declined shot leaves no record,
-so this cannot see whether a shot worth taking actually existed at second 2. Excess late demand
-is consistent with excessive patience, and equally consistent with nothing better being on
-offer — the option set shrinks as the defense sets, and that is not observable here. What is
-established is that the *accepted* standard does not fall as fast as the *value of waiting*,
-which is a fact about behaviour whatever generates it.
+The asymmetry is real but its cause isn't pinned down. A declined shot leaves no record, so this
+can't see whether a shot worth taking actually existed at second 2. Excess late demand is consistent
+with excessive patience, and equally consistent with nothing better being on offer, since the option
+set shrinks as the defense sets and that isn't observable here. What's established is that the
+accepted standard doesn't fall as fast as the value of waiting, which is a fact about behaviour
+whatever generates it.
 
-**Free throws are excluded and that makes it conservative.** `XPTS` predicts field-goal points,
-so both sides run on field-goal points. Counting free throws raises `V(t)` by **+0.085** on
-average (**+0.084**) — a higher bar to clear, which would make late shooting look worse, not
-better.
+Free throws are excluded from both sides for unit consistency with `XPTS`, which makes this
+conservative. Counting them raises `V(t)` by 0.084 on average, a higher bar to clear.
 
 ### Three checks it survives
 
-**It is not garbage time.** An unconditional `V(t)` folds blowouts and late-game fouling into
-the same average, which are different decision problems. Splitting on score margin:
+It isn't garbage time. An unconditional `V(t)` folds blowouts and late-game fouling into the same
+average, which are different decision problems. Splitting on score margin:
 
 | Cut | Relaxation ratio | Excess late demand |
 |---|---|---|
 | All games | 0.52 – 0.67 | +0.160 |
-| **Competitive (\|margin\| ≤ 10)** | **0.56 – 0.71** | **+0.148** |
+| Competitive (\|margin\| ≤ 10) | 0.56 – 0.71 | +0.148 |
 | Blowouts (\|margin\| > 10) | 0.46 – 0.58 | +0.184 |
 
-The effect is *weaker* in competitive games and stronger in blowouts, which is the expected
-direction — but it is comfortably present in competitive games alone, so it is not an artifact
-of teams stopping caring.
+The effect is weaker in competitive games and stronger in blowouts, which is the expected direction,
+but it's comfortably present in competitive games alone.
 
-**It holds in all ten seasons.** Ratio mean 0.61, SD 0.087, and **every season's upper bound
-sits below 1.0**. 2016-17 is the closest to optimal (0.65–0.95) and 2021-22 the furthest
-(0.42–0.70). Whatever this is, it is not one season's quirk.
+It holds in all ten seasons. Ratio mean 0.61, SD 0.087, and every season's upper bound sits below
+1.0. 2016-17 is closest to optimal (0.65 to 0.95) and 2021-22 furthest (0.42 to 0.70).
 
-**The free-throw exclusion cuts the safe way**, worth +0.084 on `V(t)` — a higher bar, which
-would make late shooting look worse rather than better.
+Reproduce: `reports/stopping_robustness.csv`.
 
-*Reproduce:* `reports/stopping_robustness.csv`.
+### Per-player, the measure collapses
 
-### Does it vary by player? No — the measure collapses into shot quality
+The natural extension: if some players are genuinely better bail-out creators, holding the ball for
+them is worth more and their threshold should differ. Per-player mean surplus on late-clock shots,
+shrunk toward the league, keeps 85% of its observed spread. That isn't sampling noise. It's
+something less useful.
 
-The natural extension, and the one most likely to be noise: if some players are genuinely
-better bail-out creators, holding the ball *for them* is worth more and their threshold should
-differ. Per-player mean surplus on late-clock shots (≤7 seconds, ≥60 attempts, 282 players),
-shrunk toward the league:
+Per-player mean surplus correlates 0.984 with per-player mean late-clock `XPTS`, and the standard
+deviation of the difference between them is 0.012 against 0.067 for either alone. Subtracting `V(t)`
+removes almost nothing at player level, because every player's late-clock shots spread over roughly
+the same seconds, so `V` enters as a near-constant. Mean surplus is mean late-clock shot quality
+under a different name.
 
-| | Player | Late FGA | Shrunk surplus |
-|---|---|---|---|
-| Top | Rudy Gobert | 99 | 0.757 |
-| | Jarrett Allen | 92 | 0.696 |
-| | Daniel Gafford | 67 | 0.679 |
-| Bottom | Cade Cunningham | 359 | 0.374 |
-| | DeMar DeRozan | 336 | 0.379 |
+That's why the leaderboard reads the way it does, with centres on top and a +0.59 correlation with
+late-clock rim share, and why restricting to non-rim shots doesn't fix it. The top just becomes Sam
+Merrill, Max Strus and Stephen Curry, with Giannis and Zion at the bottom. Swapping "who dunks" for
+"who shoots threes" still isn't a measure of judgment.
 
-**85% of the observed spread survives shrinkage**, so it is not sampling noise. It is
-something worse: **the measure is tautological.**
+Measuring judgment needs the counterfactual, what else was available at that moment, and a declined
+shot leaves no record. It's kept here rather than dropped because it looks like a skill ranking and
+would be easy to publish as one.
 
-Per-player mean surplus correlates **0.984** with per-player mean late-clock `XPTS`, and the
-standard deviation of the difference between them is **0.012** against 0.067 for either alone.
-Subtracting `V(t)` removes almost nothing at player level, because every player's late-clock
-shots spread over roughly the same seconds, so `V` enters as a near-constant. Mean surplus is
-*mean late-clock shot quality under a different name*.
+Reproduce: `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
 
-That is why the leaderboard reads the way it does — centres on top, correlation +0.59 with
-late-clock rim share — and why restricting to non-rim shots does not fix it: the top merely
-becomes Sam Merrill, Max Strus and Stephen Curry, with Giannis and Zion at the bottom. Swapping
-"who dunks" for "who shoots threes" is still not a measure of judgment.
+## 8. Variation by team
 
-Measuring judgment needs the counterfactual — what *else* was available at that moment — and a
-declined shot leaves no record. The player-level extension is reported as a failure rather than
-dropped, because it looks like a skill ranking and would be easy to publish as one.
+The league relaxes at a ratio around 0.6. Whether that varies by team is the version of the
+per-player question that isn't tautological: mean surplus was shot quality renamed, but the ratio
+compares each team's own boundary movement against its own continuation value, so the level of shot
+quality divides out.
 
-*Reproduce:* `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
-
----
-
-## 4e. Which teams are worst at it — and how little of that ranking is real
-
-The league relaxes its standard at a ratio of ~0.6. The obvious next question is whether that
-varies by team, and it is the version of the per-player question that is **not** tautological:
-mean surplus was shot quality renamed, but the ratio compares each team's own boundary movement
-against its own continuation value, so the level of shot quality divides out.
-
-Raw, over ten seasons and ~95,000 chances per team, the spread looks dramatic — **0.41 to
-0.84**. Most of it is not real.
+Raw, over ten seasons and about 95,000 chances per team, the spread looks large: 0.41 to 0.84. Most
+of it isn't real.
 
 Thirty teams each get their own `V(t)` and their own boundary from a thirtieth of the data, so
-spread appears whether or not teams differ. Permuting team labels twenty times and repeating
-the whole calculation gives a null spread of **0.078** against the observed **0.098**. Squaring
-those, **only 37% of the observed variance is signal**; the rest is estimation noise.
+spread appears whether or not teams differ. Permuting team labels twenty times and repeating the
+whole calculation gives a null spread of 0.078 against the observed 0.098. Squaring those, only 37%
+of the observed variance is signal.
 
 Shrunk accordingly:
 
-| | Team | Raw | **Shrunk** |
+| | Team | Raw | Shrunk |
 |---|---|---|---|
-| Slowest to relax | PHI | 0.409 | **0.520** |
+| Slowest to relax | PHI | 0.409 | 0.520 |
 | | SAC | 0.440 | 0.531 |
 | | NOP | 0.465 | 0.540 |
 | Quickest to relax | MEM | 0.697 | 0.626 |
 | | CHA | 0.828 | 0.675 |
-| | TOR | 0.840 | **0.679** |
+| | TOR | 0.840 | 0.679 |
 
-*The null is itself estimated and needs enough permutations:* ten draws put it at 0.074 and
-twenty at 0.078, which moves the signal share from 43% to 37%. Twenty is the default, and
-`stopping_team_relaxation.csv` carries whichever the run used.
+The real range is roughly 0.52 to 0.68 rather than 0.41 to 0.84. A team effect exists and it's about
+a third the size the raw numbers suggest. Every team is still well below 1.0, so this is league-wide
+behaviour with modest variation rather than a few bad offenses dragging an average.
 
-**The real range is roughly 0.52 to 0.68, not 0.41 to 0.84.** A team effect exists and it is
-about a third the size the raw numbers suggest. Every team is still well below 1.0, so this is
-a league-wide behaviour with modest variation, not a few bad offenses dragging an average.
+The null is itself an estimate and needs enough permutations: ten draws put it at 0.074 and twenty at
+0.078, moving the signal share from 43% to 37%. Twenty is the default.
 
-*Philadelphia sits at the bottom* — the slowest in the league to lower its standard as the
-clock expires. Given the projection in §6 turns on this roster's shot creation, that is a
-coincidence worth noting and not worth over-reading: the shrunk gap to league average is 0.065,
-and the measure says nothing about the 2026-27 roster, three quarters of which is new.
+Philadelphia sits at the bottom, slowest in the league to lower its standard as the clock expires.
+Given the projection in section 12 turns on this roster's shot creation that's worth noting, but not
+worth over-reading. The shrunk gap to league average is 0.065 and the measure says nothing about the
+2026-27 roster, three quarters of which is new.
 
-*Reproduce:* `reports/stopping_team_relaxation.csv`.
+Reproduce: `reports/stopping_team_relaxation.csv`.
 
----
+## 9. Shot clock and win probability
 
-## 4f. Shot clock adds nothing to win probability either — and that is the point
+Section 4's ablation asked whether the shot clock predicts whether a shot goes in and answered no.
+That's the right answer to a question worth widening, because the shot clock was never about
+shot-making. Continuation value in section 7 runs 0.36 to 0.81 across the clock, a 2.2× range, so
+it's plainly informative about possessions.
 
-The ablation in finding 4 asked whether the shot clock predicts **whether a shot goes in**, and
-answered no. That is the right answer to a question worth widening, because the shot clock was
-never about shot-making — the continuation value in 4d runs 0.36 to 0.81 across the clock, a
-**2.2× range**, so it is plainly informative about *possessions*.
-
-So: does it improve a live **win-probability** model? NBA publishes one built from a feed that
-contains no shot clock, which makes this the strongest remaining case for predictive value.
+Does it improve a live win-probability model? The NBA publishes one built from a feed with no shot
+clock in it, which makes this the strongest remaining case for predictive value.
 
 5.34M events, ten seasons, time-ordered split, test on 2024-25:
 
 | Model | Log loss | Brier | AUC |
 |---|---|---|---|
 | Score margin + time + possession | 0.48545 | 0.16507 | 0.83332 |
-| **+ shot clock, chance elapsed, late-clock flag** | 0.48528 | 0.16500 | 0.83347 |
+| + shot clock, chance elapsed, late-clock flag | 0.48528 | 0.16500 | 0.83347 |
 
-**Improvement: 0.000163 log loss — 0.034%.** Bootstrapped over the 1,230 test *games* rather
-than the 550,132 events (every event in a game shares one label, so an event-level interval
-would claim hundreds of times more information than exists): 95% CI **[+0.00005, +0.00026]**,
-positive in 100% of draws.
+Improvement: 0.000163 log loss, or 0.034%. Bootstrapped over the 1,230 test *games* rather than the
+550,132 events, since every event in a game shares one label and an event-level interval would claim
+hundreds of times more information than exists: 95% CI [+0.00005, +0.00026], positive in 100% of
+draws.
 
-**Reliably non-zero. Practically nil.** With half a million events the improvement is
-statistically unambiguous and would round to zero in any application.
+Reliably non-zero and practically nil. With half a million events the improvement is statistically
+unambiguous and would round to zero in any application.
 
-### The three scales, which is the actual finding
+### The three scales
 
-| Question | Where shot clock lands |
+| Question | Where the shot clock lands |
 |---|---|
-| Will *this shot* go in? | Negligible — 0.00136 log loss, smallest group in the ablation |
-| Will *this possession* score? | **Large — `V(t)` spans 0.36 to 0.81, a 2.2× range** |
-| Will *this team* win? | Negligible — 0.034% of log loss |
+| Will *this shot* go in? | Negligible, 0.00136 log loss, smallest group in the ablation |
+| Will *this possession* score? | Large, `V(t)` spans 0.36 to 0.81 |
+| Will *this team* win? | Negligible, 0.034% of log loss |
 
-The shot clock is **possession-scale information**, and a possession is about 1% of a game's
-scoring. It is genuinely informative about the object it describes and washes out at both the
-scale below it and the scale above.
+The shot clock is possession-scale information, and a possession is about 1% of a game's scoring.
+It's genuinely informative about the object it describes and washes out at the scale below and the
+scale above.
 
-That is the honest summary of the whole shot-clock thesis. Reconstructing it did not buy
-predictive edge, at either end. What it bought is the ability to see a decision that is
-otherwise invisible — finding 4d exists only because `V(t)` can be computed at all — and a
-measurement instrument is a different kind of contribution from a feature that lifts AUC.
+That's the summary of the whole shot-clock question here. Reconstructing it didn't buy predictive
+edge at either end. What it bought is the ability to see a decision that's otherwise invisible,
+since section 7 exists only because `V(t)` can be computed at all, and a measurement instrument is a
+different kind of contribution from a feature that lifts AUC.
 
-*Reproduce:* `python -m possval.pipeline winprob`.
+Reproduce: `python -m possval.pipeline winprob`.
 
----
+## 10. Three pre-registered follow-ups
 
-## 4g. Three pre-registered follow-ups, none confirmed
-
-Finding 4d raises three obvious questions, and all three could be answered twenty ways until
-one came out interesting. They were **pre-registered before any of them was run** —
-hypotheses, directions, decision rules, and an exploration/holdout split — in
-[`preregistration_exploration.md`](preregistration_exploration.md), committed one commit
-before the analysis code.
+Section 7 raises three obvious questions, and all three could be answered twenty ways until one came
+out interesting. They were registered before any of them was run, with hypotheses, directions,
+decision rules and an exploration/holdout split, in
+[`preregistration_exploration.md`](preregistration_exploration.md), committed one commit before the
+analysis code.
 
 | | Hypothesis | Predicted | Observed | Verdict |
 |---|---|---|---|---|
-| H1 | Under-relaxing costs points | positive ρ | +0.251 explore, +0.065 full sample | **Not supported** |
-| H2 | Offenses adapted to the 2018 rule | two-sided | DiD −0.160 vs placebo mean −0.108 (z = −1.9) | **Marginal** |
-| H3 | Creator on floor → lower ratio | **negative** | **+0.065** explore, **+0.001** holdout | **Failed** |
+| H1 | Under-relaxing costs points | positive ρ | +0.251 explore, +0.065 full sample | Not supported |
+| H2 | Offenses adapted to the 2018 rule | two-sided | DiD −0.160 vs placebo mean −0.108 (z = −1.9) | Marginal |
+| H3 | Creator on floor → lower ratio | negative | +0.065 explore, +0.001 holdout | Failed |
 
-**H1 cannot be answered with this data**, which is different from being answered no. The
-correlation is the right sign and below the |ρ| ≈ 0.36 detectability floor stated in advance,
-and it collapses to +0.065 on the full sample. The holdout is not estimable at all: the ratio
-anchors on the boundary at 23 seconds, and two seasons split thirty ways leaves too few shots
-that late.
+H1 can't be answered with this data, which is different from being answered no. The correlation is
+the right sign and below the ρ ≈ 0.36 detectability floor stated in advance, and it collapses to
++0.065 on the full sample. The holdout isn't estimable at all: the ratio anchors on the boundary at
+23 seconds, and two seasons split thirty ways leaves too few shots that late.
 
-**H2's placebos are the story.** Fake rule-years produce DiDs of −0.083 to −0.145 against the
-real −0.160. The effect clears the pre-registered bar, but every placebo being large says a
-secular trend runs through both arms that the design does not remove.
+H2's placebos are the story. Fake rule-years produce DiDs of −0.083 to −0.145 against the real
+−0.160. It clears the pre-registered bar, but every placebo being large says a secular trend runs
+through both arms that the design doesn't remove.
 
-**H3 is the one worth dwelling on.** On exploration the gap was +0.065 and **cleared its
-permutation null** — a defensible-looking result with a ready story about stars changing how
-offenses wait. On held-out seasons it is **+0.001**. It was also the wrong sign from the start.
+H3 is the one worth dwelling on. On exploration the gap was +0.065 and cleared its permutation null,
+a defensible-looking result with a ready story about stars changing how offenses wait. On held-out
+seasons it's +0.001. It was also the wrong sign from the start.
 
-That is a false positive that would have survived every check this repo normally applies. It
-took a held-out sample to kill it, which is the entire argument for writing the protocol first.
+That's a false positive that would have survived every check applied elsewhere here. It took a
+held-out sample to kill it, which is the whole argument for writing the protocol first.
 
-Full protocol, results, and the two recorded deviations: [`preregistration_exploration.md`](preregistration_exploration.md).
+## 11. Creation overlap
 
----
+The reconstruction makes it possible to measure a player's creation profile: the distribution of his
+attempts over (shot-clock bucket × zone). Two players overlap when their profiles have the same
+shape, meaning both want the ball at the same moments. The idea under test was that high overlap
+costs a team offense, since four creators can't all use the same possessions.
 
-## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level
-
-This was the project's headline hypothesis, and **it failed.**
-
-The reconstruction makes it possible to measure a player's *creation profile*: the
-distribution of his attempts over (shot-clock bucket × zone). Two players "overlap" when
-their profiles have the same shape — both want the ball at the same moments. The hypothesis
-was that high overlap costs a team offense, because four creators cannot all use the same
-possessions.
-
-**The descriptive half holds up.** Philadelphia's projected core is genuinely redundant:
+**The descriptive half holds.** Philadelphia's projected core is genuinely redundant:
 
 | Pair | Creation similarity |
 |---|---|
-| LeBron ↔ Jaylen Brown | **0.988** |
+| LeBron ↔ Jaylen Brown | 0.988 |
 | LeBron ↔ Maxey | 0.980 |
 | Brown ↔ Maxey | 0.975 |
 | Embiid ↔ Brown | 0.951 |
 | Embiid ↔ KCP | 0.836 |
 
-Volume-weighted, the big four score **0.973 — the 99th percentile** of random four-player
-groups (league mean 0.895, p90 0.958). Embiid is the only differentiated creator; LeBron,
-Brown and Maxey are close to interchangeable in *when* they generate offense.
+Volume-weighted, the big four score 0.973, the 99th percentile of random four-player groups (league
+mean 0.895, p90 0.958). Embiid is the only differentiated creator. LeBron, Brown and Maxey are close
+to interchangeable in *when* they generate offense.
 
-**The causal half does not.** Testing whether overlap predicts efficiency across 270
-team-seasons (2016-17 → 2024-25), controlling for the same players' prior-season scoring
-quality and season fixed effects:
+**The causal half doesn't.** Testing whether overlap predicts efficiency across 270 team-seasons
+(2016-17 to 2024-25), controlling for the same players' prior-season scoring quality and season
+fixed effects:
 
 | Core size | Effect of +1 SD overlap on team xPTS/attempt | t |
 |---|---|---|
-| Top 3 creators | **+0.0029** | +1.62 |
+| Top 3 creators | +0.0029 | +1.62 |
 | Top 4 creators | +0.0020 | +1.23 |
 | Top 8 creators | −0.0001 | −0.03 |
 
-No specification reaches significance, and at the star level **the sign is positive** — the
-opposite of the hypothesis. The control behaves exactly as it should (prior quality t = 9.9,
-model R² = 0.53-0.61), so this is a real null rather than a broken test.
+No specification reaches significance, and at the star level the sign is positive. The control
+behaves as it should (prior quality t = 9.9, model R² 0.53 to 0.61), so this is a real null rather
+than a broken test.
 
-**The obvious objection — and the retest that answers it.** A team's top creators do not
-share the floor for all their minutes, so a real five-on-five effect could average away
-across a season and leave the team-season test showing nothing. That objection is testable,
-and testing it required on-court lineups: 5.57M events across ten seasons, resolved from
-substitution sequences, giving **4,233 five-man lineup-seasons with at least 100 chances
-together — 1,112,380 chances in total.**
+### The lineup-level retest
 
-The retest does not rescue the hypothesis. It also does not cleanly confirm the null, and
-the reason is worth stating precisely, because a single number here would be a choice about
-which answer to believe:
+The obvious objection: a team's top creators don't share the floor for all their minutes, so a real
+five-on-five effect could average away across a season. Testing it required on-court lineups, 5.57M
+events across ten seasons resolved from substitution sequences, giving 4,233 five-man lineup-seasons
+with at least 100 chances together and 1,112,380 chances in total.
+
+The retest doesn't rescue the idea. It also doesn't cleanly confirm the null, and the reason is worth
+stating, because a single number here would be a choice about which answer to believe:
 
 | Specification | n | Effect of +1 SD overlap (pts/chance) | 95% CI | t |
 |---|---|---|---|---|
@@ -620,170 +548,157 @@ which answer to believe:
 | Team-season FE, ≥400 chances | 599 | −0.0024 | −0.0145, +0.0096 | −0.39 |
 | Team-season FE, ≥800 chances | 205 | −0.0192 | −0.0512, +0.0127 | −1.18 |
 
-Three things happened on the way down that table, and each is a correction of a real error:
+Three things happen down that table. Clustering matters: 4,233 lineups come from 300 team-seasons and
+share players wholesale, since one starter appears in dozens of rows, and treating them as independent
+inflates t from 2.89 to 5.01. Team-season fixed effects matter too, because without them the
+coefficient is partly identified by good teams having high-overlap lineups, which is confounded. The
+effect survives that. Restricting to lineups that actually played, it doesn't: significance is gone by
+200 chances and the sign flips by 400.
 
-1. **Clustering.** 4,233 lineups come from 300 team-seasons and share players wholesale — one
-   starter appears in dozens of rows. Treating them as independent inflated t from 2.89 to
-   5.01. The naive number was never the right one.
-2. **Team-season fixed effects.** Without them the coefficient is identified partly by good
-   teams having high-overlap lineups, which is confounded: the front offices that assemble
-   talent also assemble modern shot diets. Comparing only lineups fielded by the same team in
-   the same year strips that out. The effect survives this.
-3. **Restricting to lineups that actually played.** Here it does not survive. The estimate
-   loses significance by 200 chances and changes sign by 400.
+That last row shouldn't be oversold. A formal test of heterogeneity, overlap interacted with log
+chances, comes back at t = −0.56, so the drift across thresholds is within noise. The honest reading
+is that the positive pooled estimate isn't robust, and the sample of heavily-used lineups is too
+small to say anything sharp.
 
-That last row is the one that matters, and it must not be oversold: a formal test of
-heterogeneity — overlap interacted with log chances — comes back at **t = −0.56**, so the
-drift across thresholds is *within noise*. The honest reading is not "the effect reverses
-among real lineups." It is that **the positive pooled estimate is not robust**, and the
-sample of heavily-used lineups is too small to say anything sharp.
+**What this can and can't rule out.** For the heavily-used lineups the Sixers question actually
+concerns (≥800 chances, roughly a starting unit's season), the interval is −0.051 to +0.013 points per
+chance, or −5.9% to +1.5% of league-average efficiency. A large redundancy penalty is excluded: the 10
+to 15% offensive haircut that naive diminishing-returns adjustments apply to multi-creator teams sits
+outside this interval at every level of aggregation tested. A modest penalty of a few percent among
+the most-used lineups is entirely consistent with this data and can't be ruled out.
 
-**What this can and cannot rule out.** For the heavily-used lineups the Sixers question
-actually concerns (≥800 chances, roughly a starting unit's season), the interval is
-−0.051 to +0.013 points per chance — **−5.9% to +1.5% of league-average efficiency.** So:
+Two explanations stay live. Coaches may already solve redundancy by staggering minutes, in which case
+the null reflects successful adaptation rather than an absent problem. And Philadelphia's 0.973 sits
+outside the observed team-season range (max 0.961), so applying any fitted coefficient to them is
+extrapolation.
 
-- A large redundancy penalty is excluded. The 10–15% offensive haircut that naive
-  diminishing-returns adjustments apply to multi-creator teams is outside this interval at
-  every level of aggregation tested.
-- A modest penalty — a few percent among the most-used lineups — is entirely consistent with
-  this data and cannot be ruled out. Distinguishing it would need far more high-usage
-  lineup-seasons than ten years of basketball contains.
+### Head to head against usage
 
-Two explanations also remain live and are untouched by either test. Coaches may already
-solve redundancy by staggering minutes, in which case the null reflects successful adaptation
-rather than an absent problem. And the Sixers' overlap (0.973) sits **outside the observed
-team-season range** (max 0.961), so applying any fitted coefficient to them is extrapolation.
-
-**The head-to-head, which the novel feature loses.** The point of building creation profiles
-was a specific, falsifiable claim: that *when* players want the ball carries information that
-the standard *how much* measure does not. Every public diminishing-returns adjustment is some
-version of summed usage. The incumbent here is that measure — the five players' combined shot
-attempts per 100 on-court chances — raced against creation overlap on identical rows:
+The point of building creation profiles was a specific, falsifiable claim: that *when* players want
+the ball carries information the standard *how much* measure doesn't. Every public
+diminishing-returns adjustment is some version of summed usage. That's the incumbent, measured here as
+the five players' combined shot attempts per 100 on-court chances, raced against creation overlap on
+identical rows:
 
 | Model | Usage sum | Creation overlap | R² |
 |---|---|---|---|
-| Usage only (incumbent) | **+0.0135** (t=9.27) | — | 0.2755 |
+| Usage only | +0.0135 (t=9.27) | — | 0.2755 |
 | Creation overlap only | — | +0.0076 (t=2.89) | 0.2604 |
-| **Both** | **+0.0133** (t=8.37) | **+0.0013 (t=0.49)** | 0.2756 |
+| Both | +0.0133 (t=8.37) | +0.0013 (t=0.49) | 0.2756 |
 
 Coefficients are points per chance per +1 SD, team-season fixed effects, clustered.
 
-**Creation overlap adds nothing.** Its coefficient collapses by 83% and its t-statistic from
-2.89 to 0.49 the moment usage is in the model, while usage barely moves. R² rises from 0.2755
-to 0.2756 — one ten-thousandth. The two correlate 0.33 within a team-season, and on this
-evidence overlap's standalone effect *was* that shared component. The expensive feature — the
-one requiring a shot clock that exists in no public feed — is a worse version of a measure
-anyone can compute from a box score.
+Creation overlap adds nothing. Its coefficient collapses by 83% and its t-statistic from 2.89 to 0.49
+once usage is in the model, while usage barely moves. R² rises by one ten-thousandth. The two
+correlate 0.33 within a team-season, and on this evidence overlap's standalone effect was that shared
+component. The expensive feature, the one requiring a shot clock that exists in no public feed, is a
+worse version of a measure anyone can compute from a box score.
 
-That is the answer to the question the project posed, and it is a negative one. It is reported
-as the headline result rather than buried, because the alternative would have been to report
-the standalone t=2.89 and not run the race.
+Two caveats cut against over-reading the incumbent too. Both measures are contemporaneous with the
+outcome, so neither is causal. The race is fair because both share the weakness, but "usage sum
+predicts efficiency" isn't "wanting the ball more helps." And the positive sign almost certainly
+reflects talent rather than usage: players who take more shots per chance are players who don't turn
+the ball over, and prior-season points per attempt doesn't capture that, correlating just 0.03 with
+usage sum.
 
-*Two caveats that cut against over-reading even the incumbent.* Both measures are
-contemporaneous with the outcome, so neither is causal — the race is fair because both share
-the weakness, but "usage sum predicts efficiency" is not "wanting the ball more helps."
-And the positive sign almost certainly reflects talent rather than usage: players who take
-more shots per chance are players who do not turn the ball over, and prior-season points per
-attempt (the control) does not capture that — it correlates just 0.03 with usage sum.
+**So Philadelphia shouldn't be marked down for offensive fit.** The defensible concerns are defense
+and availability. Three of the four stars grade negative defensively by DARKO (Brown −1.27, Maxey
+−0.91, LeBron −0.27), Embiid is the only plus defender in the starting five, and the bench sits below
+league median.
 
-**The implication for the projection is a change of subject.** The evidence for a
-Philadelphia risk is not offensive fit — it is defense and availability. Three of the four
-stars are negative defenders by DARKO (Brown −1.27, Maxey −0.91, LeBron −0.27), Embiid is
-the only plus defender in the starting five, and the bench sits below league median. That
-concern is untouched by both results, and it is where the projection should focus.
+## 12. Applications to the Sixers
 
-*Reproduce:* `python -m possval.pipeline lineup-test --first 2015 --last 2024`, which writes
-`reports/lineup_overlap_specifications.csv`.
+The projection layer, kept separate from everything above because it's a different kind of object. It
+depends on DARKO, a third-party impact metric, and produces a number more precise-looking than its
+inputs support.
 
-## 6. Philadelphia 2026-27: a projection, and why its level is soft
+### Ratings
 
-**Rating layer works.** Least-squares SRS over 11,968 games reproduces reality: home win rate
-0.5649, mean home margin +2.19, and 2024-25 tops out at OKC **+12.66** — the team that won the
-title with a historic point differential — with WAS (−12.13) at the bottom. Out of sample,
-predicting each season from the previous season's ratings beats the base rate by **4.4% log
-loss** (0.6554 vs 0.6854).
+Least-squares SRS over 11,968 games reproduces reality: home win rate 0.5649, mean home margin +2.19,
+and 2024-25 topping out at OKC +12.66, the team that won the title with a historic point differential,
+with Washington (−12.13) at the bottom. Out of sample, predicting each season from the previous
+season's ratings beats the base rate by 4.4% log loss (0.6554 vs 0.6854).
 
-*Scores are summed from scoring events, not read off the feed's `SCORE` column.* That column
-carries stale trailing rows — game 22300902 ends "112 - 118" and then logs a spurious
-"15 - 26" — which left **4.8% of 2015-16 games with a wrong final score**, some off by more
-than 100 points. Event-summed totals match the score string's running maximum on 96–100% of
-games and reproduce published league scoring averages exactly (2015-16: 205.4 combined
-points per game; 2024-25: 227.7). The correction moves individual team ratings by up to 0.53
-points and the league mean by 0.06 — small in aggregate because the errors largely cancel,
-which is precisely why it survived unnoticed.
+Scores are summed from scoring events rather than read off the feed's `SCORE` column. That column
+carries stale trailing rows: game 22300902 ends "112 - 118" then logs a spurious "15 - 26", which left
+4.8% of 2015-16 games with a wrong final score, some off by more than 100 points. Event-summed totals
+match the score string's running maximum on 96 to 100% of games and reproduce published league scoring
+averages exactly (205.4 combined points per game in 2015-16, 227.7 in 2024-25). The correction moves
+individual team ratings by up to 0.53 points and the league mean by 0.06, small in aggregate because
+the errors largely cancel, which is why it survived unnoticed.
 
-*A useful negative result along the way:* explicitly shrinking stale ratings toward the mean
-does nothing once the logistic scale is refit — the two are the same parameter, and log loss
-is identical from shrink 1.0 down to 0.5 while the fitted scale tracks 12.75 → 6.50. Team
-ratings correlate 0.587 year over year.
+A useful negative result along the way: explicitly shrinking stale ratings toward the mean does
+nothing once the logistic scale is refit, since the two are the same parameter. Log loss is identical
+from shrink 1.0 down to 0.5 while the fitted scale tracks 12.75 to 6.50. Team ratings correlate 0.587
+year over year.
 
-**The DPM→rating mapping is now calibrated**, which is what previously blocked quoting a
-title number. 2025-26 is the one season where both halves exist: observed team ratings from
-`nbastatsv3`, and a DARKO snapshot covering the players who produced them. Regressing the
-first on the second across all 30 teams:
+### Calibration
 
-**slope 1.433 ± 0.103, intercept +0.23, r = 0.935, residual SD 2.15.**
+The mapping from player impact to team rating is now fitted, which is what previously blocked quoting
+a title number. 2025-26 is the one season where both halves exist: observed team ratings from
+`nbastatsv3`, and a DARKO snapshot covering the players who produced them. Regressing the first on the
+second across all 30 teams:
 
-Two things fall out. The textbook identity — team rating = minutes-weighted DPM — is
-**compressed by 43%**, and 1.0 sits more than four standard errors away, so this is not a
-detail. And the fitted intercept replaces the old rotation-size guess entirely: because the
-fit uses every player's actual 2025-26 minutes, the centering that used to swing the
-projection by 2.3 points is now estimated rather than assumed.
+**Slope 1.433 ± 0.103, intercept +0.23, r = 0.935, residual SD 2.15.**
 
-*A trap avoided.* Calibrating offence and defence separately against points scored and
-allowed gives slopes of 0.90 and 1.78 — apparently showing DARKO compresses defensive spread
-twice as hard, which for an offence-heavy roster like Philadelphia's would matter enormously.
-It is an artifact. Both targets are per-game and pace-contaminated, and a fast team looks
-better on offence and worse on defence for reasons that cancel in its net rating. Against a
-common target the slopes are 1.47 and 1.31 and cannot be distinguished (F = 1.09, p = 0.31).
-Using the split would have put Philadelphia at +2.80 instead of +5.11 — a 2.3-point error
-biting hardest on exactly the roster shape this project exists to evaluate.
+Two things fall out. The textbook identity, team rating = minutes-weighted DPM, is compressed by 43%,
+and 1.0 sits more than four standard errors away. And the fitted intercept replaces the old
+rotation-size guess entirely, since the fit uses every player's actual 2025-26 minutes.
 
-**The projection.** All 30 teams are projected, because a title probability is not a property
-of one team. Each roster starts from 2025-26 minutes valued at current DARKO; the trade moves
-LeBron and Brown to Philadelphia and Paul George to Boston; minutes are re-fitted to the 240
-a game actually provides. 20,000 simulated seasons, conference brackets, uncertainty of 3.95
-points per team.
+A trap avoided: calibrating offence and defence separately against points scored and allowed gives
+slopes of 0.90 and 1.78, apparently showing DARKO compresses defensive spread twice as hard, which for
+an offence-heavy roster like Philadelphia's would matter enormously. It's an artifact. Both targets
+are per-game and pace-contaminated, and a fast team looks better on offence and worse on defence for
+reasons that cancel in its net rating. Against a common target the slopes are 1.47 and 1.31 and can't
+be distinguished (F = 1.09, p = 0.31). Using the split would have put Philadelphia at +2.80 instead of
++5.11.
+
+### The projection
+
+All 30 teams are projected, because a title probability isn't a property of one team. Each roster
+starts from 2025-26 minutes valued at current DARKO; the trade moves LeBron and Brown to Philadelphia
+and Paul George to Boston; minutes are re-fitted to the 240 a game actually provides. 20,000 simulated
+seasons, conference brackets, uncertainty of 3.95 points per team.
 
 | Scenario | Rating | Wins | 80% interval | Title | League rank |
 |---|---|---|---|---|---|
-| Minutes as played (injuries repeat) | +2.50 | **47.1** | 34-60 | 1.5% | 11th |
-| Health-adjusted (70 games each) | +3.49 | **49.2** | 37-61 | **2.1%** | 9th |
+| Minutes as played (injuries repeat) | +2.50 | 47.1 | 34-60 | 1.5% | 11th |
+| Health-adjusted (70 games each) | +3.49 | 49.2 | 37-61 | 2.1% | 9th |
 
-**The superteam is a 47-49 win team with roughly a 2% title chance.** That is the headline,
-and it is much colder than the premise. Three things drive it:
+**A 47 to 49 win team with roughly a 2% title chance.** Colder than the premise. Three things drive
+it. Their 2025-26 base was 18th in the league at −0.31 SRS, so the trade upgrades a middling team
+rather than adding to a contender. The upgrade itself is about +2 DPM: LeBron (1.31, age 41) plus
+Jaylen Brown (1.78) minus Paul George (1.07), displacing bench minutes rather than replacing bad
+starters. And three teams sit a tier above, with New York (+10.5), Oklahoma City (+10.7) and San
+Antonio (+8.8) taking 72% of simulated titles between them.
 
-1. **The base was mediocre.** Philadelphia's 2025-26 SRS was −0.31, 18th in the league. The
-   trade is an upgrade on a middling team, not an addition to a contender.
-2. **The upgrade is smaller than it sounds.** LeBron (1.31 DPM, age 41) plus Brown (1.78)
-   minus Paul George (1.07) is about +2 DPM of talent, and it displaces *bench* minutes
-   rather than replacing bad starters.
-3. **Three teams are far ahead.** New York (+10.5), Oklahoma City (+10.7) and San Antonio
-   (+8.8) occupy a tier Philadelphia is six points below. Those three take 72% of titles.
+Availability is the largest single lever. Embiid played 38 games in 2025-26. Projecting every player
+to 70 games is worth a full point of rating and doubles the lower tail, and the entire difference
+between the two scenarios above is his health and Brown's.
 
-**Availability is the largest single lever on this roster.** Embiid played 38 games in
-2025-26. Projecting every player to 70 games is worth a full point of rating and doubles the
-lower tail — the entire difference between the two scenarios above is his health and Brown's.
+### How much is model and how much is knowledge
 
-**How much of this is model and how much is knowledge.** The title odds are acutely sensitive
-to how uncertain the ratings are, and that parameter is not observable:
+Title odds are acutely sensitive to how uncertain the ratings are, and that parameter isn't
+observable:
 
 | Rating uncertainty | Best team's title odds | Philadelphia | Top-3 share |
 |---|---|---|---|
-| 2.15 (calibration residual — a floor) | 38.5% | 0.8% | 87% |
-| **3.95 (year-over-year, used)** | **30.2%** | **2.0%** | **73%** |
+| 2.15 (calibration residual, a floor) | 38.5% | 0.8% | 87% |
+| 3.95 (year-over-year, used) | 30.2% | 2.0% | 73% |
 | 5.00 | 26.0% | 2.7% | 65% |
 
-3.95 is the residual from predicting each season's SRS from the previous season's over ten
-seasons — the amount a team actually moves in a year. The 2.15 floor would be right only if
-the roster snapshot were the whole story; it is not, and quoting it would have made the
-favourites look far more certain than any honest reading supports.
+3.95 is the residual from predicting each season's SRS from the previous season's over ten seasons,
+which is how far a team actually moves in a year. The 2.15 floor would be right only if the roster
+snapshot were the whole story, and quoting it would make the favourites look far more certain than any
+honest reading supports.
 
-**No aging is applied, and that is a refusal rather than an oversight.** Aging DPM needs a
-DPM aging curve, which needs DARKO across multiple seasons; only one snapshot exists. The
-curve this project *can* fit is on shot efficiency, and its support collapses precisely where
-the question lives — 12 player-seasons at age 38, one at 41. Applying an extrapolated curve to
-the single player it matters most for would dress an assumption up as a measurement.
+### No aging applied
+
+That's a refusal rather than an oversight. Aging DPM needs a DPM aging curve, which needs DARKO across
+multiple seasons, and only one snapshot exists. The curve this project *can* fit is on shot efficiency,
+and its support collapses precisely where the question lives: 12 player-seasons at age 38, one at 41.
+Applying an extrapolated curve to the single player it matters most for would dress an assumption up
+as a measurement.
 
 The sweep answers the question instead:
 
@@ -794,47 +709,43 @@ The sweep answers the question instead:
 | 1.0 | +2.67 | 11th |
 | 2.0 (implausibly steep) | +1.86 | 14th |
 
-**The conclusion does not depend on it.** Even a two-point collapse — far beyond any plausible
-one-year fall — leaves Philadelphia a mid-table playoff team rather than moving it toward or
-away from contention. Embiid's decline sweeps almost identically.
+The conclusion doesn't depend on it. Even a two-point collapse, far beyond any plausible one-year fall,
+leaves Philadelphia a mid-table playoff team rather than moving it toward or away from contention.
+Embiid's decline sweeps almost identically.
 
-**What this projection does not know.** Only the Philadelphia trade is modelled — the other
-29 rosters are frozen at their 2025-26 shape, so any rival's offseason is invisible. And the
-calibration's DARKO snapshot postdates the season it was scored against, so its residual is
-optimistic. These odds describe a league that will not exist on opening night.
+### What the projection doesn't know
 
-*Reproduce:* `python -m possval.pipeline project --games 70`, which writes
-`reports/league_projection_2026_27.csv`.
+Only the Philadelphia trade is modelled. The other 29 rosters are frozen at their 2025-26 shape, so any
+rival's offseason is invisible. And the calibration's DARKO snapshot postdates the season it was scored
+against, so its residual is optimistic. These odds describe a league that won't exist on opening night.
 
 ---
 
 ## Caveats
 
-- **Buzzer-beater heaves are excluded** from findings 1-3 (game clock under 3 seconds, 1.85%
-  of shots), flagged as `GAME_CLOCK_EXPIRING`. The threshold is a judgment call but the result
-  does not rest on it: sweeping it over ten seasons, the 0s→7s rise is 0.212 at a 2-second cut
-  and 0.206 at 8 seconds, against 0.342 with no cut. Essentially the whole contamination is
-  sub-2-second heaves.
-- **The free-throw caveat was backwards, and is now measured.** Findings 1-3 exclude free
-  throws, because `shotdetail` carries no FT rows. This was recorded as a reason finding 2
-  might *overstate* the late-clock penalty, on the assumption that late clock draws more
-  fouls. It draws fewer: the share of chances producing a free throw falls from 13.6% at 20
-  seconds to **2.1% at 0 seconds**. Free throws are 15.4% of a chance's value at 20s and only
-  10.4% at 0s, so including them makes the decline **steeper**, not shallower — the rise from
-  0s to 7s is +0.527 on field goals alone against +0.589 with free throws counted, and from
-  7s to 20s, +0.397 against +0.519. **Finding 2 understates the late-clock penalty by roughly
-  a quarter.** (Chance-level and therefore not directly comparable to the shot-level curve;
-  the direction and rough size are the point.)
-- Chance-level analyses — the rule-change experiment, the lineup work — *do* include free
-  throws, via `event_points`. Shot-level findings do not. The two units are labelled
-  throughout and should not be read off the same axis.
-- Shots at exactly 24 seconds (n=906, PPA 0.954) are an edge case: tips and putbacks landing
-  on the reset instant. Small sample, treated as noise.
-- 4.2% of shots have no reconstructed clock (low-confidence chances) and are excluded rather
-  than imputed. See METHODOLOGY.md §2.
-- The curves in findings 1-3 are 2024-25; finding 4c re-cuts them per season across all ten.
-- **The decline in finding 2 is descriptive, not causal**, and no amount of conditioning on
-  possession-start type makes it causal — selection happens *within* the chance. The
-  identification strategy is an optimal-stopping model: compare the value of shooting now
-  against the continuation value of holding, which conditions on the decision rather than the
-  outcome. That work is next.
+Buzzer-beater heaves are excluded from sections 1 to 3 (game clock under 3 seconds, 1.85% of shots),
+flagged as `GAME_CLOCK_EXPIRING`. The threshold is a judgment call but the result doesn't rest on it:
+sweeping it over ten seasons, the 0s-to-7s rise is 0.212 at a 2-second cut and 0.206 at 8 seconds,
+against 0.342 with no cut. Essentially all the contamination is sub-2-second heaves.
+
+Free throws are excluded from PPA because `shotdetail` carries no FT rows, and the direction of that
+bias is the opposite of what you'd guess. Late clock draws fewer fouls: the share of chances producing
+a free throw falls from 13.6% at 20 seconds to 2.1% at 0. Free throws are 15.4% of a chance's value at
+20 seconds and only 10.4% at 0, so including them makes the decline steeper. The rise from 0s to 7s is
++0.527 on field goals alone against +0.589 with free throws counted, and from 7s to 20s, +0.397 against
++0.519. Section 2 understates the late-clock penalty by roughly a quarter. (Chance-level and therefore
+not directly comparable to the shot-level curve; the direction and rough size are the point.)
+
+Chance-level analyses, meaning the rule-change experiment and the lineup work, do include free throws
+via `event_points`. Shot-level findings don't. The two units are labelled throughout and shouldn't be
+read off the same axis.
+
+Shots at exactly 24 seconds (n=906, PPA 0.954) are an edge case: tips and putbacks landing on the reset
+instant. Small sample, treated as noise.
+
+4.2% of shots have no reconstructed clock, from low-confidence chances, and are excluded rather than
+imputed. See METHODOLOGY §2.
+
+The decline in section 2 is descriptive rather than causal, and no amount of conditioning on
+possession-start type makes it causal, since selection happens within the chance. Section 7 is the
+identification strategy.

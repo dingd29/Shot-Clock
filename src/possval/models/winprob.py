@@ -1,6 +1,6 @@
 """Live win probability, and whether the reconstructed shot clock adds anything to it.
 
-The ablation in §6 asked whether the shot clock helps predict **whether a shot goes in** and
+The ablation asked whether the shot clock helps predict whether a shot goes in and
 answered no: removing it costs 0.00136 log loss, the smallest group tested. That is the right
 answer to that question and the wrong question to stop on.
 

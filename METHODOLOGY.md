@@ -463,7 +463,7 @@ volume-weighted, plus season fixed effects. The prior-season control is what mak
 test rather than a correlation — good teams have good players, and good players may cluster
 in usage.
 
-**Result: null.** See `reports/findings.md` §5. No specification is significant; at top-3 the
+**Result: null.** See findings §11. No specification is significant; at top-3 the
 sign is positive. Not reported as anything else.
 
 ### The lineup-level retest
@@ -728,7 +728,7 @@ moves Philadelphia from 9th to 11th, and a 2.0 collapse to 14th. The answer does
 the assumption, which is the only reason omitting it is acceptable.
 
 **Philadelphia: +3.49, 49.2 wins (37-61), 2.1% title, 9th of 30** under health-adjusted
-minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See `reports/findings.md` §6.
+minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See findings §12.
 
 ---
 
@@ -740,7 +740,7 @@ Closed, with where they landed:
 |---|---|
 | Calibrate the DPM→rating mapping | §10 — slope 1.433 ± 0.103; the identity compresses spread by 43% |
 | Free-throw points excluded from PPA | Quantified in findings *Caveats*; the caveat pointed the wrong way — late clock draws *fewer* fouls, so exclusion **understates** the decline |
-| Five-man lineup retest of the overlap null | §8 — 4,233 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
+| Five-man lineup retest of the overlap null | Findings §11 — 4,233 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
 | Pre-register the projection | `PREREGISTRATION.md`, tag `projection-2026-27`, scoring harness live |
 | Real NBA schedule | Sampled under the league's structure (`nba_schedule`); swap in the published calendar when it is released |
 

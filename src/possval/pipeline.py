@@ -392,7 +392,7 @@ def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
     players = player_exercise(shots[shots.SEASON == shots.SEASON.max()], values)
     print(f"\n=== per-player late-clock surplus (shrunk; signal share "
           f"{players.attrs['signal_share']:.2f}) ===")
-    print("high scores track rim share, not judgment — see findings 4d")
+    print("high scores track rim share, not judgment; see findings 7")
     print(pd.concat([players.head(5), players.tail(3)])[
         ["PLAYER_NAME", "FGA_LATE", "SURPLUS", "SHRUNK_SURPLUS"]
     ].round(3).to_string(index=False))
@@ -467,7 +467,7 @@ def cmd_winprob(first: int, last: int) -> None:
     print(f"game-clustered bootstrap over {interval['n_games']} games: "
           f"95% CI [{interval['ci_low']:+.6f}, {interval['ci_high']:+.6f}], "
           f"{interval['share_positive']:.0%} of draws positive")
-    print("\nReliably non-zero and practically nil — see findings 4e.")
+    print("\nReliably non-zero and practically nil; see findings 9.")
 
     scores.to_csv(REPORTS / "winprob_comparison.csv", index=False)
     pd.DataFrame([interval]).to_csv(REPORTS / "winprob_bootstrap.csv", index=False)
