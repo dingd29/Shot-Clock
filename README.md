@@ -79,7 +79,7 @@ quantile you pick flips the sign of "too aggressive" versus "too patient", so on
 claimed. Team variation is real but modest: a raw spread of 0.33 to 0.67 is 42% signal against a
 permutation null, putting the honest range around 0.41 to 0.55.
 
-## What didn't hold up
+## Null results
 
 Some of the more useful things here are ideas that didn't survive testing.
 
@@ -125,35 +125,32 @@ doesn't rescue the design either.
 
 ## Applications to the Sixers
 
-Here's the part I actually care about.
+Ever since I was a kid, the Sixers have been my team, so naturally I care about how these results apply to them in particular.
 
-Philadelphia added LeBron James and Jaylen Brown this offseason, next to Joel Embiid and Tyrese
-Maxey. I've spent most of the summer trying not to get carried away about it, and having a
+Philadelphia added LeBron James and Jaylen Brown this offseason, next to Joel Embiid, Tyrese
+Maxey, and VJ Edgecombe. On paper we have a superteam, and having a
 possession model sitting right there felt like a good excuse to check whether the excitement
 survives contact with data.
 
-The first question was fit. Four high-usage creators sharing a floor is the classic superteam
+The first question was fit. Four (arguably five) high-usage creators sharing a floor is the classic superteam
 worry, and the shot clock gives a way to ask it properly: when in a possession does each player
 generate offense, and how much do those windows overlap?
 
-They overlap a lot. Volume-weighted, the top four score 0.973 similarity, the 99th percentile of
+The answer is they overlap a lot. Volume-weighted, the top four score 0.973 similarity, the 99th percentile of
 random four-player groups. LeBron and Jaylen Brown sit at 0.988. Embiid is the only one whose
 creation profile looks different from the others.
 
-That turns out not to predict anything. Across 270 team-seasons, controlling for the same
-players' prior-season quality, one of nine specifications reaches significance and it has the
-wrong sign: more overlap, *better* offense. That's what the construction produces on its own,
-since similar players concentrate their shots early in the clock and early-clock possessions
-score better. The five-man retest doesn't rescue the idea either.
-
-So the "too many ball-handlers" worry, at least as measured here, isn't where the risk sits.
-Defense and availability are: three of the four grade negative defensively, and Embiid played 38
-games last season.
+That turns out not to be a huge issue for the Sixers, though. Across 270 team-seasons, controlling
+for the same players' prior-season quality, one of nine specifications reaches significance and it
+has the wrong sign: more overlap, *better* offense. That's what the construction produces on its
+own, since similar players concentrate their shots early in the clock and early-clock possessions
+score better. The five-man retest doesn't rescue the idea either. So the "too many ball-handlers"
+worry, at least as measured here, isn't where the risk sits. Defense and availability are: three of
+the four grade negative defensively, and Embiid played 38 games last season.
 
 ## The projection
 
-Scoped separately from everything above, on purpose. It leans on DARKO, someone else's impact
-metric, and it produces a headline number more precise-looking than its inputs support.
+Scoped separately from everything above, on purpose. It leans on DARKO, or Daily Adjusted and Regressed Kalman Optimized Projections, and it produces a headline number more precise-looking than its inputs support.
 
 The mapping from player impact to team rating is fitted against observed 2025-26 ratings, giving
 a slope of 1.433 ± 0.103. That slope is contemporaneous, so it can't be applied forward as it
