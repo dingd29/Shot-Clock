@@ -328,7 +328,7 @@ def cmd_ablate(first: int, last: int) -> None:
     print(f"\nwritten: {out}")
 
 
-def cmd_stopping(first: int, last: int) -> None:
+def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
     """Shooting as optimal stopping: continuation value, exercise boundary, relaxation."""
     from possval.models.stopping import (
         chance_panel,
@@ -340,6 +340,7 @@ def cmd_stopping(first: int, last: int) -> None:
         relaxation,
         robustness,
         team_relaxation,
+        team_relaxation_null,
     )
 
     pd.set_option("display.width", 200)
@@ -371,8 +372,12 @@ def cmd_stopping(first: int, last: int) -> None:
     print("(the boundary's *level* is not identified — its shape is; hence every quantile)")
     print(ratios.round(4).to_string(index=False))
 
-    teams = team_relaxation(shots, panel)
-    print("\n=== relaxation ratio by team (shrunk; most of the raw spread is noise) ===")
+    # The null costs a minute and is not optional: two thirds of the raw team spread is the
+    # noise of splitting one dataset thirty ways, and the raw ranking is misleading without it.
+    null = team_relaxation_null(shots, panel, n_draws=n_null_draws)
+    teams = team_relaxation(shots, panel, null_sd=null["null_mean"])
+    print(f"\n=== relaxation ratio by team (null spread {null['null_mean']:.4f} from "
+          f"{n_null_draws} permutations; signal share {teams.attrs['signal_share']:.0%}) ===")
     print(pd.concat([teams.head(5), teams.tail(5)]).round(3).to_string(index=False))
     teams.to_csv(REPORTS / "stopping_team_relaxation.csv", index=False)
 

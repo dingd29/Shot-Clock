@@ -458,6 +458,7 @@ def team_relaxation(
     panel: pd.DataFrame,
     min_shots: int = MIN_TEAM_SHOTS,
     min_chances: int = 50,
+    null_sd: float | None = None,
 ) -> pd.DataFrame:
     """The relaxation ratio computed per team, on that team's own chances and shots.
 
@@ -471,8 +472,10 @@ def team_relaxation(
     continuation value, so the level of shot quality divides out and only the shape remains.
     A team of great shooters and a team of poor ones can score the same ratio.
 
-    Interpret against `team_relaxation_null`, not against zero. Thirty teams each get their own
-    `V(t)` and boundary from a fraction of the data, so some spread appears by construction.
+    Pass `null_sd` from `team_relaxation_null` to get shrunk estimates. Without it the raw
+    ratios are returned and should not be read as a ranking: thirty teams each fitting a
+    two-stage quantity on a thirtieth of the data produce spread by construction, and on the
+    real data roughly **two thirds of the raw variance is that noise**.
     """
     rows = []
     for team in sorted(shots.TEAM_ABBREVIATION.dropna().unique()):
@@ -490,7 +493,16 @@ def team_relaxation(
                 "excess_late_demand": float(ratios.excess_late_demand.mean()),
             }
         )
-    return pd.DataFrame(rows).sort_values("relaxation_ratio").reset_index(drop=True)
+    result = pd.DataFrame(rows).sort_values("relaxation_ratio").reset_index(drop=True)
+    if null_sd is not None and len(result) > 1:
+        observed = float(result.relaxation_ratio.var(ddof=1))
+        signal = max(observed - null_sd**2, 0.0)
+        share = signal / observed if observed else 0.0
+        league = float(result.relaxation_ratio.mean())
+        result["SHRUNK"] = league + (result.relaxation_ratio - league) * share
+        result.attrs["signal_share"] = share
+        result.attrs["league_mean"] = league
+    return result
 
 
 def team_relaxation_null(

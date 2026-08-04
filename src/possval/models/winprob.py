@@ -212,9 +212,11 @@ def bootstrap_difference(
         y, p = outcomes[mask], probabilities[mask]
         return float(-np.mean(y * np.log(p) + (1 - y) * np.log(1 - p)))
 
-    games = held_out.GAME_ID.to_numpy()
-    unique_games = np.unique(games)
-    index = {game: np.flatnonzero(games == game) for game in unique_games}
+    # `groupby(...).indices` builds the game -> row-positions map in a single pass. Scanning
+    # the full array once per game instead is O(games x rows) — 1,230 x 550,132 here, which
+    # turned a few-second bootstrap into one that never finished.
+    index = held_out.reset_index(drop=True).groupby("GAME_ID").indices
+    unique_games = np.array(list(index))
 
     rng = np.random.default_rng(seed)
     differences = []
