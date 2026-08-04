@@ -318,11 +318,17 @@ million chances**, ten seasons:
 
 | Seconds left | 1 | 3 | 7 | 12 | 17 | 23 |
 |---|---|---|---|---|---|---|
-| `V(t)` — value of holding | 0.305 | 0.455 | 0.612 | 0.715 | 0.758 | 0.807 |
-| P(shoot this second) | 43% | 25% | 17% | 11% | 6% | 1% |
+| `V(t)` — value of holding | 0.361 | 0.465 | 0.621 | 0.719 | 0.761 | 0.808 |
+| P(shoot this second) | 53% | 31% | 18% | 11% | 6% | 2% |
 
 It behaves as the theory requires: monotone in time remaining, flattening above ~20 seconds
 where extra clock stops helping, and collapsing toward zero as the option expires.
+
+*Chances ending because the **period** expired are removed before this is fitted, not after.*
+They are not shot-clock decisions, and they concentrate exactly where the model is most
+sensitive: **33% of chances ending with 2 or fewer seconds on the shot clock are period
+expiries.** Leaving them in depresses `V(1)` by 0.056 and inflates the headline below by about
+a tenth — the fit was run both ways and the clean one is reported.
 
 ### The exercise boundary, and what is not identified
 
@@ -339,15 +345,14 @@ it is compared against: as `V(t)` collapses, the standard should collapse with i
 | Quantile used as the boundary | 2% | 5% | 10% | 20% | 25% |
 |---|---|---|---|---|---|
 | Boundary falls, 23s → 1s | 0.281 | 0.302 | 0.232 | 0.256 | 0.246 |
-| `V(t)` falls over the same range | 0.501 | 0.501 | 0.501 | 0.501 | 0.501 |
-| **Relaxation ratio** | **0.56** | **0.60** | **0.46** | **0.51** | **0.49** |
-| Excess demand at 1-3s vs 8-23s | +0.169 | +0.172 | +0.195 | +0.198 | +0.191 |
+| `V(t)` falls over the same range | 0.447 | 0.447 | 0.447 | 0.447 | 0.447 |
+| **Relaxation ratio** | **0.63** | **0.67** | **0.52** | **0.57** | **0.55** |
+| Excess demand at 1-3s vs 8-23s | +0.144 | +0.147 | +0.170 | +0.173 | +0.166 |
 
-**Offenses lower their standard by only about half of what the collapse in continuation value
-warrants — a ratio near 0.5 at every quantile.** Equivalently, relative to what holding is
-worth, they demand roughly **0.18 points more** from a shot with 1-3 seconds left than from one
-with 8 or more. The clock runs out on an option they are still pricing as though it had time
-left.
+**Offenses lower their standard by only about 55-65% of what the collapse in continuation
+value warrants**, at every quantile. Equivalently, relative to what holding is worth, they
+demand roughly **0.16 points more** from a shot with 1-3 seconds left than from one with 8 or
+more. The clock runs out on an option they are still pricing as though it had time left.
 
 The estimator can return the optimal answer: on synthetic offenses that accept exactly at
 `V(t)`, the ratio comes back above 0.85 (`tests/test_stopping.py`). The measured ~0.5 is a
@@ -355,8 +360,8 @@ deviation, not a property of the method.
 
 ### What this does and does not license
 
-**Exercise is broadly sound.** Taken shots beat their continuation value by **+0.43 points on
-average**, and only **4.8% fall below it** — about 1.5 points per game across both teams. NBA
+**Exercise is broadly sound.** Taken shots beat their continuation value by **+0.39 points on
+average**, and only **7.0% fall below it** — about 2.1 points per game across both teams. NBA
 offenses are not routinely throwing away possessions, and any story about them doing so has to
 survive that number first.
 
@@ -369,7 +374,8 @@ which is a fact about behaviour whatever generates it.
 
 **Free throws are excluded and that makes it conservative.** `XPTS` predicts field-goal points,
 so both sides run on field-goal points. Counting free throws raises `V(t)` by **+0.085** on
-average — a higher bar to clear, which would make late shooting look worse, not better.
+average (**+0.084**) — a higher bar to clear, which would make late shooting look worse, not
+better.
 
 *Reproduce:* `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
 

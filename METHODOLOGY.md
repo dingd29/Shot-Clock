@@ -269,8 +269,15 @@ holding too long is not, since a declined shot leaves no record. Every figure is
 threshold as a low quantile of accepted shot values gives a gap against `V(t)` of −0.22 at the
 2nd percentile and +0.14 at the 20th — the sign of "too aggressive" versus "too patient" is a
 free parameter. Only the *shape* is quantile-invariant: the relaxation ratio (how far the
-boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.46-0.60 across every quantile
-tried**, and the excess late demand +0.17 to +0.20. Those are the reported numbers.
+boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.52-0.67 across every quantile
+tried**, and the excess late demand +0.14 to +0.17. Those are the reported numbers.
+
+> **Period expiries are dropped before the fit, not after.** A chance ending because the period
+> ran out is not a shot-clock decision, and they concentrate where the model is most sensitive:
+> 33% of chances ending with 2 or fewer seconds on the shot clock are period expiries. Left in,
+> they depress `V(1)` by 0.056 and inflate the relaxation finding by about a tenth. `V(t)` is
+> fitted both ways and `PERIOD_EXPIRED` is kept as a column so the exclusion is measurable
+> rather than assumed.
 
 `tests/test_stopping.py` builds offenses that accept exactly at `V(t)` and asserts the ratio
 comes back above 0.85, so the measured ~0.5 is a deviation rather than a property of the

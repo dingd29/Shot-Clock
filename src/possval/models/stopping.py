@@ -41,6 +41,14 @@ SECONDS = np.arange(0, FULL_CLOCK + 1)
 # continuation value there is a mean over too little to mean anything.
 MIN_CHANCES_PER_SECOND = 200
 
+# A chance that ends because the *period* ran out is not a shot-clock decision, and it must be
+# removed before the continuation value is fitted rather than after. Left in, it poisons V(t)
+# exactly where the model is most sensitive: **33% of chances ending with 2 or fewer seconds on
+# the shot clock are period expiries**, and they carry near-zero value for reasons that have
+# nothing to do with the shot clock. This is the same exclusion applied to shots in
+# `features/shots.EXPIRING_SECONDS`, applied here to the chance side.
+EXPIRING_GAME_SECONDS = 3.0
+
 
 def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     """One row per chance: when it began, when it ended, and what it produced.
@@ -108,7 +116,11 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     out = pd.concat(frames, ignore_index=True)
     # A period's opening chance has no predecessor to date it from, and a start below its own
     # end is a clock the reconstruction could not order.
-    return out[out.START_SC.notna() & (out.START_SC >= out.END_SC)].reset_index(drop=True)
+    ordered = out.START_SC.notna() & (out.START_SC >= out.END_SC)
+    # `PERIOD_EXPIRED` is kept as a column rather than silently dropped so the exclusion can be
+    # switched off and its effect measured.
+    out["PERIOD_EXPIRED"] = out.LAST_GC < EXPIRING_GAME_SECONDS
+    return out[ordered].reset_index(drop=True)
 
 
 def continuation_value(
@@ -116,6 +128,7 @@ def continuation_value(
     outcome: str = "PTS_FG",
     by_start_type: bool = False,
     min_chances: int = MIN_CHANCES_PER_SECOND,
+    drop_period_expiry: bool = True,
 ) -> pd.DataFrame:
     """`V(t)`: expected points from declining to shoot with `t` seconds left.
 
@@ -132,6 +145,8 @@ def continuation_value(
     `outcome` defaults to field-goal points because that is the unit `XPTS` is in. `PTS_ALL`
     adds free throws; see `free_throw_bias`.
     """
+    if "PERIOD_EXPIRED" in panel.columns and drop_period_expiry:
+        panel = panel[~panel.PERIOD_EXPIRED]
     groups = ["START_TYPE"] if by_start_type else []
     rows = []
     for keys, frame in (panel.groupby(groups) if groups else [((), panel)]):

@@ -83,10 +83,10 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    shooting as **American option exercise** — shoot now, or hold an option whose value decays —
    gives the one result here that conditions on the *decision* rather than the outcome, which
    is what dissolves the selection problem in findings 1-3. The continuation value `V(t)` runs
-   from 0.81 points at 23 seconds to 0.31 at 1 second, and offenses lower their accepted
-   standard by only ~50% of that collapse (relaxation ratio 0.46-0.60 at every quantile
-   tested). Exercise is otherwise sound: taken shots beat continuation value by +0.43 points
-   on average and only 4.8% fall below it. *The boundary's **level** is not identified* — which
+   from 0.81 points at 23 seconds to 0.36 at 1 second, and offenses lower their accepted
+   standard by only ~55-65% of that collapse (relaxation ratio 0.52-0.67 at every quantile
+   tested). Exercise is otherwise sound: taken shots beat continuation value by +0.39 points
+   on average and only 7.0% fall below it. *The boundary's **level** is not identified* — which
    quantile you call the threshold flips the sign — so only the shape is claimed.
 7. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
    and within the 14-second-rule era each season's curve shape correlates r ≥ 0.967 with
