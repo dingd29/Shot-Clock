@@ -558,7 +558,7 @@ offenses wait. On held-out seasons it is **+0.001**. It was also the wrong sign 
 That is a false positive that would have survived every check this repo normally applies. It
 took a held-out sample to kill it, which is the entire argument for writing the protocol first.
 
-*Reproduce:* logs in `reports/exploration_h*.log`.
+Full protocol, results, and the two recorded deviations: [`preregistration_exploration.md`](preregistration_exploration.md).
 
 ---
 

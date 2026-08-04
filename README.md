@@ -194,13 +194,6 @@ file and never recomputed, both baselines are named in advance, and results appe
 `reports/scorecard_log.csv` so the running record lives in git history. Amendments made
 between commitment and opening night are logged in the document itself.
 
-## Reviewing this
-
-[`REVIEW_CONTEXT.md`](REVIEW_CONTEXT.md) maps every claim to the code and the committed
-artifact behind it, states what can be checked without rebuilding data (all 24 report CSVs are
-in the repo; no parquet is), and lists the weak points in my own words rather than leaving them
-to be found.
-
 ## Layout
 
 ```
