@@ -247,13 +247,25 @@ with tab_stop:
                      help="How much more a shot must be worth, relative to holding, at 1-3s "
                           "than at 8s or more.")
 
+        checks = load_report("stopping_robustness.csv")
+        if not checks.empty:
+            st.markdown("##### Does it survive the obvious objections?")
+            st.caption(
+                "Garbage time and one-season flukes are the two things a reader reaches for. "
+                "The ratio holds in competitive games alone and in every one of ten seasons."
+            )
+            st.dataframe(checks.round(3), use_container_width=True, hide_index=True)
+
         st.warning(
             "**The level of that orange line is not identified — only its shape.** Calling "
             "the 5th percentile of accepted shots 'the threshold' rather than the 2nd or the "
             "20th moves the gap against V(t) from −0.22 to +0.14, which flips the sign of "
             "'too aggressive' versus 'too patient'. The relaxation ratio is reported because "
-            "it comes out at 0.46–0.60 whichever quantile is used. And a declined shot leaves "
-            "no record, so none of this can see whether a better shot was actually available.",
+            "it comes out at 0.52–0.67 whichever quantile is used. And a declined shot leaves "
+            "no record, so none of this can see whether a better shot was actually "
+            "available — which is also why the per-player version fails: mean surplus "
+            "correlates 0.984 with mean late-clock shot quality, making it that quantity "
+            "renamed rather than a measure of judgment.",
             icon="⚠️",
         )
 
