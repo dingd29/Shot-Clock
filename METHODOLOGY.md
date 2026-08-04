@@ -284,7 +284,18 @@ comes back above 0.85, so the measured ~0.5 is a deviation rather than a propert
 estimator; it also checks V(t) rises with time and that chances ending at `t` are excluded.
 
 Free throws are excluded from both sides for unit consistency with `XPTS`, which makes the
-result conservative: counting them raises `V(t)` by +0.085, a higher bar.
+result conservative: counting them raises `V(t)` by +0.084, a higher bar.
+
+**Robustness** (`robustness`, `reports/stopping_robustness.csv`). The ratio holds in
+competitive games alone (0.56-0.71, against 0.46-0.58 in blowouts), so it is not garbage time,
+and it holds in **all ten seasons** with every upper bound below 1.0 (mean 0.61, SD 0.087).
+
+**The per-player extension fails, and the failure is arithmetic.** Mean surplus per player
+correlates 0.984 with mean late-clock `XPTS`; the SD of their difference is 0.012 against 0.067
+for either alone. `V(t)` enters as a near-constant because each player's late shots span the
+same seconds, so the quantity is late-clock shot quality renamed. It grades shot type — rim
+share correlation +0.59, and restricting to non-rim swaps centres for shooters — not judgment.
+Kept and labelled because it resembles a skill ranking closely enough to be published as one.
 
 ---
 

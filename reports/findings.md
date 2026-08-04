@@ -377,7 +377,31 @@ so both sides run on field-goal points. Counting free throws raises `V(t)` by **
 average (**+0.084**) — a higher bar to clear, which would make late shooting look worse, not
 better.
 
-### Does it vary by player? Yes — but it measures role, not judgment
+### Three checks it survives
+
+**It is not garbage time.** An unconditional `V(t)` folds blowouts and late-game fouling into
+the same average, which are different decision problems. Splitting on score margin:
+
+| Cut | Relaxation ratio | Excess late demand |
+|---|---|---|
+| All games | 0.52 – 0.67 | +0.160 |
+| **Competitive (\|margin\| ≤ 10)** | **0.56 – 0.71** | **+0.148** |
+| Blowouts (\|margin\| > 10) | 0.46 – 0.58 | +0.184 |
+
+The effect is *weaker* in competitive games and stronger in blowouts, which is the expected
+direction — but it is comfortably present in competitive games alone, so it is not an artifact
+of teams stopping caring.
+
+**It holds in all ten seasons.** Ratio mean 0.61, SD 0.087, and **every season's upper bound
+sits below 1.0**. 2016-17 is the closest to optimal (0.65–0.95) and 2021-22 the furthest
+(0.42–0.70). Whatever this is, it is not one season's quirk.
+
+**The free-throw exclusion cuts the safe way**, worth +0.084 on `V(t)` — a higher bar, which
+would make late shooting look worse rather than better.
+
+*Reproduce:* `reports/stopping_robustness.csv`.
+
+### Does it vary by player? No — the measure collapses into shot quality
 
 The natural extension, and the one most likely to be noise: if some players are genuinely
 better bail-out creators, holding the ball *for them* is worth more and their threshold should
@@ -392,21 +416,23 @@ shrunk toward the league:
 | Bottom | Cade Cunningham | 359 | 0.374 |
 | | DeMar DeRozan | 336 | 0.379 |
 
-**85% of the observed spread survives shrinkage** — this is real, not sampling noise. But read
-the names before reading the number. The top is entirely centres and the bottom entirely
-ball-handling creators, and the surplus correlates **+0.59 with a player's late-clock rim
-share**. Splitting by that share, the bottom three quartiles are indistinguishable (0.479,
-0.478, 0.482) and only the rim-running quartile separates (0.539).
+**85% of the observed spread survives shrinkage**, so it is not sampling noise. It is
+something worse: **the measure is tautological.**
 
-So the answer to "do bail-out creators have a different threshold" is neither yes nor
-noise-killed. **The quantity is measuring role.** A centre's late-clock attempt is a dunk that
-someone else created, so it clears continuation value easily; a guard's is the contested pull-up
-that exists *because* nothing better appeared. The players who score highest here are precisely
-the ones not making the decision, which makes this a poor measure of judgment and a decent
-proxy for who finishes.
+Per-player mean surplus correlates **0.984** with per-player mean late-clock `XPTS`, and the
+standard deviation of the difference between them is **0.012** against 0.067 for either alone.
+Subtracting `V(t)` removes almost nothing at player level, because every player's late-clock
+shots spread over roughly the same seconds, so `V` enters as a near-constant. Mean surplus is
+*mean late-clock shot quality under a different name*.
 
-Separating the two would need the decision attributed to the ball-handler rather than the
-shooter — the passer's option set, not the shooter's outcome. That is not in this data.
+That is why the leaderboard reads the way it does — centres on top, correlation +0.59 with
+late-clock rim share — and why restricting to non-rim shots does not fix it: the top merely
+becomes Sam Merrill, Max Strus and Stephen Curry, with Giannis and Zion at the bottom. Swapping
+"who dunks" for "who shoots threes" is still not a measure of judgment.
+
+Measuring judgment needs the counterfactual — what *else* was available at that moment — and a
+declined shot leaves no record. The player-level extension is reported as a failure rather than
+dropped, because it looks like a skill ranking and would be easy to publish as one.
 
 *Reproduce:* `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
 

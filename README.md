@@ -85,9 +85,12 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    is what dissolves the selection problem in findings 1-3. The continuation value `V(t)` runs
    from 0.81 points at 23 seconds to 0.36 at 1 second, and offenses lower their accepted
    standard by only ~55-65% of that collapse (relaxation ratio 0.52-0.67 at every quantile
-   tested). Exercise is otherwise sound: taken shots beat continuation value by +0.39 points
-   on average and only 7.0% fall below it. *The boundary's **level** is not identified* — which
-   quantile you call the threshold flips the sign — so only the shape is claimed.
+   tested), in **all ten seasons** and in competitive games alone, so it is not garbage time.
+   Exercise is otherwise sound: taken shots beat continuation value by +0.39 points on average
+   and only 7.0% fall below it. *The boundary's **level** is not identified* — which quantile
+   you call the threshold flips the sign — so only the shape is claimed, and the per-player
+   version is reported as a **failure**: it correlates 0.984 with mean late-clock shot quality,
+   making it that quantity renamed rather than a measure of judgment.
 7. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
    and within the 14-second-rule era each season's curve shape correlates r ≥ 0.967 with
    2024-25's.

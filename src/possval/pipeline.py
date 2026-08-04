@@ -167,6 +167,9 @@ def cmd_score(first: int, last: int) -> None:
         # Carried so downstream consumers can drop buzzer-beater heaves without
         # re-deriving the rule. See features/shots.EXPIRING_SECONDS.
         "PERIOD_SECONDS_REMAINING", "GAME_CLOCK_EXPIRING",
+        # Game state, so the stopping model can condition on it: an unconditional V(t) has
+        # blowouts and late-game fouling folded into it.
+        "PERIOD", "SCORE_MARGIN",
     ]
     # Fail loudly rather than filtering: quietly dropping an absent column is how
     # TEAM_ABBREVIATION went missing here once already, taking IS_HOME down with it.
@@ -335,6 +338,7 @@ def cmd_stopping(first: int, last: int) -> None:
         free_throw_bias,
         player_exercise,
         relaxation,
+        robustness,
     )
 
     pd.set_option("display.width", 200)
@@ -365,6 +369,11 @@ def cmd_stopping(first: int, last: int) -> None:
     print("\n=== does the boundary relax as fast as V(t) collapses? ===")
     print("(the boundary's *level* is not identified — its shape is; hence every quantile)")
     print(ratios.round(4).to_string(index=False))
+
+    checks = robustness(shots, panel)
+    print("\n=== robustness: is it garbage time, or one season? ===")
+    print(checks.round(3).to_string(index=False))
+    checks.to_csv(REPORTS / "stopping_robustness.csv", index=False)
 
     players = player_exercise(shots[shots.SEASON == shots.SEASON.max()], values)
     print(f"\n=== per-player late-clock surplus (shrunk; signal share "

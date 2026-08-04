@@ -142,3 +142,31 @@ def test_player_noise_scale_is_measured_not_assumed():
     assert result.attrs["per_shot_sd"] == pytest.approx(0.28, abs=0.05)
     # Real between-player spread was built in, so it must survive.
     assert result.attrs["signal_share"] > 0.5
+
+
+def test_player_surplus_is_shot_quality_by_another_name():
+    """Guards the negative result, which is easy to lose in a later refactor.
+
+    Subtracting `V(t)` removes almost nothing at player level, because a player's late-clock
+    shots spread over roughly the same seconds and `V` enters as a near-constant. If someone
+    later "improves" this into a skill ranking, this test should fail first.
+    """
+    from possval.models.stopping import player_exercise
+
+    rng = np.random.default_rng(12)
+    players = np.repeat(np.arange(40), 200)
+    quality = np.repeat(rng.uniform(0.7, 1.3, 40), 200)
+    shots = pd.DataFrame(
+        {
+            "PLAYER_ID": players,
+            "PLAYER_NAME": [f"P{p}" for p in players],
+            "XPTS": quality + rng.normal(0, 0.3, len(players)),
+            "SHOT_CLOCK": rng.integers(1, 8, len(players)).astype(float),
+        }
+    )
+    values = pd.DataFrame({"SECOND": range(0, 25), "V_CONT": np.linspace(0.30, 0.62, 25)})
+
+    result = player_exercise(shots, values, min_late=50)
+    mean_quality = shots.groupby("PLAYER_ID").XPTS.mean().rename("Q")
+    joined = result.merge(mean_quality, on="PLAYER_ID")
+    assert joined.SURPLUS.corr(joined.Q) > 0.95

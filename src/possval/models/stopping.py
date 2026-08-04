@@ -49,6 +49,11 @@ MIN_CHANCES_PER_SECOND = 200
 # `features/shots.EXPIRING_SECONDS`, applied here to the chance side.
 EXPIRING_GAME_SECONDS = 3.0
 
+# Games inside this margin are "competitive". Outside it, shot selection stops being about the
+# shot clock — a team down 20 takes quick threes, a team up 20 runs clock — so an
+# unconditional V(t) silently averages three different decision problems together.
+COMPETITIVE_MARGIN = 10.0
+
 
 def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     """One row per chance: when it began, when it ended, and what it produced.
@@ -77,11 +82,15 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
             path,
             columns=[
                 "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "CHANCE_ID",
-                "CHANCE_START_TYPE", "SHOT_CLOCK", "GAME_CLOCK",
+                "CHANCE_START_TYPE", "SHOT_CLOCK", "GAME_CLOCK", "SCOREMARGIN",
                 "HOMEDESCRIPTION", "VISITORDESCRIPTION",
             ],
         ).sort_values(["GAME_ID", "EVENTNUM"])
         events["PTS"] = event_points(events)
+        # SCOREMARGIN is only written on scoring events, so it has to be carried forward
+        # before it can describe the state a chance was played in.
+        margin = events.SCOREMARGIN.replace("TIE", "0").astype("string").astype("Float64")
+        events["MARGIN"] = margin.groupby(events.GAME_ID).ffill().fillna(0.0).astype(float)
 
         timed = events.dropna(subset=["SHOT_CLOCK"])
         keys = ["GAME_ID", "PERIOD", "CHANCE_ID"]
@@ -93,6 +102,7 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
             FIRST_GC=("GAME_CLOCK", "first"),
             LAST_GC=("GAME_CLOCK", "last"),
             END_SC=("SHOT_CLOCK", "min"),
+            MARGIN=("MARGIN", "first"),
             FGA=("EVENTMSGTYPE", lambda s: int(s.isin([1, 2]).sum())),
         ).reset_index()
 
@@ -120,6 +130,7 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     # `PERIOD_EXPIRED` is kept as a column rather than silently dropped so the exclusion can be
     # switched off and its effect measured.
     out["PERIOD_EXPIRED"] = out.LAST_GC < EXPIRING_GAME_SECONDS
+    out["COMPETITIVE"] = out.MARGIN.abs() <= COMPETITIVE_MARGIN
     return out[ordered].reset_index(drop=True)
 
 
@@ -330,6 +341,20 @@ def player_exercise(
 
     `SIGNAL_SHARE` in the returned frame's `attrs` is the fraction of observed variance left
     after subtracting sampling noise. If it is near zero, players do not differ.
+
+    **This measure does not work, and the arithmetic says why.** Per-player mean surplus
+    correlates **0.984** with per-player mean late-clock `XPTS`, and the standard deviation of
+    the difference between them is 0.012 against 0.067 for either on its own. Subtracting
+    `V(t)` removes almost nothing at player level, because every player's late-clock shots are
+    spread over roughly the same seconds, so `V` enters as a near-constant. Mean surplus is
+    therefore *mean late-clock shot quality under a different name*.
+
+    That is why the leaderboard grades shot type rather than judgment: rim-runners top it
+    (correlation +0.59 with late-clock rim share), and restricting to non-rim shots merely
+    swaps them for shooters — Merrill, Strus, Curry — with non-shooters at the bottom.
+    Measuring judgment needs the counterfactual, what *else* was available at that moment, and
+    a declined shot leaves no record. Kept because the negative is informative and the
+    temptation to publish this as a skill ranking is real.
     """
     lookup = values.set_index("SECOND").V_CONT
     late = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()
@@ -367,3 +392,46 @@ def player_exercise(
     result.attrs["league_mean"] = float(league)
     result.attrs["per_shot_sd"] = per_shot_sd
     return result
+
+
+def robustness(shots: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
+    """The relaxation result under the cuts a sceptical reader asks for.
+
+    Two questions the pooled number cannot answer. Is it garbage time — an unconditional
+    `V(t)` has blowouts and late-game fouling folded in, and those are different decision
+    problems. And is it one season's quirk, or does it hold across the sample the way the
+    efficiency curves do in finding 4c.
+    """
+    rows = []
+    for label, chances, taken in [
+        ("all games", panel, shots),
+        ("competitive (|margin| <= 10)", panel[panel.COMPETITIVE],
+         shots[shots.SCORE_MARGIN.abs() <= COMPETITIVE_MARGIN]),
+        ("blowouts (|margin| > 10)", panel[~panel.COMPETITIVE],
+         shots[shots.SCORE_MARGIN.abs() > COMPETITIVE_MARGIN]),
+    ]:
+        ratios = relaxation(taken, continuation_value(chances))
+        rows.append(
+            {
+                "cut": label,
+                "n_chances": len(chances),
+                "ratio_min": ratios.relaxation_ratio.min(),
+                "ratio_max": ratios.relaxation_ratio.max(),
+                "excess_late_demand": ratios.excess_late_demand.mean(),
+            }
+        )
+
+    for season in sorted(panel.SEASON.unique()):
+        ratios = relaxation(
+            shots[shots.SEASON == season], continuation_value(panel[panel.SEASON == season])
+        )
+        rows.append(
+            {
+                "cut": f"season {season}-{str(season + 1)[-2:]}",
+                "n_chances": int((panel.SEASON == season).sum()),
+                "ratio_min": ratios.relaxation_ratio.min(),
+                "ratio_max": ratios.relaxation_ratio.max(),
+                "excess_late_demand": ratios.excess_late_demand.mean(),
+            }
+        )
+    return pd.DataFrame(rows)
