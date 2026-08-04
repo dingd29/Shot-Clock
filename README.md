@@ -91,10 +91,20 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    you call the threshold flips the sign — so only the shape is claimed, and the per-player
    version is reported as a **failure**: it correlates 0.984 with mean late-clock shot quality,
    making it that quantity renamed rather than a measure of judgment.
-7. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
+7. **Shot clock is possession-scale information, and only that.** It is negligible for
+   predicting whether a *shot* goes in (0.00136 log loss, the smallest ablation group) and
+   negligible for predicting whether a *team wins* (0.034% of log loss in a live
+   win-probability model over 5.34M events — reliably non-zero, practically nil). It is large
+   for predicting whether a *possession* scores: `V(t)` spans 0.36 to 0.81, a 2.2× range. A
+   possession is ~1% of a game's scoring, so it washes out at both neighbouring scales. **The
+   reconstruction's value is as a measurement instrument, not a predictive feature** — finding
+   6 exists only because `V(t)` can be computed at all.
+8. **Team-level relaxation varies, but a third as much as it appears** — raw range 0.41-0.84,
+   of which only 37% is signal against a permutation null; the real range is ~0.52-0.68.
+9. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
    and within the 14-second-rule era each season's curve shape correlates r ≥ 0.967 with
    2024-25's.
-8. **Creation overlap does not predict offensive underperformance**, at team level or lineup
+10. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
 All eight findings are about possessions and shots — the layer built here. A separate
 projection layer sits on top of it and is scoped in its own section below, deliberately kept

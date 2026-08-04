@@ -339,6 +339,7 @@ def cmd_stopping(first: int, last: int) -> None:
         player_exercise,
         relaxation,
         robustness,
+        team_relaxation,
     )
 
     pd.set_option("display.width", 200)
@@ -369,6 +370,11 @@ def cmd_stopping(first: int, last: int) -> None:
     print("\n=== does the boundary relax as fast as V(t) collapses? ===")
     print("(the boundary's *level* is not identified — its shape is; hence every quantile)")
     print(ratios.round(4).to_string(index=False))
+
+    teams = team_relaxation(shots, panel)
+    print("\n=== relaxation ratio by team (shrunk; most of the raw spread is noise) ===")
+    print(pd.concat([teams.head(5), teams.tail(5)]).round(3).to_string(index=False))
+    teams.to_csv(REPORTS / "stopping_team_relaxation.csv", index=False)
 
     checks = robustness(shots, panel)
     print("\n=== robustness: is it garbage time, or one season? ===")
@@ -425,6 +431,39 @@ def cmd_scorecard(season: int) -> None:
     result["calibration"].to_csv(REPORTS / "scorecard_calibration.csv", index=False)
     result["win_totals"].to_csv(REPORTS / "scorecard_win_totals.csv", index=False)
     print(f"\nappended to {log}")
+
+
+def cmd_winprob(first: int, last: int) -> None:
+    """Does the reconstructed shot clock add anything to a live win-probability model?"""
+    from possval.models.winprob import bootstrap_difference, compare, load_state
+
+    pd.set_option("display.width", 200)
+    path = PROCESSED / "winprob_state.parquet"
+    if path.exists():
+        state = pd.read_parquet(path)
+    else:
+        state = load_state(first, last)
+        state.to_parquet(path, index=False)
+    print(f"events: {len(state):,} over {state.SEASON.nunique()} seasons")
+
+    scores = compare(state)
+    print("\n=== live win probability, with and without shot clock (test = 2024-25) ===")
+    print(scores.round(5).to_string(index=False))
+
+    base = scores[scores.model == "base"].iloc[0]
+    with_clock = scores[scores.model == "base + shot clock"].iloc[0]
+    gain = base.log_loss - with_clock.log_loss
+    print(f"\nlog-loss improvement {gain:+.6f} ({100 * gain / base.log_loss:+.3f}%)")
+
+    interval = bootstrap_difference(state, n_boot=300)
+    print(f"game-clustered bootstrap over {interval['n_games']} games: "
+          f"95% CI [{interval['ci_low']:+.6f}, {interval['ci_high']:+.6f}], "
+          f"{interval['share_positive']:.0%} of draws positive")
+    print("\nReliably non-zero and practically nil — see findings 4e.")
+
+    scores.to_csv(REPORTS / "winprob_comparison.csv", index=False)
+    pd.DataFrame([interval]).to_csv(REPORTS / "winprob_bootstrap.csv", index=False)
+    print(f"\nwritten: {REPORTS}/winprob_*.csv")
 
 
 def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
@@ -513,7 +552,7 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
     for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange",
-                 "ablate", "stopping"):
+                 "ablate", "stopping", "winprob"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
@@ -543,6 +582,7 @@ def main() -> None:
         "rulechange": cmd_rulechange,
         "ablate": cmd_ablate,
         "stopping": cmd_stopping,
+        "winprob": cmd_winprob,
     }
     if args.command in ranged:
         ranged[args.command](args.first, args.last)

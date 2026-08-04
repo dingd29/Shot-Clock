@@ -83,6 +83,7 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
             columns=[
                 "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "CHANCE_ID",
                 "CHANCE_START_TYPE", "SHOT_CLOCK", "GAME_CLOCK", "SCOREMARGIN",
+                "OFF_TEAM_ID", "PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION",
                 "HOMEDESCRIPTION", "VISITORDESCRIPTION",
             ],
         ).sort_values(["GAME_ID", "EVENTNUM"])
@@ -103,6 +104,7 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
             LAST_GC=("GAME_CLOCK", "last"),
             END_SC=("SHOT_CLOCK", "min"),
             MARGIN=("MARGIN", "first"),
+            OFF_TEAM_ID=("OFF_TEAM_ID", "first"),
             FGA=("EVENTMSGTYPE", lambda s: int(s.isin([1, 2]).sum())),
         ).reset_index()
 
@@ -114,6 +116,17 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
         )
         panel = panel.merge(totals, on=keys, how="left").merge(field_goals, on=keys, how="left")
         panel["PTS_FG"] = panel.PTS_FG.fillna(0.0)
+
+        # Play-by-play carries team ids on chances but abbreviations only on player events,
+        # so the mapping is recovered from the feed rather than hard-coded.
+        abbreviations = (
+            events[["PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION"]]
+            .dropna()
+            .drop_duplicates("PLAYER1_TEAM_ID")
+            .set_index("PLAYER1_TEAM_ID")
+            .PLAYER1_TEAM_ABBREVIATION
+        )
+        panel["TEAM"] = panel.OFF_TEAM_ID.map(abbreviations)
 
         panel = panel.sort_values(keys)
         panel["PREV_GC"] = panel.groupby(["GAME_ID", "PERIOD"]).LAST_GC.shift()
@@ -435,3 +448,70 @@ def robustness(shots: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+MIN_TEAM_SHOTS = 5_000
+
+
+def team_relaxation(
+    shots: pd.DataFrame,
+    panel: pd.DataFrame,
+    min_shots: int = MIN_TEAM_SHOTS,
+    min_chances: int = 50,
+) -> pd.DataFrame:
+    """The relaxation ratio computed per team, on that team's own chances and shots.
+
+    The league figure is ~0.6. If some teams sit near 0.4 and others near 0.9, that is a real
+    difference in how offenses handle an expiring clock — the direct answer to "who is being
+    inefficient", and the version of the per-player question that is not tautological.
+
+    **Why this escapes the trap that killed `player_exercise`.** That measure was mean surplus,
+    which turned out to be mean shot quality renamed (correlation 0.984). The ratio is a
+    different object: it compares each team's *own* boundary movement against its *own*
+    continuation value, so the level of shot quality divides out and only the shape remains.
+    A team of great shooters and a team of poor ones can score the same ratio.
+
+    Interpret against `team_relaxation_null`, not against zero. Thirty teams each get their own
+    `V(t)` and boundary from a fraction of the data, so some spread appears by construction.
+    """
+    rows = []
+    for team in sorted(shots.TEAM_ABBREVIATION.dropna().unique()):
+        taken = shots[shots.TEAM_ABBREVIATION == team]
+        chances = panel[panel.TEAM == team]
+        if len(taken) < min_shots or chances.empty:
+            continue
+        ratios = relaxation(taken, continuation_value(chances, min_chances=min_chances))
+        rows.append(
+            {
+                "TEAM": team,
+                "n_chances": len(chances),
+                "n_shots": len(taken),
+                "relaxation_ratio": float(ratios.relaxation_ratio.mean()),
+                "excess_late_demand": float(ratios.excess_late_demand.mean()),
+            }
+        )
+    return pd.DataFrame(rows).sort_values("relaxation_ratio").reset_index(drop=True)
+
+
+def team_relaxation_null(
+    shots: pd.DataFrame,
+    panel: pd.DataFrame,
+    n_draws: int = 20,
+    seed: int = 0,
+) -> dict:
+    """How much team-to-team spread appears when team labels are meaningless.
+
+    Splitting a fixed dataset thirty ways and fitting a two-stage quantity in each cell
+    produces spread whether or not teams differ, so the observed standard deviation means
+    nothing without this. Labels are permuted across chances and shots at the real group sizes
+    and the whole calculation is repeated.
+    """
+    teams = sorted(panel.TEAM.dropna().unique())
+    spreads = []
+    for draw in range(n_draws):
+        rng = np.random.default_rng(seed + draw)
+        fake_panel = panel.assign(TEAM=rng.choice(teams, len(panel)))
+        fake_shots = shots.assign(TEAM_ABBREVIATION=rng.choice(teams, len(shots)))
+        result = team_relaxation(fake_shots, fake_panel)
+        spreads.append(float(result.relaxation_ratio.std(ddof=1)))
+    return {"null_spreads": spreads, "null_mean": float(np.mean(spreads))}

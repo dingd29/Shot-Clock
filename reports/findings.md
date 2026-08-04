@@ -438,6 +438,91 @@ dropped, because it looks like a skill ranking and would be easy to publish as o
 
 ---
 
+## 4e. Which teams are worst at it — and how little of that ranking is real
+
+The league relaxes its standard at a ratio of ~0.6. The obvious next question is whether that
+varies by team, and it is the version of the per-player question that is **not** tautological:
+mean surplus was shot quality renamed, but the ratio compares each team's own boundary movement
+against its own continuation value, so the level of shot quality divides out.
+
+Raw, over ten seasons and ~95,000 chances per team, the spread looks dramatic — **0.41 to
+0.84**. Most of it is not real.
+
+Thirty teams each get their own `V(t)` and their own boundary from a thirtieth of the data, so
+spread appears whether or not teams differ. Permuting team labels twenty times and repeating
+the whole calculation gives a null spread of **0.078** against the observed **0.098**. Squaring
+those, **only 37% of the observed variance is signal**; the rest is estimation noise.
+
+Shrunk accordingly:
+
+| | Team | Raw | **Shrunk** |
+|---|---|---|---|
+| Slowest to relax | PHI | 0.409 | **0.520** |
+| | SAC | 0.440 | 0.531 |
+| | NOP | 0.465 | 0.540 |
+| Quickest to relax | MEM | 0.697 | 0.626 |
+| | CHA | 0.828 | 0.675 |
+| | TOR | 0.840 | **0.679** |
+
+**The real range is roughly 0.52 to 0.68, not 0.41 to 0.84.** A team effect exists and it is
+about a third the size the raw numbers suggest. Every team is still well below 1.0, so this is
+a league-wide behaviour with modest variation, not a few bad offenses dragging an average.
+
+*Philadelphia sits at the bottom* — the slowest in the league to lower its standard as the
+clock expires. Given the projection in §6 turns on this roster's shot creation, that is a
+coincidence worth noting and not worth over-reading: the shrunk gap to league average is 0.065,
+and the measure says nothing about the 2026-27 roster, three quarters of which is new.
+
+*Reproduce:* `reports/stopping_team_relaxation.csv`.
+
+---
+
+## 4f. Shot clock adds nothing to win probability either — and that is the point
+
+The ablation in finding 4 asked whether the shot clock predicts **whether a shot goes in**, and
+answered no. That is the right answer to a question worth widening, because the shot clock was
+never about shot-making — the continuation value in 4d runs 0.36 to 0.81 across the clock, a
+**2.2× range**, so it is plainly informative about *possessions*.
+
+So: does it improve a live **win-probability** model? NBA publishes one built from a feed that
+contains no shot clock, which makes this the strongest remaining case for predictive value.
+
+5.34M events, ten seasons, time-ordered split, test on 2024-25:
+
+| Model | Log loss | Brier | AUC |
+|---|---|---|---|
+| Score margin + time + possession | 0.48545 | 0.16507 | 0.83332 |
+| **+ shot clock, chance elapsed, late-clock flag** | 0.48528 | 0.16500 | 0.83347 |
+
+**Improvement: 0.000163 log loss — 0.034%.** Bootstrapped over the 1,230 test *games* rather
+than the 550,132 events (every event in a game shares one label, so an event-level interval
+would claim hundreds of times more information than exists): 95% CI **[+0.00005, +0.00026]**,
+positive in 100% of draws.
+
+**Reliably non-zero. Practically nil.** With half a million events the improvement is
+statistically unambiguous and would round to zero in any application.
+
+### The three scales, which is the actual finding
+
+| Question | Where shot clock lands |
+|---|---|
+| Will *this shot* go in? | Negligible — 0.00136 log loss, smallest group in the ablation |
+| Will *this possession* score? | **Large — `V(t)` spans 0.36 to 0.81, a 2.2× range** |
+| Will *this team* win? | Negligible — 0.034% of log loss |
+
+The shot clock is **possession-scale information**, and a possession is about 1% of a game's
+scoring. It is genuinely informative about the object it describes and washes out at both the
+scale below it and the scale above.
+
+That is the honest summary of the whole shot-clock thesis. Reconstructing it did not buy
+predictive edge, at either end. What it bought is the ability to see a decision that is
+otherwise invisible — finding 4d exists only because `V(t)` can be computed at all — and a
+measurement instrument is a different kind of contribution from a feature that lifts AUC.
+
+*Reproduce:* `python -m possval.pipeline winprob`.
+
+---
+
 ## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level
 
 This was the project's headline hypothesis, and **it failed.**

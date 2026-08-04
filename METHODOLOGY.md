@@ -286,6 +286,21 @@ estimator; it also checks V(t) rises with time and that chances ending at `t` ar
 Free throws are excluded from both sides for unit consistency with `XPTS`, which makes the
 result conservative: counting them raises `V(t)` by +0.084, a higher bar.
 
+**Team level** (`team_relaxation`). The ratio is the non-tautological version of the
+per-player question — it compares each team's own boundary against its own `V(t)`, so shot
+quality divides out. Raw spread 0.41-0.84 looks large but thirty teams each fitting a two-stage
+quantity on a thirtieth of the data produces spread by construction: permuting team labels
+gives a null of 0.078 against 0.098 observed, so **37% of the variance is signal** and the real
+range is ~0.52-0.68. Philadelphia is last, by a shrunk 0.065 against league average.
+
+**Win probability** (`models/winprob.py`). The ablation asked whether the clock predicts shot
+outcomes; this asks whether it predicts *game* outcomes, where `V(t)`'s 2.2x range suggests it
+should. It does not: +0.000163 log loss (0.034%) on 5.34M events, 95% CI [+0.00005, +0.00026]
+bootstrapped over **games** rather than events, since every event in a game shares one label.
+Reliably non-zero, practically nil. Together with the ablation this brackets the finding —
+shot clock is possession-scale information, negligible at the shot scale below and the game
+scale above, and the reconstruction's contribution is as an instrument rather than a feature.
+
 **Robustness** (`robustness`, `reports/stopping_robustness.csv`). The ratio holds in
 competitive games alone (0.56-0.71, against 0.46-0.58 in blowouts), so it is not garbage time,
 and it holds in **all ten seasons** with every upper bound below 1.0 (mean 0.61, SD 0.087).

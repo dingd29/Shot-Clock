@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange stopping project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange stopping winprob project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -43,6 +43,9 @@ stopping:  ## shooting as optimal stopping: continuation value and exercise boun
 
 scorecard:  ## score the pre-registered projection against results so far
 	$(PY) -m possval.pipeline scorecard --season 2026
+
+winprob:  ## does the shot clock improve a live win-probability model?
+	$(PY) -m possval.pipeline winprob --first $(FIRST) --last $(LAST)
 
 project:  ## calibrate DPM and simulate 2026-27 for all thirty teams
 	$(PY) -m possval.pipeline project --games 70

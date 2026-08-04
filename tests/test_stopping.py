@@ -170,3 +170,42 @@ def test_player_surplus_is_shot_quality_by_another_name():
     mean_quality = shots.groupby("PLAYER_ID").XPTS.mean().rename("Q")
     joined = result.merge(mean_quality, on="PLAYER_ID")
     assert joined.SURPLUS.corr(joined.Q) > 0.95
+
+
+def test_team_relaxation_spread_needs_a_null():
+    """Splitting a fixed dataset thirty ways produces spread with or without a team effect.
+
+    The null has to be near the observed spread for the real result to be reported honestly —
+    on the real data it is 0.078 against 0.098 observed, so most of the apparent team-to-team
+    variation is estimation noise. This checks the null machinery finds spread where teams are
+    meaningless by construction.
+    """
+    from possval.models.stopping import team_relaxation, team_relaxation_null
+
+    rng = np.random.default_rng(21)
+    teams = [f"T{i:02d}" for i in range(6)]
+    n = 60_000
+    panel = pd.DataFrame(
+        {
+            "START_SC": 24.0,
+            "END_SC": rng.integers(0, 24, n).astype(float),
+            "PTS_FG": rng.choice([0.0, 2.0, 3.0], n, p=[0.55, 0.3, 0.15]),
+            "PTS_ALL": 0.0,
+            "START_TYPE": "def_rebound",
+            "TEAM": rng.choice(teams, n),
+        }
+    )
+    panel["PTS_ALL"] = panel.PTS_FG
+    shots = pd.DataFrame(
+        {
+            "XPTS": rng.normal(1.0, 0.3, n),
+            "SHOT_CLOCK": rng.integers(1, 24, n).astype(float),
+            "TEAM_ABBREVIATION": rng.choice(teams, n),
+        }
+    )
+
+    observed = team_relaxation(shots, panel, min_shots=1000, min_chances=20)
+    assert len(observed) == len(teams)
+    null = team_relaxation_null(shots, panel, n_draws=3)
+    # Teams are random here, so the observed spread should not stand out from the null.
+    assert observed.relaxation_ratio.std(ddof=1) < 3 * null["null_mean"]
