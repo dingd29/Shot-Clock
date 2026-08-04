@@ -35,17 +35,32 @@ def player_seasons(shots: pd.DataFrame, min_attempts: int = 150) -> pd.DataFrame
     return grouped
 
 
-def attach_age(seasons: pd.DataFrame, ages: pd.DataFrame) -> pd.DataFrame:
-    """Attach age, back-projecting from a single current-age snapshot.
+# The age snapshot is DARKO's, taken July 2026, and it is *not* an age during any season in
+# this sample. Anchoring it to the last season in the data treated a mid-2026 age as a 2024-25
+# age and made every player about a year and a half too old, which quietly relabelled a table
+# about 36-to-39-year-olds as one about 38-to-41-year-olds.
+#
+# The offset is calibrated rather than assumed: `official_shotclock_2024_25.csv` carries NBA's
+# own age for 2024-25, and over the 431 players in both files the snapshot runs 1.425 years
+# higher (median 1.4, range 0.9 to 1.9, the spread being birthday timing plus NBA's truncation
+# to whole years).
+AGE_ANCHOR_SEASON = 2024
+AGE_SNAPSHOT_OFFSET = 1.425
 
-    DARKO gives each player's age today; a player's age in season S is that value minus the
-    number of seasons since. Good to within a year, which is the resolution an aging curve
-    supports anyway.
+
+def attach_age(seasons: pd.DataFrame, ages: pd.DataFrame) -> pd.DataFrame:
+    """Attach age in each season, back-projecting from the July-2026 snapshot.
+
+    Accurate to within a year, which is the resolution an aging curve supports anyway, but the
+    *centring* has to be right or the curve is read at the wrong ages.
     """
-    current_season = int(seasons.SEASON.max())
     lookup = ages.set_index("PLAYER_ID").AGE
     out = seasons.copy()
-    out["AGE"] = out.PLAYER_ID.map(lookup) - (current_season - out.SEASON)
+    out["AGE"] = (
+        out.PLAYER_ID.map(lookup)
+        - AGE_SNAPSHOT_OFFSET
+        - (AGE_ANCHOR_SEASON - out.SEASON)
+    )
     return out.dropna(subset=["AGE"])
 
 

@@ -136,14 +136,20 @@ Against `official_shotclock_2024_25.csv`, NBA's own published splits, never used
 
 | Bucket | Recon share | Official share | Δ pp | eFG Δ pp |
 |---|---|---|---|---|
-| 24-22 | 2.02% | 3.33% | −1.31 | +2.66 |
-| 22-18 | 14.87% | 14.48% | +0.40 | +0.43 |
-| 18-15 | 14.13% | 16.41% | −2.28 | +1.42 |
-| 15-7 | 48.42% | 47.40% | +1.02 | +1.34 |
-| 7-4 | 10.94% | 9.25% | +1.69 | +2.24 |
-| 4-0 | 9.62% | 9.13% | +0.49 | +2.56 |
+| 24-22 | 2.02% | 3.23% | −1.21 | +1.91 |
+| 22-18 | 14.87% | 14.84% | +0.04 | −0.24 |
+| 18-15 | 14.13% | 16.48% | −2.35 | +0.21 |
+| 15-7 | 48.42% | 47.15% | +1.27 | +0.42 |
+| 7-4 | 10.94% | 9.24% | +1.70 | +1.38 |
+| 4-0 | 9.62% | 9.06% | +0.55 | +2.16 |
 
-**Mean absolute share error: 1.20 pp. Mean absolute eFG error: 1.78 pp.**
+**Mean absolute share error: 1.19 pp. Mean absolute eFG error: 1.05 pp.**
+
+The official side is multiplied by games played before aggregating. It is a per-game file, and
+summing the rates directly weights a 12-game player like an 80-game one. That mistake shipped in
+an earlier version of this table: it left the share error alone (1.19 against 1.20) but reported
+the eFG gap as 1.78pp, because low-minute players shoot worse and were being over-weighted.
+`tests/test_validate.py` pins both axes to the same weighting.
 
 ### Per-player agreement (3,148 player × bucket cells)
 
@@ -167,10 +173,11 @@ The reference file is *per game*, so reconstructed totals are divided by games p
 
 ### Known residual error
 
-- `18-15` under-represented by 2.3pp; `7-4` over by 1.7pp. Some elapsed time is still
+- `18-15` under-represented by 2.4pp; `7-4` over by 1.7pp. Some elapsed time is still
   over-counted on chances we do not model a delay for.
-- eFG is biased **high** by 1.8pp on average, worst in late-clock buckets, consistent with
-  some genuinely-late shots being placed one bucket early.
+- eFG is biased **high** by 1.05pp on average and positive in five of six buckets, largest at
+  the two ends of the clock, consistent with some genuinely-late shots being placed one bucket
+  early.
 - All documented error sources (unlogged kicked balls and deflections, unlogged clock
   corrections, 1-second game-clock quantisation) bias reconstructed clocks *high*: we miss
   resets rather than inventing them.
@@ -354,8 +361,13 @@ no `libomp` system dependency, so the repo clones and runs anywhere.
 |---|---|---|---|---|
 | League mean | 0.6914 | 0.2491 | 0.500 | — |
 | Logistic | 0.6539 | 0.2309 | 0.646 | 5.4% |
-| GBM | 0.6273 | 0.2202 | 0.676 | **9.3%** |
-| GBM + isotonic | 0.6274 | 0.2201 | 0.676 | 9.3% |
+| GBM | 0.6351 | 0.2234 | 0.663 | **8.2%** |
+| GBM + isotonic | 0.6350 | 0.2233 | 0.663 | 8.2% |
+
+An earlier version of this table read 0.6273 and 9.3%. The difference is leakage, not tuning:
+`SCORE_MARGIN` was merged at the shot's own event, and the play-by-play populates it on 100% of
+made field goals and 0% of misses, so a made shot's margin already contained its own points. It
+is now lagged one event within game. See `features/shots.attach_game_state`.
 
 Calibration tracks the diagonal across the full range (0.20 → 0.93 predicted). Isotonic barely
 moves aggregate metrics but matters downstream, where possession value and win probability
@@ -378,34 +390,47 @@ flattered the constructed feature.
 
 The honest comparison groups each block with its substitutes:
 
-| Removed | Log-loss cost | Share of gain |
-|---|---|---|
-| **Geometry** (location + action type) | **0.01519** | **52.2%** |
-| Game state | 0.00812 | 27.9% |
-| **Possession** (shot clock + chance start) | **0.00396** | **13.6%** |
-| Shooter prior | 0.00184 | 6.3% |
+Every cost below is a mean over five seeds, with the across-seed SD beside it. The fit has two
+stochastic parts, the early-stopping split and the booster's binning, and the quantities being
+compared are order 1e-3, so a single-seed run cannot distinguish a real difference from a
+resampled one. The spreads turn out to be small enough that the group ordering is stable.
 
-**Geometry is worth 3.8× possession context.** The previous claim, that possession context is
+| Removed | Log-loss cost | SD over seeds | Share of gain |
+|---|---|---|---|
+| **Geometry** (location + action type) | **0.01658** | 0.00012 | **83.1%** |
+| Shooter prior | 0.00199 | 0.00006 | 10.0% |
+| **Possession** (shot clock + chance start) | **0.00110** | 0.00012 | **5.5%** |
+| Game state | 0.00029 | 0.00010 | 1.4% |
+
+**Geometry is worth 15× possession context.** The previous claim, that possession context is
 worth about as much as every location feature combined, does not survive grouping action type
 where it belongs, and is withdrawn.
 
-What survives is smaller and still worth stating: possession context carries **13.6% of total
-model gain**, from two features, neither of which exists in any public feed. That is a real
-contribution to a shot-quality model, just not a rival to knowing where the shot came from.
+Two of these rows moved a lot when the `SCORE_MARGIN` leak was removed. Game state fell from
+0.00812 (27.9%) to 0.00029, which is the direct consequence: most of what that block was worth
+was a feature that already knew the answer. Possession context fell too, from 0.00396 to
+0.00110, and its share from 13.6% to 5.5%.
+
+That leaves a smaller claim than the one this section used to make. Possession context carries
+**5.5% of total model gain**, from two features that exist in no public feed. It is a real but
+minor contribution to a shot-quality model. The case for the reconstruction does not rest here;
+it rests on section 7's continuation value, which is a possession-scale quantity.
 
 Fine-grained detail, kept because it is informative but **not comparable across groups** (the
 rows overlap the coarse blocks and each other):
 
-| Removed | Log-loss cost |
-|---|---|
-| Action type alone | 0.00892 |
-| Location alone | 0.00524 |
-| Chance start type alone | 0.00290 |
-| Shot clock alone | 0.00136 |
+| Removed | Log-loss cost | SD over seeds |
+|---|---|---|
+| Action type alone | 0.00961 | 0.00014 |
+| Location alone | 0.00584 | 0.00007 |
+| Shot clock alone | 0.00081 | 0.00010 |
+| Chance start type alone | 0.00031 | 0.00002 |
 
-Shot clock alone is smallest because chance start type substitutes for it, the two are
-correlated by construction, since transition possessions carry a high clock. That is the same
-substitution argument, now applied symmetrically to both sides.
+Shot clock alone is small partly because chance start type substitutes for it, the two being
+correlated by construction since transition possessions carry a high clock. That is the same
+substitution argument, applied symmetrically to both sides. It is also just small.
+
+Reproduce: `make ablate`, `reports/ablation.csv` and `reports/ablation_by_seed.csv`.
 
 **Known ceiling:** no public feed carries shot-level defender proximity. This is a
 shot-*selection* model, not a contested-ness model, and the "making" residual below absorbs
@@ -563,31 +588,39 @@ Change in points per attempt, 1,780 player-seasons:
 
 | Age | Δ pts/att | n pairs |
 |---|---|---|
-| 21→22 | +0.039 | 45 |
-| 24→25 | +0.013 | 154 |
-| 27→28 | +0.005 | 118 |
-| 31→32 | +0.001 | 61 |
-| 33→34 | +0.023 | 36 |
-| 37→38 | +0.021 | 11 |
+| 21→22 | +0.030 | 83 |
+| 24→25 | +0.007 | 116 |
+| 27→28 | +0.023 | 83 |
+| 31→32 | +0.018 | 31 |
+| 33→34 | −0.020 | 20 |
+| 34→35 | +0.021 | 12 |
 
-**Two things this table says out loud.** First, the deltas turn *positive* again at 33→34 and
-37→38, which is not a late-career renaissance, it is survivorship bias. A player who falls
-off a cliff is released and never records the second season of the pair, so observed declines
-at old ages are biased toward zero. Every curve here is optimistic at the tail and is treated
-as an upper bound.
+Ages come from DARKO's July-2026 snapshot, offset by a calibrated 1.425 years so it describes
+the season in question rather than the date of the download. An earlier version anchored the
+snapshot to the last season in the sample, which aged everyone by about a year and a half and
+made this look like a table about 38-to-41-year-olds. The offset is measured against NBA's own
+2024-25 ages on the 431 players in both files, not assumed.
+
+**Two things this table says out loud.** First, the deltas turn *positive* again at 34→35,
+which is not a late-career renaissance, it is survivorship bias. A player who falls off a cliff
+is released and never records the second season of the pair, so observed declines at old ages
+are biased toward zero. Every curve here is optimistic at the tail and is treated as an upper
+bound.
 
 Second, and decisive for this project: support collapses at exactly the ages needed.
 
 | Age | Player-seasons in sample |
 |---|---|
-| 38 | 12 |
-| 39 | 5 |
-| 40 | 2 |
-| **41** | **1** |
+| 36 | 13 |
+| 37 | 7 |
+| 38 | 3 |
+| 39 | 2 |
+| **40** | **1** |
 
-**LeBron is effectively the entire sample at 41.** Any aging adjustment applied to him is
-extrapolation with no independent support, and `project_metric` returns an explicit
-`extrapolated` flag rather than a bare number so this cannot be quietly forgotten downstream.
+**LeBron is the entire sample at 40**, and the curve has no paired observation at all past
+34→35. He plays 2026-27 at 42. Any aging adjustment applied to him is extrapolation with no
+independent support, and `project_metric` returns an explicit `extrapolated` flag rather than a
+bare number so this cannot be quietly forgotten downstream.
 
 ---
 
@@ -722,8 +755,8 @@ in a round that could never occur.
 
 **Aging is deliberately not applied.** Aging DPM requires a DPM aging curve, which requires
 DARKO across seasons; one snapshot exists. The curve fittable here is on shot efficiency, and
-§9 already records that its support collapses where it matters, 12 player-seasons at 38, one
-at 41. `aging_sensitivity` sweeps the decline instead of guessing it: LeBron losing 1.0 DPM
+§9 already records that its support collapses where it matters, three player-seasons at 38 and
+one at 40. `aging_sensitivity` sweeps the decline instead of guessing it: LeBron losing 1.0 DPM
 moves Philadelphia from 9th to 11th, and a 2.0 collapse to 14th. The answer does not turn on
 the assumption, which is the only reason omitting it is acceptable.
 

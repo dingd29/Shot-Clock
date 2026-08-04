@@ -6,6 +6,7 @@ to verify by eye, which is exactly what makes them useful as regression anchors.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -99,17 +100,49 @@ class TestGoldenSequences:
         result = reconstruct_game(df, season=2024)
         assert "off_rebound" not in result.CHANCE_START_TYPE.tolist()
 
-    def test_non_monotone_game_clock_is_repaired(self):
-        # A substitution carrying a stale timestamp must not rewind the clock.
+    def test_a_stale_substitution_timestamp_does_not_retime_later_events(self):
+        """The substitution at 4:39 is the error; the rebound at 11:38 is real.
+
+        Asserting only that *a* repair happened passes on the broken behaviour, where the
+        substitution dragged the running minimum to 279s and every later event was clamped to
+        it — the rebound came out at 279 instead of 698, and the shot after it got a confident
+        but wrong clock. This pins the events *after* the bad timestamp.
+
+        The substitution keeps its own bad timestamp; the fix is that it no longer sets the
+        running minimum, so nothing downstream inherits it.
+        """
         df = build([
             (1, 12, 0, "12:00", "Start of 1st Period", None, None, None),
             (2, 2, 1, "11:40", "MISS Johnson Jump Shot", 1, AWAY, None),
             (3, 8, 0, "4:39", "SUB: Ware FOR Adebayo", 5, AWAY, None),
             (4, 4, 0, "11:38", "Horford REBOUND", 2, HOME, None),
+            (5, 1, 1, "11:20", "Horford 2PT Jump Shot", 2, HOME, None),
         ])
-        result = reconstruct_game(df, season=2024)
-        assert result.GAME_CLOCK_REPAIRED.any()
+        result = reconstruct_game(df, season=2024).set_index("EVENTNUM")
+
+        assert result.loc[4, "GAME_CLOCK"] == pytest.approx(698.0)
+        assert result.loc[5, "GAME_CLOCK"] == pytest.approx(680.0)
+        # The rebound is a real defensive board 22 seconds into the period, so the shot 18
+        # seconds later sits well inside the clock rather than at a fabricated full 24.
+        assert result.loc[5, "SHOT_CLOCK"] == pytest.approx(6.0)
+        assert not result.loc[[4, 5], "GAME_CLOCK_REPAIRED"].any()
         assert result.SHOT_CLOCK.max() <= R.FULL_CLOCK
+
+    def test_inert_events_never_lower_the_running_minimum(self):
+        """Substitutions, timeouts, ejections and replays are the worst-timed rows in the feed.
+
+        Even a dip that is not isolated — two bad substitutions in a row — must not re-time the
+        live play that follows them.
+        """
+        df = build([
+            (1, 12, 0, "12:00", "Start of 1st Period", None, None, None),
+            (2, 2, 1, "11:40", "MISS Johnson Jump Shot", 1, AWAY, None),
+            (3, 8, 0, "3:10", "SUB: Ware FOR Adebayo", 5, AWAY, None),
+            (4, 9, 0, "3:05", "Heat Timeout", None, AWAY, None),
+            (5, 4, 0, "11:38", "Horford REBOUND", 2, HOME, None),
+        ])
+        result = reconstruct_game(df, season=2024).set_index("EVENTNUM")
+        assert result.loc[5, "GAME_CLOCK"] == pytest.approx(698.0)
 
 
 @pytest.fixture(scope="module")
@@ -140,3 +173,26 @@ class TestInvariants:
 
     def test_low_confidence_rows_have_no_clock(self, real_game):
         assert real_game.loc[real_game.CLOCK_CONFIDENCE == "low", "SHOT_CLOCK"].isna().all()
+
+
+class TestGameClockRepair:
+    """`repair_game_clock` in isolation, where the clamp can be pinned directly."""
+
+    def test_clock_never_increases_after_repair(self):
+        from possval.clock.reconstruct import repair_game_clock
+
+        rng = np.random.default_rng(0)
+        raw = np.sort(rng.uniform(0, 720, 200))[::-1].copy()
+        raw[50] = 10.0     # spurious dip
+        raw[120] = 700.0   # spurious spike
+        clock, _ = repair_game_clock(raw, np.zeros(200, dtype=bool), 720.0)
+        assert (np.diff(clock) <= 1e-9).all()
+        assert clock.max() <= 720.0
+
+    def test_nan_timestamps_carry_the_previous_value(self):
+        from possval.clock.reconstruct import repair_game_clock
+
+        raw = np.array([700.0, np.nan, 680.0])
+        clock, repaired = repair_game_clock(raw, np.zeros(3, dtype=bool), 720.0)
+        assert clock[1] == pytest.approx(700.0)
+        assert repaired[1]

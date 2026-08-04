@@ -99,10 +99,22 @@ def _league_table(fga, fgm, fg3m, labels) -> pd.DataFrame:
 
 
 def compare_league_wide(recon: pd.DataFrame, official: pd.DataFrame) -> pd.DataFrame:
-    """Axis 1 + 2: bucket-level FGA share and shooting efficiency."""
+    """Axis 1 + 2: bucket-level FGA share and shooting efficiency.
+
+    The official file is per-game, so it is multiplied through by `GP` before aggregating.
+    Summing the rates directly would weight a 12-game player the same as an 80-game one; it
+    leaves the FGA share almost untouched (1.19pp against 1.20pp) but inflates the eFG gap to
+    1.78pp from a true 1.05pp, because low-minute players shoot worse and were over-weighted.
+    `compare_per_player` divides by `GP` for the same reason.
+    """
     r = recon.groupby("BUCKET", observed=True)[["FGA", "FGM", "FG3M"]].sum().reindex(BUCKET_ORDER)
+    totals = official.assign(
+        FGA=official.FGA * official.GP,
+        FGM=official.FGM * official.GP,
+        FG3M=official.FG3M * official.GP,
+    )
     o = (
-        official.groupby("SHOT_CLOCK_RANGE", observed=True)[["FGA", "FGM", "FG3M"]]
+        totals.groupby("SHOT_CLOCK_RANGE", observed=True)[["FGA", "FGM", "FG3M"]]
         .sum()
         .reindex(BUCKET_ORDER)
     )

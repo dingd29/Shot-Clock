@@ -266,14 +266,24 @@ def project_league(
     # Eight per conference, not sixteen overall — a 45-win East team makes the playoffs
     # ahead of a 48-win West team, and that asymmetry is the whole reason conference
     # matters to Philadelphia.
-    ordered = wins.mean().sort_values(ascending=False)
-    seeded: dict[str, int] = {}
-    seeds = []
-    for team in ordered.index:
-        side = CONFERENCES[team]
-        if seeded.get(side, 0) < 8:
-            seeded[side] = seeded.get(side, 0) + 1
-            seeds.append(team)
+    #
+    # The field is rebuilt inside *every* simulation. Seeding once from mean wins reintroduces
+    # exactly what simulating the season was for: the sixteen teams become fixed, making the
+    # playoffs stops being an outcome, and every bubble team's title probability collapses to
+    # a hard zero. In the version that shipped first, 14 of 30 teams sat at 0.00000, including
+    # a +0.27 team whose 80% interval reached 55 wins.
+    def field_for(row: pd.Series) -> list[str]:
+        seeded: dict[str, int] = {}
+        field: list[str] = []
+        for team in row.sort_values(ascending=False).index:
+            side = CONFERENCES[team]
+            if seeded.get(side, 0) < 8:
+                seeded[side] = seeded.get(side, 0) + 1
+                field.append(team)
+        return field
+
+    fields = [field_for(wins.iloc[i]) for i in range(len(wins))]
+    seeds = field_for(wins.mean())
     titles = simulate_playoffs(
         ratings,
         seeds,
@@ -281,6 +291,7 @@ def project_league(
         conferences=CONFERENCES,
         rating_sd=extra_rating_sd,
         seed=seed,
+        fields=fields,
     )
 
     summary = pd.DataFrame(

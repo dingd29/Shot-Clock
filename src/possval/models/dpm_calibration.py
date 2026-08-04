@@ -25,6 +25,11 @@ REPLACEMENT_DPM = -2.0
 
 LINEUP_SIZE = 5
 
+# Regressing each team's SRS on its own previous season's, 300 team-season pairs over
+# 2015-2025: slope 0.587, correlation 0.573, residual spread 3.95. Reproduce with
+# `possval.models.league.forward_rating_sd`.
+YEAR_OVER_YEAR_PERSISTENCE = 0.5869
+
 
 def load_minutes(season: int = 2025) -> pd.DataFrame:
     """Season minutes per player, from the box score rather than derived from substitutions.
@@ -188,17 +193,34 @@ def calibrate(season: int = 2025, replacement: float = REPLACEMENT_DPM) -> pd.Da
     return pd.DataFrame(rows)
 
 
-def apply_calibration(raw_rating: float, fits: pd.DataFrame) -> dict:
+def apply_calibration(raw_rating: float, fits: pd.DataFrame, forward: bool = True) -> dict:
     """Map a raw DPM-implied team rating onto the observed scale.
 
     One slope, applied to the total. Calibrating offence and defence separately and adding
     them would have put Philadelphia at +2.80 rather than +5.11 — a 2.3-point error driven
     entirely by the pace contamination in the component targets, and one that bites hardest
     on exactly the offence-heavy rosters this project exists to evaluate.
+
+    **`forward` is the important argument.** The fitted slope, 1.433, is estimated on a DARKO
+    snapshot taken *after* the season it is regressed on. What it measures is how much DARKO
+    shrinks its own within-season estimates, and un-shrinking by it is the right correction
+    for reproducing that season. It is the wrong correction for projecting the next one, where
+    a team's rating is only about 59% persistent year to year. Composing the two gives a
+    forward slope of 1.433 x 0.587, near 0.84.
+
+    The composition is an approximation, and the direction of its error is the safe one:
+    DARKO's own snapshot is partly forward-looking already, so 0.84 is if anything too much
+    shrinkage. The alternative, regressing on a snapshot taken before the season, needs a
+    back-dated DARKO pull that does not exist here. Passing `forward=False` recovers the
+    contemporaneous slope, which is what the backtest in METHODOLOGY §10 uses.
     """
     overall = fits.set_index("component").loc["overall (vs SRS)"]
+    persistence = YEAR_OVER_YEAR_PERSISTENCE if forward else 1.0
+    slope = float(overall.slope) * persistence
     return {
-        "rating": float(overall.intercept + overall.slope * raw_rating),
-        "slope": float(overall.slope),
+        "rating": float(overall.intercept) * persistence + slope * raw_rating,
+        "slope": slope,
+        "contemporaneous_slope": float(overall.slope),
+        "persistence": persistence,
         "residual_sd": float(overall.residual_sd),
     }

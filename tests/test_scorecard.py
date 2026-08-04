@@ -46,22 +46,40 @@ def test_true_ratings_beat_both_baselines():
     assert truth.log_loss < scored.loc["home team always"].log_loss
 
 
-def test_scoring_the_baseline_against_itself_is_a_tie():
-    """The identity check that catches a mis-wired baseline.
+def test_each_model_is_scored_at_its_own_margin_scale():
+    """A prior-season rating predicts a smaller margin, so it is graded less confidently.
 
-    Feeding the baseline in as the projection must reproduce the baseline's own numbers
-    exactly. Any difference means the two paths are not scoring the same games the same way.
+    Both paths used to call `win_probability` at the default 7.0, which is the contemporaneous
+    scale. That made the baseline overconfident and handed the projection an edge it had not
+    earned. Feeding identical ratings down both paths should now produce *different* scores,
+    each matching its documented scale.
     """
+    from possval.models.simulate import (
+        CONTEMPORANEOUS_MARGIN_SCALE,
+        PRIOR_SEASON_MARGIN_SCALE,
+        win_probability,
+    )
+
     games, _ = synthetic_games(seed=2)
-    baseline = pd.Series(
-        np.linspace(-3, 3, 10), index=[f"T{i:02d}" for i in range(10)]
-    )
-    scored = score_games(games, baseline, baseline).set_index("model")
-    assert scored.loc["pre-registered projection"].brier == pytest.approx(
+    ratings = pd.Series(np.linspace(-3, 3, 10), index=[f"T{i:02d}" for i in range(10)])
+    scored = score_games(games, ratings, ratings).set_index("model")
+
+    known = games[games.HOME.isin(ratings.index) & games.AWAY.isin(ratings.index)]
+    diff = known.HOME.map(ratings).to_numpy() - known.AWAY.map(ratings).to_numpy()
+    outcomes = known.HOME_WIN.to_numpy(dtype=float)
+
+    for model, scale in [
+        ("pre-registered projection", CONTEMPORANEOUS_MARGIN_SCALE),
+        ("prior-season SRS", PRIOR_SEASON_MARGIN_SCALE),
+    ]:
+        expected = win_probability(diff, True, scale=scale)
+        assert scored.loc[model].brier == pytest.approx(
+            float(np.mean((expected - outcomes) ** 2))
+        )
+
+    assert PRIOR_SEASON_MARGIN_SCALE > CONTEMPORANEOUS_MARGIN_SCALE
+    assert scored.loc["pre-registered projection"].brier != pytest.approx(
         scored.loc["prior-season SRS"].brier
-    )
-    assert scored.loc["pre-registered projection"].log_loss == pytest.approx(
-        scored.loc["prior-season SRS"].log_loss
     )
 
 

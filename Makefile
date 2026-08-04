@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange stopping winprob project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping winprob ratings project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -29,7 +29,10 @@ score:  ## score every shot and write the grade tables
 lineups:  ## derive on-court lineups from substitutions
 	$(PY) -m possval.pipeline lineups --first $(FIRST) --last $(LAST)
 
-synergy:  ## lineup-level overlap test + head-to-head against usage
+synergy:  ## creation overlap vs efficiency, team-season level (findings 11, first test)
+	$(PY) -m possval.pipeline synergy --first $(FIRST) --last $(LAST)
+
+lineup-test:  ## the same hypothesis retested on five-man lineups (findings 11, retest)
 	$(PY) -m possval.pipeline lineup-test --first $(FIRST) --last $(LAST)
 
 ablate:  ## value feature groups by refitting without them
@@ -47,7 +50,10 @@ scorecard:  ## score the pre-registered projection against results so far
 winprob:  ## does the shot clock improve a live win-probability model?
 	$(PY) -m possval.pipeline winprob --first $(FIRST) --last $(LAST)
 
-project:  ## calibrate DPM and simulate 2026-27 for all thirty teams
+ratings:  ## season SRS for every team; required by project and scorecard
+	$(PY) -m possval.pipeline ratings --first $(FIRST) --last 2025
+
+project:  ## calibrate DPM and simulate 2026-27 for all thirty teams (needs: ratings)
 	$(PY) -m possval.pipeline project --games 70
 
 test:

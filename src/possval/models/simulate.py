@@ -22,9 +22,22 @@ DEFAULT_HOME_ADVANTAGE = 2.2
 # Point-margin edge to win probability. The right scale depends on what the ratings are:
 # fitted against prior-season ratings it comes out near 10.5, since the fit has to flatten
 # partly-informative predictions. A simulator is handed ratings it treats as true, so the
-# contemporaneous value of 7.0 applies (11,968 games). At 10.5 a +12.7 team projects to 60
-# wins; Oklahoma City won 68 at that rating.
-CONTEMPORANEOUS_MARGIN_SCALE = 7.0
+# contemporaneous value applies.
+#
+# **Getting the contemporaneous value honestly takes two steps**, because fitting SRS on a
+# season and then scoring it on the same season is circular: the ratings have already absorbed
+# those outcomes, the relationship looks tighter than it is, and the scale comes out too small.
+# That route gave 7.0, defended by noting that a +12.7 team projected to 60 wins where Oklahoma
+# City won 68 — but the +12.7 was computed from those same 68 wins.
+#
+#   1. Fit SRS on each season's odd-numbered games and score it on the even ones, and vice
+#      versa. 22 half-seasons, mean scale **9.12**, home advantage 2.6.
+#   2. Correct that upward bias. Half-season ratings are noisy, and noise in a predictor
+#      attenuates its coefficient, which inflates the fitted scale by 1/reliability. Odd-half
+#      and even-half SRS correlate **0.826**, so the disattenuated value is 0.826 x 9.12.
+#
+# Reproduce both with `fit_margin_scale_split_half`.
+CONTEMPORANEOUS_MARGIN_SCALE = 7.5
 PRIOR_SEASON_MARGIN_SCALE = 10.5
 DEFAULT_MARGIN_SCALE = CONTEMPORANEOUS_MARGIN_SCALE
 
@@ -63,6 +76,49 @@ def fit_margin_scale(games: pd.DataFrame) -> dict:
     best["brier"] = float(np.mean((p - won) ** 2))
     best["n"] = len(games)
     return best
+
+
+def fit_margin_scale_split_half(games: pd.DataFrame) -> dict:
+    """The non-circular contemporaneous margin scale, with its reliability correction.
+
+    `games` needs SEASON, GAME_ID, HOME, AWAY, HOME_WIN. For each season the ratings are fitted
+    on half the games and scored on the other half, both ways round, so no game contributes to
+    the rating it is then used to grade.
+
+    Returns the raw split-half scale, the odd/even rating reliability, and the product, which
+    is the value `CONTEMPORANEOUS_MARGIN_SCALE` carries.
+    """
+    from possval.models.ratings import srs_ratings
+
+    scales, advantages, reliabilities = [], [], []
+    for _, season_games in games.groupby("SEASON"):
+        ordered = season_games.sort_values("GAME_ID").reset_index(drop=True)
+        odd, even = ordered.iloc[1::2], ordered.iloc[0::2]
+
+        odd_ratings, _ = srs_ratings(odd)
+        even_ratings, _ = srs_ratings(even)
+        paired = pd.DataFrame({"odd": odd_ratings, "even": even_ratings}).dropna()
+        reliabilities.append(float(paired.odd.corr(paired.even)))
+
+        for ratings, held_out in [(odd_ratings, even), (even_ratings, odd)]:
+            scored = held_out.assign(
+                HOME_RATING=held_out.HOME.map(ratings),
+                AWAY_RATING=held_out.AWAY.map(ratings),
+            ).dropna(subset=["HOME_RATING", "AWAY_RATING"])
+            fit = fit_margin_scale(scored)
+            scales.append(fit["scale"])
+            advantages.append(fit["home_advantage"])
+
+    split_half = float(np.mean(scales))
+    reliability = float(np.mean(reliabilities))
+    return {
+        "split_half_scale": split_half,
+        "split_half_scale_sd": float(np.std(scales, ddof=1)),
+        "home_advantage": float(np.mean(advantages)),
+        "reliability": reliability,
+        "corrected_scale": split_half * reliability,
+        "n_halves": len(scales),
+    }
 
 
 def simulate_season(
@@ -133,6 +189,7 @@ def simulate_playoffs(
     conferences: dict[str, str] | None = None,
     rating_sd: float = 0.0,
     seed: int = 0,
+    fields: list[list[str]] | None = None,
 ) -> pd.Series:
     """Best-of-seven bracket from an ordered seed field; returns P(title) per team.
 
@@ -145,11 +202,23 @@ def simulate_playoffs(
     `rating_sd` redraws each team's rating once per simulated postseason. Leave it at zero and
     the bracket is a near-deterministic ladder whose title odds barely respond to how uncertain
     the projection is.
+
+    `fields` supplies a different sixteen-team field per simulation, which is what makes
+    "who makes the playoffs" an outcome rather than an assumption. With a single fixed field,
+    a team on the bubble either never appears or always does, and its title probability comes
+    out as exactly zero — not small, zero. `seeds` is then only the fallback field and the
+    reference order for home-court in the final.
     """
     rng = np.random.default_rng(seed)
-    fixed = {team: float(ratings[team]) for team in seeds}
+    if fields is None:
+        fields = [list(seeds)] * n_sims
+    elif len(fields) != n_sims:
+        raise ValueError(f"got {len(fields)} seed fields for {n_sims} simulations")
+
+    entrants = sorted({team for field in fields for team in field} | set(seeds))
+    fixed = {team: float(ratings[team]) for team in entrants}
     base = dict(fixed)
-    titles = dict.fromkeys(seeds, 0)
+    titles = dict.fromkeys(ratings.index, 0)
 
     def series_winner(a: str, b: str) -> str:
         """`a` holds home court."""
@@ -172,22 +241,25 @@ def simulate_playoffs(
             field = [series_winner(field[i], field[-1 - i]) for i in range(len(field) // 2)]
         return field[0]
 
-    for _ in range(n_sims):
+    for simulation in range(n_sims):
+        field = fields[simulation]
         if rating_sd:
-            draw = rng.normal(0.0, rating_sd, len(seeds))
-            base = {team: fixed[team] + shift for team, shift in zip(seeds, draw, strict=True)}
+            draw = rng.normal(0.0, rating_sd, len(entrants))
+            base = {
+                team: fixed[team] + shift for team, shift in zip(entrants, draw, strict=True)
+            }
         if conferences is None:
-            titles[bracket(list(seeds))] += 1
+            titles[bracket(list(field))] += 1
             continue
         # Two eight-team brackets meeting in the final, which is how the league actually
         # works and is not a detail: the three strongest teams in this projection are split
         # across conferences, so a single sixteen-team ladder can pit two of them against
         # each other in a semi-final that could never happen.
         finalists = [
-            bracket([team for team in seeds if conferences.get(team) == side][:8])
-            for side in sorted({conferences[team] for team in seeds})
+            bracket([team for team in field if conferences.get(team) == side][:8])
+            for side in sorted({conferences[team] for team in field})
         ]
-        higher, lower = sorted(finalists, key=lambda team: seeds.index(team))
+        higher, lower = sorted(finalists, key=field.index)
         titles[series_winner(higher, lower)] += 1
 
     return pd.Series({team: count / n_sims for team, count in titles.items()}).sort_values(

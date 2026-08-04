@@ -183,9 +183,14 @@ def cmd_score(first: int, last: int) -> None:
     scored.to_parquet(PROCESSED / "shots_scored.parquet", index=False, compression="zstd")
 
     test = scored[scored.SEASON == 2024]
+    # Both clock-conditioned tables drop buzzer-beater heaves, matching cmd_stopping and the
+    # rule in features/shots.EXPIRING_SECONDS. A third of shots at <=1s on the shot clock also
+    # have <3s of game clock, so leaving them in loads the late-clock bucket with attempts that
+    # were never shot-clock decisions. grade_players is unconditioned and keeps them.
+    live = test[test.GAME_CLOCK_EXPIRING == 0]
     grade_players(test, by_season=False).to_csv(PROCESSED / "grade_players_2024.csv", index=False)
-    grade_by_clock(test).to_csv(PROCESSED / "grade_by_clock_2024.csv", index=False)
-    late_clock_specialists(test).to_csv(PROCESSED / "late_clock_2024.csv", index=False)
+    grade_by_clock(live).to_csv(PROCESSED / "grade_by_clock_2024.csv", index=False)
+    late_clock_specialists(live).to_csv(PROCESSED / "late_clock_2024.csv", index=False)
 
     print(f"scored {len(scored):,} shots; wrote grade tables for 2024-25")
 
@@ -211,6 +216,95 @@ def cmd_lineups(first: int, last: int) -> None:
             f"{report['pct_ten_distinct']:.2%} | unresolved games {failed}",
             flush=True,
         )
+
+
+def cmd_synergy(first: int, last: int) -> None:
+    """Creation overlap against offensive efficiency, at team-season level.
+
+    This is the test finding 11 reports first, and it previously had no entry point at all:
+    `make synergy` ran the *lineup* version, so the team-season table could not be reproduced
+    from the repo and which outcome column produced it was not recoverable. Every outcome is
+    printed here rather than one, because the choice between them is exactly the degree of
+    freedom a reader should be able to see.
+    """
+    from possval.models.synergy import fit_overlap_effect, team_possessions, team_season_panel
+
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[(shots.SEASON >= first) & (shots.SEASON <= last)]
+
+    frames = []
+    for season in range(first, last + 1):
+        path = pbp_clock_path(season)
+        if not path.exists():
+            continue
+        pbp = pd.read_parquet(
+            path,
+            columns=[
+                "GAME_ID", "CHANCE_ID", "CHANCE_START_TYPE", "EVENTMSGTYPE",
+                "OFF_TEAM_ID", "PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION",
+                "HOMEDESCRIPTION", "VISITORDESCRIPTION",
+            ],
+        )
+        # `shots_scored.parquet` carries the abbreviation but not TEAM_ID, so joining
+        # possessions on TEAM_ID silently produced an all-NaN column and ORTG_FG was never
+        # computed at all. The mapping comes from play-by-play, which has both.
+        abbreviations = (
+            pbp[["PLAYER1_TEAM_ID", "PLAYER1_TEAM_ABBREVIATION"]]
+            .dropna()
+            .drop_duplicates("PLAYER1_TEAM_ID")
+            .set_index("PLAYER1_TEAM_ID")
+            .PLAYER1_TEAM_ABBREVIATION
+        )
+        counts = team_possessions(pbp).assign(SEASON=season)
+        counts["TEAM_ABBREVIATION"] = counts.TEAM_ID.map(abbreviations)
+        frames.append(counts.dropna(subset=["TEAM_ABBREVIATION"]))
+        print(f"  {season}: possessions for {len(frames[-1])} teams", flush=True)
+    possessions = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    pd.set_option("display.width", 200)
+    tables = []
+    for top_n in (3, 4, 8):
+        panel = team_season_panel(shots, possessions, top_n=top_n)
+        rows = []
+        for outcome in ("PTS_PER_FGA", "PTS_VS_XPTS", "ORTG_FG"):
+            if outcome not in panel or panel[outcome].notna().sum() < 30:
+                continue
+            fit = fit_overlap_effect(panel, outcome=outcome)
+            overlap = fit["coefficients"].set_index("term").loc["overlap"]
+            rows.append(
+                {
+                    "top_n": top_n,
+                    "outcome": outcome,
+                    "n": fit["n"],
+                    "r2": fit["r2"],
+                    # Per +1 SD of overlap, so the three outcomes are on comparable footing.
+                    "per_sd": overlap.estimate * fit["overlap_sd"],
+                    "estimate": overlap.estimate,
+                    "std_error": overlap.std_error,
+                    "t": overlap.t,
+                }
+            )
+        table = pd.DataFrame(rows)
+        print(f"\n=== top-{top_n} creators: {len(panel)} team-seasons ===")
+        print(table.round(4).to_string(index=False))
+        tables.append(table)
+        if top_n == 8:
+            panel.to_csv(REPORTS / "synergy_team_season_panel.csv", index=False)
+
+    curve = pd.concat(tables, ignore_index=True)
+    curve.to_csv(REPORTS / "synergy_team_season.csv", index=False)
+
+    hits = curve[curve.t.abs() >= 2]
+    print(f"\n{len(hits)} of {len(curve)} specifications reach |t| = 2 on overlap.")
+    if not hits.empty:
+        # Sign matters more than significance here. The redundancy hypothesis predicts
+        # *negative*: more overlap, worse offense. Positive is what the construction produces
+        # on its own, since similar players concentrate early in the clock and early chances
+        # score better. See findings 11.
+        print(f"  signs: {sorted(np.sign(hits.estimate).unique().tolist())} "
+              f"(the hypothesis predicts negative)")
+    print(f"written: {REPORTS / 'synergy_team_season.csv'}, "
+          f"{REPORTS / 'synergy_team_season_panel.csv'}")
 
 
 def cmd_lineup_test(first: int, last: int) -> None:
@@ -257,13 +351,24 @@ def cmd_lineup_test(first: int, last: int) -> None:
     efficiency = lineup_efficiency(events)
     print(f"\nlineup-seasons with >=100 chances: {len(efficiency):,}")
 
-    prior = (
+    # Points per attempt over strictly *earlier* seasons, matching synergy.py's team-season
+    # version. An earlier build here grouped over every season including the outcome season and
+    # then collapsed to one scalar per player, which made the only quality control in the
+    # specification curve both contemporaneous with its outcome and constant over a decade.
+    by_season = (
         shots.groupby(["PLAYER_ID", "SEASON"])
         .agg(PTS=("PTS", "sum"), FGA=("PTS", "size"))
         .reset_index()
+        .sort_values(["PLAYER_ID", "SEASON"])
     )
-    prior["PRIOR_PPA"] = prior.PTS / prior.FGA
-    prior_lookup = prior.set_index("PLAYER_ID").PRIOR_PPA.groupby(level=0).mean().to_frame()
+    cumulative = by_season.groupby("PLAYER_ID")[["PTS", "FGA"]].cumsum() - by_season[
+        ["PTS", "FGA"]
+    ]
+    by_season["PRIOR_PPA"] = (cumulative.PTS / cumulative.FGA.replace(0, np.nan)).to_numpy()
+    prior_lookup = (
+        by_season.dropna(subset=["PRIOR_PPA"])
+        .set_index(["PLAYER_ID", "SEASON"])[["PRIOR_PPA"]]
+    )
 
     panel = build_lineup_panel(efficiency, profiles, prior_lookup, usage=usage_rates(events))
     panel.to_parquet(PROCESSED / "lineup_panel.parquet", index=False)
@@ -302,11 +407,12 @@ def cmd_backfill(first: int, last: int) -> None:
 def cmd_ablate(first: int, last: int) -> None:
     """Value feature groups by refitting without them."""
     from possval.features import build_shot_features
-    from possval.models.xpts import ABLATION_GROUPS, ABLATION_GROUPS_FINE, ablate
+    from possval.models.xpts import ABLATION_GROUPS, ABLATION_GROUPS_FINE, ablate_seeds
 
     features = build_shot_features(load_all_shots(first, last))
     groups = {**ABLATION_GROUPS, **ABLATION_GROUPS_FINE}
-    result = ablate(features, groups)
+    result = ablate_seeds(features, groups)
+    seeds = result.attrs["seeds"]
 
     base = result[result.removed == "full_model"].iloc[0]
     result["share_of_gain"] = result.logloss_cost / result[
@@ -315,16 +421,18 @@ def cmd_ablate(first: int, last: int) -> None:
 
     pd.set_option("display.width", 200)
     print(f"\n=== ablation (test = 2024-25, full-model log loss {base.log_loss:.5f}) ===")
+    print(f"mean over {len(seeds)} seeds; sd is across seeds, not a sampling interval.")
     print("share_of_gain is over the four coarse groups only; the fine rows overlap them.")
     coarse = result[result.removed.isin(ABLATION_GROUPS)]
     fine = result[result.removed.isin(ABLATION_GROUPS_FINE)]
-    cols = ["removed", "logloss_cost", "auc_cost", "share_of_gain"]
+    cols = ["removed", "logloss_cost", "logloss_cost_sd", "auc_cost", "share_of_gain"]
     print("\ncoarse groups:")
     print(coarse[cols].sort_values("logloss_cost", ascending=False)
           .round(5).to_string(index=False))
     print("\nfine detail (overlapping; not comparable across groups):")
     print(fine[cols[:-1]].sort_values("logloss_cost", ascending=False)
           .round(5).to_string(index=False))
+    result.attrs["per_seed"].to_csv(REPORTS / "ablation_by_seed.csv", index=False)
 
     out = REPORTS / "ablation.csv"
     result.to_csv(out, index=False)
@@ -553,17 +661,51 @@ def cmd_rulechange(first: int, last: int) -> None:
     print(f"\nwritten: {REPORTS / 'rulechange_did.csv'} and event studies")
 
 
+def cmd_ratings(first: int, last: int) -> None:
+    """Season SRS for every team, written where the projection and scorecard expect it.
+
+    `srs_ratings.parquet` is read by `league.py`, `dpm_calibration.py` and `scorecard.py` and
+    was previously written by nothing, so a clean checkout could not run `project` or
+    `scorecard` at all. This is the missing step; it belongs before both of them.
+
+    `last` runs one season past the clock reconstruction by default. 2025-26 has no
+    `pbp_clock_*` file and comes from the v3 feed, and the projection needs it as the prior
+    season.
+    """
+    from possval.models.ratings import all_game_results, season_ratings
+
+    games = all_game_results(first, last)
+    ratings = season_ratings(games)
+
+    out = PROCESSED / "srs_ratings.parquet"
+    ratings.to_parquet(out, index=False, compression="zstd")
+    games.to_parquet(PROCESSED / "game_results.parquet", index=False, compression="zstd")
+
+    pd.set_option("display.width", 200)
+    print(f"{len(games):,} games over {games.SEASON.nunique()} seasons")
+    print("\n=== SRS spread by season ===")
+    spread = ratings.groupby("SEASON").SRS.agg(["min", "max", "std"]).round(2)
+    print(spread.to_string())
+    print(f"\nwritten: {out}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="possval.pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
     for name in ("ingest", "clock", "validate", "scorecard"):
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
-    for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange",
-                 "ablate", "stopping", "winprob"):
+    for name in ("backfill", "train", "score", "lineups", "lineup-test", "synergy",
+                 "rulechange", "ablate", "stopping", "winprob"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
+
+    # Ratings run one season past the rest: the projection needs 2025-26 as its prior season,
+    # and that season has no clock reconstruction behind it.
+    ratings = sub.add_parser("ratings")
+    ratings.add_argument("--first", type=int, default=2015)
+    ratings.add_argument("--last", type=int, default=2025)
 
     project = sub.add_parser("project")
     project.add_argument("--sims", type=int, default=20_000)
@@ -587,10 +729,12 @@ def main() -> None:
         "score": cmd_score,
         "lineups": cmd_lineups,
         "lineup-test": cmd_lineup_test,
+        "synergy": cmd_synergy,
         "rulechange": cmd_rulechange,
         "ablate": cmd_ablate,
         "stopping": cmd_stopping,
         "winprob": cmd_winprob,
+        "ratings": cmd_ratings,
     }
     if args.command in ranged:
         ranged[args.command](args.first, args.last)

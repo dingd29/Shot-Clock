@@ -9,9 +9,11 @@ This module removes that weakness. The unit is a **lineup-season** — one speci
 group, in one season — and the outcome is the offense that group actually produced while
 together. If usage redundancy costs anything, this is where it has to show up.
 
-Same control discipline as the team-season test: individual quality enters as the summed
-prior-season scoring of the five players, so only efficiency unexplained by who they are can
-be attributed to how they fit.
+Same control discipline as the team-season test: individual quality enters as the five
+players' mean scoring over strictly *earlier* seasons, so only efficiency unexplained by who
+they are can be attributed to how they fit. The mean rather than the sum, because a lineup is
+kept when four of five players have a history and a sum would read that missing fifth as low
+quality rather than as unknown.
 """
 
 from __future__ import annotations
@@ -162,6 +164,10 @@ def build_lineup_panel(
 ) -> pd.DataFrame:
     """Attach overlap and a prior-quality control to each lineup-season.
 
+    `prior_quality` is indexed by (PLAYER_ID, SEASON) and must hold only *earlier* seasons'
+    scoring. Looking it up per season rather than once per player is what keeps the control
+    from being contemporaneous with the outcome it is meant to absorb.
+
     `usage` adds the incumbent redundancy measure: the five players' combined shot demand,
     carried as `USAGE_SUM`, so the two hypotheses can be raced on identical rows.
     """
@@ -175,7 +181,9 @@ def build_lineup_panel(
         if not set(ids).issubset(profiled):
             continue
 
-        quality = prior_quality.reindex(ids).PRIOR_PPA
+        quality = prior_quality.reindex(
+            [(player, record.SEASON) for player in ids]
+        ).PRIOR_PPA
         if quality.notna().sum() < 4:
             continue
 

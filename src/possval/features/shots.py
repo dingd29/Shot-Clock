@@ -149,18 +149,26 @@ def build_shot_features(shots: pd.DataFrame, pbp: pd.DataFrame | None = None) ->
 
 
 def attach_game_state(shots: pd.DataFrame, pbp: pd.DataFrame) -> pd.DataFrame:
-    """Bring score margin across from play-by-play, forward-filled within each game.
+    """Bring score margin across from play-by-play, as it stood *before* each event.
 
     SCOREMARGIN is only populated on scoring events, so it must be carried forward; the
     leading NaNs before the first basket are a genuine 0-0 tie.
+
+    The lag is not cosmetic. SCOREMARGIN is populated on 100% of made field goals and 0% of
+    misses, so an unlagged merge hands a made shot a margin that already contains its own
+    points. Fitted directly that leak is worth 0.0068 log loss, five times the entire measured
+    value of the reconstructed shot clock. It survives here only because it enters as ±2.4
+    depending on which side shot, and the offsetting `IS_HOME` is not in the model's feature
+    list. Shifting by one event within game is the fix; adding `IS_HOME` would be the opposite.
     """
     margin = pbp[["GAME_ID", "EVENTNUM", "SCOREMARGIN"]].copy()
     margin["SCOREMARGIN"] = (
         margin.SCOREMARGIN.replace("TIE", "0").astype("string").astype("Float64")
     )
     margin = margin.sort_values(["GAME_ID", "EVENTNUM"])
+    running = margin.groupby("GAME_ID").SCOREMARGIN.ffill()
     margin["SCORE_MARGIN"] = (
-        margin.groupby("GAME_ID").SCOREMARGIN.ffill().fillna(0.0).astype(float)
+        running.groupby(margin.GAME_ID).shift(1).fillna(0.0).astype(float)
     )
     return shots.merge(
         margin[["GAME_ID", "EVENTNUM", "SCORE_MARGIN"]].rename(

@@ -291,6 +291,41 @@ def ablate(
     return out
 
 
+def ablate_seeds(
+    df: pd.DataFrame,
+    groups: dict[str, list[str]],
+    split: SeasonSplit = DEFAULT_SPLIT,
+    seeds: tuple[int, ...] = (0, 1, 2, 3, 4),
+) -> pd.DataFrame:
+    """`ablate` repeated over several seeds, reported as a mean and a spread.
+
+    Every ablation cost here is order 1e-3, and the fit has two stochastic parts: the
+    early-stopping split is carved from train at random, and the booster's own binning depends
+    on the seed. A single-seed run gives no way to tell a real 0.001 from a resampled one, and
+    the ordering of the middle groups is not stable across seeds. Report the spread and read
+    only the differences that clear it.
+    """
+    frames = [ablate(df, groups, split, seed=seed).assign(seed=seed) for seed in seeds]
+    stacked = pd.concat(frames, ignore_index=True)
+    out = (
+        stacked.groupby("removed", sort=False)
+        .agg(
+            logloss_cost=("logloss_cost", "mean"),
+            logloss_cost_sd=("logloss_cost", "std"),
+            logloss_cost_min=("logloss_cost", "min"),
+            logloss_cost_max=("logloss_cost", "max"),
+            auc_cost=("auc_cost", "mean"),
+            auc_cost_sd=("auc_cost", "std"),
+            log_loss=("log_loss", "mean"),
+            auc=("auc", "mean"),
+        )
+        .reset_index()
+    )
+    out.attrs["seeds"] = list(seeds)
+    out.attrs["per_seed"] = stacked
+    return out
+
+
 def predict_xpts(result: XPtsResult, df: pd.DataFrame) -> np.ndarray:
     """Calibrated expected points for arbitrary rows, using the fitted ladder."""
     cols = GBM_NUMERIC + [c for c in GBM_CATEGORICAL if c in df.columns]

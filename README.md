@@ -24,7 +24,8 @@ matching numbers the NBA publishes separately.
 
 | Check | Result |
 |---|---|
-| Mean absolute bucket-share error | 1.20 pp |
+| Mean absolute bucket-share error | 1.19 pp |
+| Mean absolute bucket eFG error | 1.05 pp |
 | Per-player FGA agreement (R², 3,148 cells) | 0.973 |
 | Per-player FG% agreement (R²) | 0.646 |
 | Shots with a usable clock | 95.8% |

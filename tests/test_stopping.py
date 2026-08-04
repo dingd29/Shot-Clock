@@ -182,30 +182,104 @@ def test_team_relaxation_spread_needs_a_null():
     """
     from possval.models.stopping import team_relaxation, team_relaxation_null
 
-    rng = np.random.default_rng(21)
-    teams = [f"T{i:02d}" for i in range(6)]
-    n = 60_000
-    panel = pd.DataFrame(
-        {
-            "START_SC": 24.0,
-            "END_SC": rng.integers(0, 24, n).astype(float),
-            "PTS_FG": rng.choice([0.0, 2.0, 3.0], n, p=[0.55, 0.3, 0.15]),
-            "PTS_ALL": 0.0,
-            "START_TYPE": "def_rebound",
-            "TEAM": rng.choice(teams, n),
-        }
-    )
-    panel["PTS_ALL"] = panel.PTS_FG
-    shots = pd.DataFrame(
-        {
-            "XPTS": rng.normal(1.0, 0.3, n),
-            "SHOT_CLOCK": rng.integers(1, 24, n).astype(float),
-            "TEAM_ABBREVIATION": rng.choice(teams, n),
-        }
-    )
+
+    shots, panel, teams = _random_team_fixture()
 
     observed = team_relaxation(shots, panel, min_shots=1000, min_chances=20)
     assert len(observed) == len(teams)
     null = team_relaxation_null(shots, panel, n_draws=3)
     # Teams are random here, so the observed spread should not stand out from the null.
     assert observed.relaxation_ratio.std(ddof=1) < 3 * null["null_mean"]
+
+
+def _random_team_fixture(seed: int = 21):
+    """Chances and shots with team labels that carry no signal, blocked into team-games.
+
+    Shaped like the real thing: two teams per game, a round-robin schedule, and one contiguous
+    run of chances per team-game.
+    """
+    rng = np.random.default_rng(seed)
+    teams = [f"T{i:02d}" for i in range(6)]
+    per_block = 50
+
+    rows = []
+    for game, (home, away) in enumerate(
+        [(h, a) for h in teams for a in teams if h != a] * 20
+    ):
+        for team in (home, away):
+            rows.append(pd.DataFrame({"GAME_ID": game, "TEAM": team}, index=range(per_block)))
+    panel = pd.concat(rows, ignore_index=True)
+
+    n = len(panel)
+    panel["START_SC"] = 24.0
+    panel["END_SC"] = rng.integers(0, 24, n).astype(float)
+    # Chances that end with more clock left score better, so V(t) has a genuine slope and the
+    # relaxation ratio is well conditioned. On pure noise both drops are ~0 and the ratio
+    # explodes, which tests nothing. The relationship is identical for every team.
+    scoring = 0.35 + 0.012 * panel.END_SC
+    panel["PTS_FG"] = np.where(rng.random(n) < scoring, 2.0, 0.0)
+    panel["PTS_ALL"] = panel.PTS_FG
+    panel["START_TYPE"] = "def_rebound"
+
+    shot_clock = rng.integers(1, 24, n).astype(float)
+    shots = pd.DataFrame(
+        {
+            "GAME_ID": panel.GAME_ID.to_numpy(),
+            "XPTS": 0.7 + 0.012 * shot_clock + rng.normal(0, 0.25, n),
+            "SHOT_CLOCK": shot_clock,
+            "TEAM_ABBREVIATION": panel.TEAM.to_numpy(),
+        }
+    )
+    return shots, panel, teams
+
+
+def test_null_permutes_team_games_rather_than_resampling_rows():
+    """The three properties an earlier `rng.choice` version got wrong.
+
+    Resampling with replacement equalised group sizes and scattered a team's chances across
+    unrelated games, and panel and shots were drawn independently so a fake team's continuation
+    value was paired with somebody else's shots. All three make the null too tight, which
+    overstates how much real team signal survives.
+    """
+    from possval.models import stopping
+
+    shots, panel, _ = _random_team_fixture()
+    seen = []
+
+    real_team_relaxation = stopping.team_relaxation
+
+    def capture(fake_shots, fake_panel, **kwargs):
+        seen.append((fake_shots, fake_panel))
+        return real_team_relaxation(fake_shots, fake_panel, **kwargs)
+
+    stopping.team_relaxation = capture
+    try:
+        stopping.team_relaxation_null(shots, panel, n_draws=2, min_shots=1000, min_chances=20)
+    finally:
+        stopping.team_relaxation = real_team_relaxation
+
+    assert seen, "the null never called team_relaxation"
+    real_game = panel.GAME_ID.to_numpy()
+    real_team = panel.TEAM.to_numpy()
+
+    for fake_shots, fake_panel in seen:
+        fake = fake_panel.TEAM.to_numpy()
+        blocks = pd.DataFrame(
+            {"game": real_game, "real": real_team, "fake": fake}
+        ).drop_duplicates()
+
+        # Whole team-games move together: one real block never splits across fake labels.
+        assert len(blocks) == blocks[["game", "real"]].drop_duplicates().shape[0]
+
+        # Permutation, not resampling: each label ends up with exactly as many team-games as
+        # it really had. Drawing with replacement instead pulls every group toward n/30, which
+        # tightens the null and overstates the surviving signal.
+        pd.testing.assert_series_equal(
+            blocks.fake.value_counts().sort_index(),
+            blocks.real.value_counts().sort_index(),
+            check_names=False,
+        )
+
+        # One mapping drives both frames, so a fake team's chances and its shots come from the
+        # same team-games rather than from unrelated draws.
+        assert (fake == fake_shots.TEAM_ABBREVIATION.to_numpy()).all()

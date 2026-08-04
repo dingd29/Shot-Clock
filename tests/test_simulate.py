@@ -197,3 +197,57 @@ def test_division_rivals_meet_four_times():
             assert n == 4, f"{a}-{b} are division rivals but meet {n} times"
         elif CONFERENCES[a] != CONFERENCES[b]:
             assert n == 2, f"{a}-{b} are cross-conference but meet {n} times"
+
+
+def test_playoff_field_varies_across_simulations():
+    """A bubble team must be able to make the playoffs in some simulations and not others.
+
+    Seeding once from mean wins fixed the sixteen-team field, which made "making the playoffs"
+    an assumption rather than an outcome and pinned every bubble team's title probability to
+    exactly zero. This checks that per-simulation fields reach teams outside the mean field.
+    """
+    from possval.models.simulate import simulate_playoffs
+
+    teams = [f"T{i:02d}" for i in range(20)]
+    # A tight spread, so a team outside the mean field is still capable of winning a series.
+    ratings = pd.Series(np.linspace(1.5, -1.5, 20), index=teams)
+    conferences = {team: ("E" if i % 2 == 0 else "W") for i, team in enumerate(teams)}
+
+    mean_field = [t for t in teams if conferences[t] == "E"][:8] + [
+        t for t in teams if conferences[t] == "W"
+    ][:8]
+    # Two teams that never appear in the mean field.
+    outsiders = [t for t in teams if t not in mean_field]
+    assert outsiders
+
+    rng = np.random.default_rng(0)
+    fields = []
+    for _ in range(400):
+        shuffled = list(rng.permutation(teams))
+        field = []
+        seated: dict[str, int] = {}
+        for team in shuffled:
+            side = conferences[team]
+            if seated.get(side, 0) < 8:
+                seated[side] = seated.get(side, 0) + 1
+                field.append(team)
+        fields.append(field)
+
+    titles = simulate_playoffs(
+        ratings, mean_field, n_sims=400, conferences=conferences, fields=fields, seed=1
+    )
+    assert titles.sum() == pytest.approx(1.0)
+    # Teams outside the mean field are reachable, so none is pinned at a hard zero.
+    assert (titles.reindex(outsiders) > 0).all()
+
+
+def test_a_fixed_field_zeroes_everyone_outside_it():
+    """The behaviour the `fields` argument exists to avoid, pinned so the contrast is explicit."""
+    from possval.models.simulate import simulate_playoffs
+
+    teams = [f"T{i:02d}" for i in range(20)]
+    ratings = pd.Series(np.linspace(6.0, -6.0, 20), index=teams)
+    field = teams[:16]
+
+    titles = simulate_playoffs(ratings, field, n_sims=200, seed=1)
+    assert (titles.reindex(teams[16:]) == 0).all()

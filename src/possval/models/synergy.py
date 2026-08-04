@@ -43,7 +43,12 @@ def team_possessions(pbp: pd.DataFrame) -> pd.DataFrame:
     fga = df[df.EVENTMSGTYPE.isin([1, 2])]
     fta = df[df.EVENTMSGTYPE == 3]
     tov = df[df.EVENTMSGTYPE == 5]
-    orb = df[df.CHANCE_START_TYPE == "off_rebound"]
+    # One row per off-rebound *chance*, not per event inside one. Every other term here is
+    # already event-level (an FGA is one row, a turnover is one row), but CHANCE_START_TYPE is
+    # a property of the chance and is repeated on all of its events. Counting rows gave 1,955
+    # offensive rebounds per team in 2024-25 against a true 1,144, which subtracted too much
+    # from POSS and left possessions at 87.5 per game instead of 97.4.
+    orb = df[df.CHANCE_START_TYPE == "off_rebound"].drop_duplicates(["GAME_ID", "CHANCE_ID"])
 
     def per_team(frame, name):
         return frame.groupby("OFF_TEAM_ID").size().rename(name)
@@ -130,7 +135,18 @@ def team_season_panel(
     if panel.empty:
         raise ValueError("empty panel — no team-seasons met the core-size threshold")
     if possessions is not None and not possessions.empty:
-        panel = panel.merge(possessions, on=["SEASON", "TEAM_ID"], how="left")
+        # Join on whichever key both sides actually carry. The scored shot table has the
+        # abbreviation but no TEAM_ID, so a TEAM_ID-only join left POSS entirely null and
+        # ORTG_FG silently never existed.
+        key = (
+            "TEAM_ABBREVIATION"
+            if "TEAM_ABBREVIATION" in possessions and panel.TEAM_ID.isna().all()
+            else "TEAM_ID"
+        )
+        other = "TEAM_ID" if key == "TEAM_ABBREVIATION" else "TEAM_ABBREVIATION"
+        panel = panel.merge(
+            possessions.drop(columns=other, errors="ignore"), on=["SEASON", key], how="left"
+        )
         panel["ORTG_FG"] = panel.TEAM_PTS_FG / panel.POSS * 100
     panel["PTS_PER_FGA"] = panel.TEAM_PTS_FG / panel.TEAM_FGA
     # How much the team scored relative to the quality of the looks it generated. This is

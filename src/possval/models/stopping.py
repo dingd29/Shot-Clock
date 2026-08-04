@@ -469,7 +469,7 @@ def team_relaxation(
 def team_relaxation_null(
     shots: pd.DataFrame,
     panel: pd.DataFrame,
-    n_draws: int = 20,
+    n_draws: int = 50,
     seed: int = 0,
     min_shots: int = MIN_TEAM_SHOTS,
     min_chances: int = 50,
@@ -478,19 +478,46 @@ def team_relaxation_null(
 
     Splitting a fixed dataset thirty ways and fitting a two-stage quantity in each cell
     produces spread whether or not teams differ, so the observed standard deviation means
-    nothing without this. Labels are permuted across chances and shots at the real group sizes
-    and the whole calculation is repeated.
+    nothing without this.
+
+    The permutation unit is the **team-game**, not the row. Three properties matter and each
+    one was got wrong by an earlier version that drew labels i.i.d. with `rng.choice`:
+
+    - Permuting rather than resampling keeps every fake team's block count equal to a real
+      team's. Sampling with replacement equalises group sizes toward the mean, which shrinks
+      the null spread and overstates how much signal is left.
+    - Relabelling whole team-games keeps a team's chances contiguous. Scattering individual
+      rows destroys the game and season clustering that real team samples have, and a null
+      without that clustering is again too tight.
+    - One mapping drives both frames, so a fake team's chances and its shots come from the
+      same team-games. Shuffling them independently pairs a team's continuation value with
+      somebody else's shots, which is not a null of anything.
     """
-    teams = sorted(panel.TEAM.dropna().unique())
+    panel = panel.dropna(subset=["TEAM"])
+    shots = shots.dropna(subset=["TEAM_ABBREVIATION"])
+
+    # Factorise the (game, team) blocks once; each draw is then a permutation of one array
+    # plus two integer take operations, rather than a merge over 4.8M rows.
+    panel_key = pd.MultiIndex.from_arrays([panel.GAME_ID, panel.TEAM])
+    shots_key = pd.MultiIndex.from_arrays([shots.GAME_ID, shots.TEAM_ABBREVIATION])
+    # `.unique()` is load-bearing: MultiIndex.union keeps duplicates, and get_indexer
+    # requires a unique index.
+    blocks = panel_key.union(shots_key).unique()
+    panel_at = blocks.get_indexer(panel_key)
+    shots_at = blocks.get_indexer(shots_key)
+    labels = np.asarray(blocks.get_level_values(1))
+
     spreads = []
     for draw in range(n_draws):
         rng = np.random.default_rng(seed + draw)
-        fake_panel = panel.assign(TEAM=rng.choice(teams, len(panel)))
-        fake_shots = shots.assign(TEAM_ABBREVIATION=rng.choice(teams, len(shots)))
+        fake = rng.permutation(labels)
         # Thresholds must match the real call exactly. Letting the null keep its defaults
         # while the observed estimate used looser ones compares two different calculations.
         result = team_relaxation(
-            fake_shots, fake_panel, min_shots=min_shots, min_chances=min_chances
+            shots.assign(TEAM_ABBREVIATION=fake[shots_at]),
+            panel.assign(TEAM=fake[panel_at]),
+            min_shots=min_shots,
+            min_chances=min_chances,
         )
         if len(result) > 1:
             spreads.append(float(result.relaxation_ratio.std(ddof=1)))
@@ -498,4 +525,12 @@ def team_relaxation_null(
         raise InsufficientData(
             "no permutation draw produced enough teams to estimate a null spread"
         )
-    return {"null_spreads": spreads, "null_mean": float(np.mean(spreads))}
+    spreads = np.asarray(spreads)
+    return {
+        "null_spreads": spreads.tolist(),
+        "null_mean": float(spreads.mean()),
+        "null_sd": float(spreads.std(ddof=1)) if len(spreads) > 1 else float("nan"),
+        "null_p05": float(np.percentile(spreads, 5)),
+        "null_p95": float(np.percentile(spreads, 95)),
+        "n_draws": len(spreads),
+    }

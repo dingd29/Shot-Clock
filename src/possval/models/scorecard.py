@@ -78,8 +78,18 @@ def _metrics(probabilities: np.ndarray, outcomes: np.ndarray) -> dict:
 
 
 def score_games(games: pd.DataFrame, ratings: pd.Series, baseline: pd.Series) -> pd.DataFrame:
-    """Grade the projection and both baselines on every completed game."""
-    from possval.models.simulate import win_probability
+    """Grade the projection and both baselines on every completed game.
+
+    Each model is converted to a win probability at *its own* margin scale. A prior-season
+    rating predicts a smaller margin than a contemporaneous one, so grading it at 7.0 would
+    make it overconfident and hand the projection a win it did not earn. `simulate.py` fits
+    10.5 for prior-season ratings and 7.0 for contemporaneous ones; the baseline gets 10.5.
+    """
+    from possval.models.simulate import (
+        CONTEMPORANEOUS_MARGIN_SCALE,
+        PRIOR_SEASON_MARGIN_SCALE,
+        win_probability,
+    )
 
     if games.empty:
         return pd.DataFrame(columns=["model", "n_games", "brier", "log_loss"])
@@ -88,12 +98,15 @@ def score_games(games: pd.DataFrame, ratings: pd.Series, baseline: pd.Series) ->
     outcomes = known.HOME_WIN.to_numpy(dtype=float)
 
     projected = win_probability(
-        known.HOME.map(ratings).to_numpy() - known.AWAY.map(ratings).to_numpy(), True
+        known.HOME.map(ratings).to_numpy() - known.AWAY.map(ratings).to_numpy(),
+        True,
+        scale=CONTEMPORANEOUS_MARGIN_SCALE,
     )
     naive = win_probability(
         known.HOME.map(baseline).fillna(0.0).to_numpy()
         - known.AWAY.map(baseline).fillna(0.0).to_numpy(),
         True,
+        scale=PRIOR_SEASON_MARGIN_SCALE,
     )
     trivial = np.full(len(known), BASE_HOME_WIN_RATE)
 

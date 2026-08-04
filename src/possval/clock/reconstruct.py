@@ -99,6 +99,48 @@ DEFAULT_INBOUND_DELAY: dict[str, float] = {
 }
 
 
+def repair_game_clock(
+    raw: np.ndarray, inert: np.ndarray, period_start_gc: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Repair one period's game-clock timestamps. Returns (clock, was_repaired).
+
+    The game clock never increases within a period, so a reading above its predecessor is a
+    feed error, and clamping to a running minimum repairs it. The catch is that this resolves
+    the error in one direction only: a spuriously *low* timestamp drags the minimum down and
+    mis-times every event after it until real time catches up.
+
+    The fix here is narrow on purpose. Substitutions, timeouts, ejections and replays are
+    clamped like everything else but are never allowed to *set* the running minimum. They are
+    the worst-timed rows in the feed, sometimes logged minutes from the surrounding play, and
+    2024-25 has 101 isolated downward dips of more than five seconds sitting on one of them.
+    Nothing is gained by letting a substitution re-time the live play that follows it.
+
+    **A broader version was tried and rejected.** 2024-25 has 1,099 isolated dips in total,
+    median depth 13s, most of them on live events. Treating all of them as feed error and
+    interpolating over them improves two validation axes and badly damages a third: bucket
+    share error falls from 1.19pp to 1.14pp and per-player FG% R² rises from 0.646 to 0.652,
+    but mean eFG error rises from 1.05pp to 1.45pp, concentrated in `24-22`, which goes from
+    +1.9pp to +4.5pp. Interpolating raises clocks, and the shots that get pushed into the
+    top bucket do not belong there. On a live event the dip is genuinely ambiguous — the low
+    reading may be right and its *successor* wrong — and the validation gate says guessing
+    costs more than it returns. See METHODOLOGY §2.
+    """
+    clock = np.asarray(raw, dtype=float).copy()
+    repaired = np.zeros(len(clock), dtype=bool)
+
+    running = period_start_gc
+    for i in range(len(clock)):
+        value = running if np.isnan(clock[i]) else clock[i]
+        clamped = min(value, running)
+        if clamped != clock[i]:
+            repaired[i] = True
+        clock[i] = clamped
+        if not inert[i]:
+            running = clamped
+
+    return clock, repaired
+
+
 def reconstruct_game(
     events: pd.DataFrame,
     season: int,
@@ -146,10 +188,18 @@ def reconstruct_game(
     # A rebound only restarts the clock if the ball was actually live. The placeholder
     # team rebounds logged between free throws of the same set are dead-ball bookkeeping.
     rebound_is_live = False
-    # ~0.7% of stats.nba.com events carry a stale PCTIMESTRING — substitutions are the worst
-    # offenders, sometimes logged minutes away from the surrounding play. The game clock
-    # never increases within a period, so clamping to a running minimum repairs them.
-    running_min_gc = float("inf")
+
+    # ~0.7% of stats.nba.com events carry a stale PCTIMESTRING. Repaired per period up front
+    # rather than inline, so the fix can look at an event's successors as well as its
+    # predecessors; see `repair_game_clock`.
+    raw_gc_all = np.array([R.parse_pctime(t) for t in events.PCTIMESTRING], dtype=float)
+    inert_all = events.EVENTMSGTYPE.isin(R.INERT).to_numpy()
+    gc_all = np.empty(len(events), dtype=float)
+    repaired_all = np.zeros(len(events), dtype=bool)
+    for period_value, index in events.groupby("PERIOD", sort=False).indices.items():
+        gc_all[index], repaired_all[index] = repair_game_clock(
+            raw_gc_all[index], inert_all[index], R.period_length(period_value)
+        )
     out_repaired: list[bool] = []
 
     def begin_chance(gc: float, sc: float, kind: str, team: float | None, conf: str = "high"):
@@ -168,7 +218,6 @@ def reconstruct_game(
         etype = row.EVENTMSGTYPE
         action = row.EVENTMSGACTIONTYPE
         upcoming, upcoming_action = next_event[idx]
-        raw_gc = R.parse_pctime(row.PCTIMESTRING)
         desc = _describe(row)
         p1_team = float(row.PLAYER1_TEAM_ID) if pd.notna(row.PLAYER1_TEAM_ID) else None
 
@@ -176,12 +225,10 @@ def reconstruct_game(
             period = row.PERIOD
             off_team = None
             last_shot_team = None
-            running_min_gc = R.period_length(period)
             begin_chance(R.period_length(period), R.FULL_CLOCK, "period_start", None)
 
-        gc = min(raw_gc, running_min_gc) if raw_gc == raw_gc else running_min_gc
-        out_repaired.append(gc != raw_gc)
-        running_min_gc = gc
+        gc = gc_all[idx]
+        out_repaired.append(bool(repaired_all[idx]))
 
         # --- clock as of this event, before applying any reset this event causes ---
         elapsed = chance_start_gc - gc
@@ -228,8 +275,22 @@ def reconstruct_game(
             rebound_is_live = True
 
         elif etype == R.FREE_THROW:
-            made = "MISS" not in desc.upper()
-            if _is_last_free_throw(desc):
+            upper = desc.upper()
+            made = "MISS" not in upper
+            # Neither of these hands the ball to the other team, so neither triggers the
+            # possession flip a normal made final FT does. 882 technical and 230 flagrant made
+            # free throws in 2024-25, 0.17% of events.
+            technical = "TECHNICAL" in upper
+            flagrant = "FLAGRANT" in upper or "CLEAR PATH" in upper
+            if technical:
+                # The ball goes back to whoever had it and the shot clock *resumes* rather
+                # than resetting, so the right action is no action at all.
+                pass
+            elif flagrant and made and _is_last_free_throw(desc):
+                # The fouled team keeps the ball, and the fouled team is the one shooting.
+                begin_chance(gc, R.FULL_CLOCK, "after_made_ft", p1_team)
+                rebound_is_live = False
+            elif _is_last_free_throw(desc):
                 if made:
                     begin_chance(gc, R.FULL_CLOCK, "after_made_ft", other_team(p1_team))
                     rebound_is_live = False
