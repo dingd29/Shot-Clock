@@ -200,15 +200,41 @@ in the difference-in-differences, 3.1% of shots landing at exactly 24 seconds ag
 in every other season, and a 14-second fingerprint appearing a year early. It's dropped from the
 design, which cuts the standard error on the long-chance effect more than fourfold.
 
+**Dropping it isn't enough, and this is the problem with the whole section.** With 2017-18 gone,
+the feed regime lines up almost exactly with treatment: two pre-seasons on the old timestamping,
+seven post-seasons on the new. That's only survivable if the shift hit both arms equally. Split by
+rebound type, it didn't:
+
+| Identical clock after… | 2015-16 | 2016-17 | 2017-18 | 2018-19 | … | 2024-25 |
+|---|---|---|---|---|---|---|
+| an **offensive** rebound (treated) | 26.7% | 27.4% | 41.6% | 40.9% | | 37.5% |
+| a **defensive** rebound (control) | 7.3% | 6.9% | 7.6% | 7.2% | | 6.7% |
+| gap | 19.4pp | 20.5pp | 34.0pp | 33.6pp | | 30.8pp |
+
+The treated arm jumps 14 points and the control arm moves by less than one, in the season
+immediately before treatment, and the new gap persists for the rest of the sample. So a change in
+how the feed timestamps offensive rebounds is nearly collinear with the rule whose effect on
+offensive-rebound chances is being estimated. A difference-in-differences cannot separate them.
+
 ### The experiment
 
 931,897 chances across nine seasons, 199,857 treated, standard errors clustered on season.
 
-| | Outcome | DiD | SE | t |
-|---|---|---|---|---|
-| First stage | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
-| Reduced form | Chance duration (seconds) | −0.202 | 0.042 | −4.81 |
-| Result | Points per chance | −0.0159 | 0.0063 | −2.52 |
+| | Outcome | DiD | SE | t | p (wild cluster) |
+|---|---|---|---|---|---|
+| First stage | P(chance lasts past 14s) | −0.0227 | 0.0016 | −14.30 | 0.008 |
+| Reduced form | Chance duration (seconds) | −0.207 | 0.040 | −5.23 | 0.066 |
+| Result | Points per chance | −0.0154 | 0.0065 | −2.38 | **0.119** |
+
+**The last column is the one to read.** There are nine season clusters, and a clustered standard
+error read against a normal is badly optimistic at that count. The wild cluster bootstrap is the
+standard fix, and with nine clusters there are only 2⁹ = 512 distinct sign vectors, so the whole
+reference distribution is enumerated rather than sampled and the p-value is exact.
+
+Against that reference the efficiency result does not clear conventional significance, and the
+duration result only just does. An earlier version of this section reported t = −2.52 against 1.96
+and called the efficiency effect established. That was wrong, and the fix is not a matter of
+degree: p = 0.12 on nine clusters is not a marginal result, it is an absent one.
 
 The first row is a manipulation check rather than a finding. After 2018-19 an offensive rebound
 with under 14 seconds left resets to exactly 14, so a treated chance essentially cannot run past
@@ -221,13 +247,17 @@ past 14 seconds collapses the year it takes effect and never returns:
 
 | | 2015-16 | 2016-17 | 2018-19 | 2019-20 | … | 2024-25 |
 |---|---|---|---|---|---|---|
-| Off. rebound (treated) | 9.1% | 8.2% | 1.4% | 1.3% | | 1.4% |
-| Def. rebound (control) | 27.8% | 26.8% | 21.6% | 22.2% | | 22.6% |
+| Off. rebound (treated) | 9.1% | 8.2% | 1.3% | 1.2% | | 1.4% |
+| Def. rebound (control) | 27.9% | 27.0% | 21.7% | 22.3% | | 22.7% |
 
-An 83% drop against a control that only drifts. The event study is clean: the treated-minus-control
-gap sits at −0.0007 and 0.000 in the two pre-seasons, then steps to −0.016 and stays between −0.020
-and −0.029 for seven years. The 1.4% that survives isn't error, since a team rebounding early
+An 85% drop against a control that only drifts. The event study is clean: the treated-minus-control
+gap sits at −0.0009 and 0.000 in the two pre-seasons, then steps to −0.017 and stays between −0.021
+and −0.030 for seven years. The 1.3% that survives isn't error, since a team rebounding early
 enough keeps a clock above 14.
+
+This row is the one that survives the wild bootstrap, and it is also the one that is close to
+mechanically guaranteed. That combination is worth stating plainly: the design detects the thing it
+cannot fail to detect, and does not detect the thing it was built to measure.
 
 Mean duration fell only 0.20 seconds, because second chances already averaged 6.1 seconds before
 the rule. The 24-second allowance was mostly optionality that went unexercised, which is also why
@@ -235,11 +265,25 @@ the efficiency effect is small.
 
 ### Did it cost offenses anything?
 
-About 1.8% of second-chance efficiency, −0.016 points per chance. This is the row about behaviour
-rather than about the rule, and it's also the weakest of the three statistically. It's negative in
-all seven post-rule seasons, which isn't nothing. But with 2017-18 removed the pre-period is two
-seasons, and those two differ from each other by 0.014, nearly the size of the estimate. One
-post-season (2022-23, −0.030) carries much of the average. Suggestive rather than established.
+The point estimate is −0.0154 points per chance, about 1.7% of second-chance efficiency, and it
+does not survive inference. Three things stack against it, and any one would be enough to withhold
+the claim:
+
+- **p = 0.119** against an exact wild cluster bootstrap over the nine season clusters.
+- **The pre-period is two seasons**, and those two differ from each other by 0.014, nearly the size
+  of the estimate itself.
+- **The feed shift above lands on the treated arm**, so even the sign is not cleanly attributable
+  to the rule.
+
+It is negative in all seven post-rule seasons, and one of them (2022-23, −0.030) carries much of
+the average. That pattern is consistent with a small real effect and equally consistent with the
+timestamping change. **The honest summary is that this design cannot tell whether the 2018-19 rule
+cost offenses anything.** The rule's mechanical effect on chance length is established; its effect
+on scoring is not.
+
+Something else would be needed to settle it: a source of variation in the reset that isn't
+confounded with the feed change, or timestamps for the pre-2017-18 era on the post-2017-18
+convention. Neither exists in this data.
 
 Treatment assignment isn't contaminated either, and that's checkable. The design rests on
 classifying each chance as beginning with an offensive or defensive rebound, and error there is
@@ -247,7 +291,7 @@ measurement error in treatment, which attenuates the estimate. The classificatio
 team ids and event ordering plus tracking of who shot last, never the reconstructed clock or the
 14-second rule.
 
-It agrees with an independent label 99.815% of the time (105,827 rebounds, 196 disagreements). That
+It agrees with an independent label 99.8% of the time (105,827 rebounds, 196 disagreements). That
 label is the feed's own bookkeeping: descriptions carry each player's running rebound counters,
 `REBOUND (Off:1 Def:2)`, and whichever increments identifies the type.
 
@@ -308,8 +352,8 @@ across ten seasons:
 
 | Seconds left | 1 | 3 | 7 | 12 | 17 | 23 |
 |---|---|---|---|---|---|---|
-| `V(t)`, value of holding | 0.375 | 0.468 | 0.621 | 0.719 | 0.761 | 0.808 |
-| P(shoot this second) | 52% | 30% | 18% | 11% | 6% | 2% |
+| `V(t)`, value of holding | 0.362 | 0.466 | 0.622 | 0.720 | 0.763 | 0.810 |
+| P(shoot this second) | 53% | 30% | 18% | 11% | 6% | 2% |
 
 It behaves the way theory requires: monotone in time remaining, flattening above about 20 seconds
 where extra clock stops helping, and collapsing toward zero as the option expires.
@@ -333,14 +377,14 @@ compared against: as `V(t)` collapses, the standard should collapse with it.
 
 | Quantile used as the boundary | 2% | 5% | 10% | 20% | 25% |
 |---|---|---|---|---|---|
-| Boundary falls, 23s → 1s | 0.281 | 0.302 | 0.232 | 0.256 | 0.246 |
-| `V(t)` falls over the same range | 0.433 | 0.433 | 0.433 | 0.433 | 0.433 |
-| Relaxation ratio | 0.65 | 0.70 | 0.54 | 0.59 | 0.57 |
-| Excess demand at 1-3s vs 8-23s | +0.137 | +0.139 | +0.163 | +0.165 | +0.158 |
+| Boundary falls, 23s → 1s | 0.164 | 0.183 | 0.174 | 0.216 | 0.243 |
+| `V(t)` falls over the same range | 0.448 | 0.448 | 0.448 | 0.448 | 0.448 |
+| Relaxation ratio | 0.37 | 0.41 | 0.39 | 0.48 | 0.54 |
+| Excess demand at 1-3s vs 8-23s | +0.216 | +0.208 | +0.199 | +0.186 | +0.152 |
 
-**Offenses lower their standard by only about 54 to 70% of what the collapse in continuation value
+**Offenses lower their standard by only about 37 to 54% of what the collapse in continuation value
 calls for**, at every quantile. Put another way, relative to what holding is worth, they demand
-roughly 0.15 points more from a shot with 1-3 seconds left than from one with 8 or more. The clock
+roughly 0.19 points more from a shot with 1-3 seconds left than from one with 8 or more. The clock
 runs out on an option they're still pricing as though it had time left.
 
 The estimator can return the optimal answer: on synthetic offenses that accept exactly at `V(t)`,
@@ -352,7 +396,7 @@ expect such a bias, and it pushes the ratio down. See Caveats.
 ### What this licenses
 
 Exercise is broadly sound. Taken shots beat their continuation value by 0.39 points on average and
-only 7.0% fall below it, about 2.1 points per game across both teams. NBA offenses aren't routinely
+only 5.8% fall below it, about 1.8 points per game across both teams. NBA offenses aren't routinely
 throwing away possessions, and any story about them doing so has to get past that number first.
 
 The asymmetry is real but its cause isn't pinned down. A declined shot leaves no record, so this
@@ -372,15 +416,16 @@ average, which are different decision problems. Splitting on score margin:
 
 | Cut | Relaxation ratio | Excess late demand |
 |---|---|---|
-| All games | 0.54 – 0.70 | +0.152 |
-| Competitive (\|margin\| ≤ 10) | 0.59 – 0.73 | +0.139 |
-| Blowouts (\|margin\| > 10) | 0.46 – 0.59 | +0.179 |
+| All games | 0.37 – 0.54 | +0.192 |
+| Competitive (\|margin\| ≤ 10) | 0.32 – 0.53 | +0.194 |
+| Blowouts (\|margin\| > 10) | 0.42 – 0.58 | +0.185 |
 
-The effect is weaker in competitive games and stronger in blowouts, which is the expected direction,
-but it's comfortably present in competitive games alone.
+It's present in competitive games alone, which is what this check is for, so it isn't a garbage-time
+artifact. The ordering runs slightly against intuition: competitive games show the *lower* ratio, not
+the higher one. The two intervals overlap heavily and I wouldn't read a story into the gap.
 
-It holds in all ten seasons. Ratio mean 0.641, SD 0.087, and every season's upper bound sits below
-1.0. 2016-17 is closest to optimal (0.65 to 0.95) and 2021-22 furthest (0.42 to 0.70).
+It holds in all ten seasons. Ratio mean 0.549, SD 0.074, and every season's upper bound sits below
+1.0. 2024-25 is closest to optimal (0.49 to 0.79) and 2015-16 furthest (0.16 to 0.59).
 
 Reproduce: `reports/stopping_robustness.csv`.
 
@@ -392,7 +437,7 @@ shrunk toward the league, keeps 85% of its observed spread. That isn't sampling 
 something less useful.
 
 Per-player mean surplus correlates 0.984 with per-player mean late-clock `XPTS`, and the standard
-deviation of the difference between them is 0.012 against 0.067 for either alone. Subtracting `V(t)`
+deviation of the difference between them is 0.012 against 0.066 for either alone. Subtracting `V(t)`
 removes almost nothing at player level, because every player's late-clock shots spread over roughly
 the same seconds, so `V` enters as a near-constant. Mean surplus is mean late-clock shot quality
 under a different name.
@@ -410,40 +455,44 @@ Reproduce: `python -m possval.pipeline stopping`, which writes `reports/stopping
 
 ## 8. Variation by team
 
-The league relaxes at a ratio around 0.6. Whether that varies by team is the version of the
+The league relaxes at a ratio around 0.47. Whether that varies by team is the version of the
 per-player question that isn't tautological: mean surplus was shot quality renamed, but the ratio
 compares each team's own boundary movement against its own continuation value, so the level of shot
 quality divides out.
 
-Raw, over ten seasons and about 95,000 chances per team, the spread looks large: 0.41 to 0.84. Most
+Raw, over ten seasons and about 95,000 chances per team, the spread looks large: 0.33 to 0.67. Most
 of it isn't real.
 
 Thirty teams each get their own `V(t)` and their own boundary from a thirtieth of the data, so
-spread appears whether or not teams differ. Permuting team labels twenty times and repeating the
-whole calculation gives a null spread of 0.078 against the observed 0.098. Squaring those, only 37%
-of the observed variance is signal.
+spread appears whether or not teams differ. The null comes from permuting team labels and repeating
+the whole calculation. The permutation unit is the **team-game**, not the row: whole games move
+together, so a fake team's chances stay clustered the way a real team's are, and its shots come from
+the same games as its chances. Fifty draws give a null spread of 0.052 (SD 0.007 across draws, 5th
+to 95th percentile 0.042 to 0.062) against the observed 0.068. Squaring those, **42% of the observed
+variance is signal.**
 
 Shrunk accordingly:
 
 | | Team | Raw | Shrunk |
 |---|---|---|---|
-| Slowest to relax | PHI | 0.409 | 0.520 |
-| | SAC | 0.440 | 0.531 |
-| | NOP | 0.465 | 0.540 |
-| Quickest to relax | MEM | 0.697 | 0.626 |
-| | CHA | 0.828 | 0.675 |
-| | TOR | 0.840 | 0.679 |
+| Slowest to relax | SAC | 0.328 | 0.409 |
+| | BKN | 0.359 | 0.421 |
+| | MIA | 0.372 | 0.427 |
+| Quickest to relax | TOR | 0.549 | 0.501 |
+| | MIL | 0.583 | 0.515 |
+| | CHA | 0.666 | 0.549 |
 
-The real range is roughly 0.52 to 0.68 rather than 0.41 to 0.84. A team effect exists and it's about
-a third the size the raw numbers suggest. Every team is still well below 1.0, so this is league-wide
+The real range is roughly 0.41 to 0.55 rather than 0.33 to 0.67. A team effect exists and it's about
+half the size the raw numbers suggest. Every team is still well below 1.0, so this is league-wide
 behaviour with modest variation rather than a few bad offenses dragging an average.
 
-The null is itself an estimate and needs enough permutations: ten draws put it at 0.074 and twenty at
-0.078, moving the signal share from 43% to 37%. Twenty is the default.
+The null is itself an estimate and needs enough permutations. An earlier version drew ten and then
+twenty, and the signal share moved from 43% to 37% between them, which is a sign the null hadn't
+settled. Fifty is now the default and the spread across draws is reported alongside it.
 
-Philadelphia sits at the bottom, slowest in the league to lower its standard as the clock expires.
-Given the projection in section 12 turns on this roster's shot creation that's worth noting, but not
-worth over-reading. The shrunk gap to league average is 0.065 and the measure says nothing about the
+Philadelphia is fourth-slowest in the league to lower its standard as the clock expires. Given the
+projection in section 12 turns on this roster's shot creation that's worth noting, but not worth
+over-reading. The shrunk gap to league average is 0.033 and the measure says nothing about the
 2026-27 roster, three quarters of which is new.
 
 Reproduce: `reports/stopping_team_relaxation.csv`.
@@ -452,7 +501,7 @@ Reproduce: `reports/stopping_team_relaxation.csv`.
 
 The ablation in section 3 asked whether the shot clock predicts whether a shot goes in and answered
 no. That's the right answer to a question worth widening, because the shot clock was never about
-shot-making. Continuation value in section 7 runs 0.37 to 0.81 across the clock, a 2.16× range, so
+shot-making. Continuation value in section 7 runs 0.36 to 0.81 across the clock, a 2.24× range, so
 it's plainly informative about possessions.
 
 Does it improve a live win-probability model? The NBA publishes one built from a feed with no shot
@@ -478,7 +527,7 @@ unambiguous and would round to zero in any application.
 | Question | Where the shot clock lands |
 |---|---|
 | Will *this shot* go in? | Negligible, 6.0% of model gain, third of four coarse groups |
-| Will *this possession* score? | Large, `V(t)` spans 0.37 to 0.81 |
+| Will *this possession* score? | Large, `V(t)` spans 0.36 to 0.81 |
 | Will *this team* win? | Negligible, 0.050% of log loss |
 
 The shot clock is possession-scale information, and a possession is about 1% of a game's scoring.

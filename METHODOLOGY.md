@@ -87,7 +87,7 @@ This matters: low-confidence rows were **84.3%** concentrated in the `24-22` buc
 inventing a reset means fabricating a 24. Emitting NaN costs ~4% of shots and keeps the rest
 trustworthy; fabricating would corrupt the bucket distribution far more than dropping does.
 
-**Usable: 210,394 of 219,529 shots (95.8%).**
+**Usable: 210,805 of 219,529 shots (96.0%).**
 
 ---
 
@@ -212,16 +212,31 @@ the chance boundaries, a judgment independent of the 14-second rule.
 > baseline, 3.1% of shots at exactly 24 seconds against ~0.5% elsewhere, and a 14-second
 > fingerprint a year early. Dropping it cuts the long-chance standard error more than
 > fourfold.
+>
+> **Dropping it is not sufficient, and this is the section's central problem.** With 2017-18
+> gone the feed regime is nearly collinear with treatment: two pre-seasons on the old
+> convention, seven post on the new. That is only survivable if the shift hit both arms
+> equally. `timestamp_granularity` now splits it by rebound type and it did not. The identical-
+> clock share after an *offensive* rebound goes 27.4% → 41.6% at 2017-18 and stays there; after
+> a *defensive* rebound it goes 6.9% → 7.6%. The treated arm moved 14 points, the control arm
+> less than one, one season before treatment. A difference-in-differences cannot separate that
+> from the rule.
 
 931,897 chances over nine seasons, 199,857 treated. Standard errors clustered on **season**,
 nine clusters, because the identifying variation is between seasons, not between a million
 chances.
 
-| | Outcome | DiD | SE | t |
-|---|---|---|---|---|
-| First stage | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
-| Reduced form | Chance duration (s) | −0.202 | 0.042 | −4.81 |
-| **Result** | **Points per chance** | **−0.0159** | 0.0063 | **−2.52** |
+| | Outcome | DiD | SE | t | p (wild cluster) |
+|---|---|---|---|---|---|
+| First stage | P(chance lasts past 14s) | −0.0227 | 0.0016 | −14.30 | 0.008 |
+| Reduced form | Chance duration (s) | −0.207 | 0.040 | −5.23 | 0.066 |
+| **Result** | **Points per chance** | **−0.0154** | 0.0065 | **−2.38** | **0.119** |
+
+> **Nine clusters is too few to read t against a normal**, and the finite-sample correction in
+> `_cluster_ols` is only G/(G−1). `wild_cluster_bootstrap` imposes the null and flips residual
+> signs a whole cluster at a time (Cameron, Gelbach and Miller 2008). With G = 9 there are only
+> 2⁹ = 512 distinct Rademacher vectors, so the reference distribution is **enumerated** rather
+> than sampled and the p-value is exact rather than simulated.
 
 > **The first row is a manipulation check, not a result.** After 2018-19 an offensive rebound
 > under 14 seconds resets to exactly 14, so a treated chance essentially cannot run past 14s
@@ -231,17 +246,19 @@ chances.
 > by the treatment, and presenting it as the headline would be reading the treatment back out
 > of itself. `report` labels the three rows accordingly.
 
-The long-chance share falls 9.1% → 1.4% and stays; the surviving 1.4% is the
+The long-chance share falls 9.1% → 1.3% and stays; the surviving 1.3% is the
 `max(remaining, 14)` case, where an early rebound keeps a clock above 14. The event study is
-flat pre-rule (−0.0007, 0.000) and steps at 2018-19. Mean duration falls only 0.20s, second
-chances already averaged 6.1s, so the allowance was mostly unexercised optionality, which is
-also why the efficiency effect is small.
+flat pre-rule (−0.0009, 0.000) and steps at 2018-19. Mean duration falls only 0.21s, second
+chances already averaged 6.1s, so the allowance was mostly unexercised optionality.
 
-The efficiency result is the weakest of the three and is reported as suggestive: negative in
-all seven post-rule seasons, but the two remaining pre-seasons differ from each other by 0.014,
-nearly the size of the estimate. **An earlier version reported no effect**, which was wrong
-because the contaminated season's variance was burying the signal, removing bad data turned a
-null into a finding, the opposite of the usual direction.
+**The efficiency result is withdrawn.** It does not survive the wild cluster bootstrap
+(p = 0.119), the two remaining pre-seasons differ from each other by 0.014 against an estimate
+of 0.0154, and the feed shift documented above lands on the treated arm. This section has now
+reported no effect, then an effect, then no effect: the first null was the contaminated season
+burying everything, the middle finding was a clustered t read against the wrong reference
+distribution, and only the first stage has held throughout. What is established is that the
+rule shortened second chances. Whether it cost offenses points is not identified by this design,
+and saying so is not a hedge — the number that would have carried the claim is gone.
 
 `report` returns the with-2017 estimates alongside, so the exclusion is visible rather than
 buried in a default. `tests/test_rulechange.py` builds panels with a known effect, with none,
@@ -276,8 +293,8 @@ holding too long is not, since a declined shot leaves no record. Every figure is
 threshold as a low quantile of accepted shot values gives a gap against `V(t)` of −0.22 at the
 2nd percentile and +0.14 at the 20th, the sign of "too aggressive" versus "too patient" is a
 free parameter. Only the *shape* is quantile-invariant: the relaxation ratio (how far the
-boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.54-0.70 across every quantile
-tried**, and the excess late demand +0.14 to +0.16. Those are the reported numbers.
+boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.37-0.54 across every quantile
+tried**, and the excess late demand +0.15 to +0.22. Those are the reported numbers.
 
 > **Period expiries are dropped before the fit, not after.** A chance ending because the period
 > ran out is not a shot-clock decision, and they concentrate where the model is most sensitive:
@@ -304,14 +321,22 @@ result conservative: counting them raises `V(t)` by +0.084, a higher bar.
 
 **Team level** (`team_relaxation`). The ratio is the non-tautological version of the
 per-player question, it compares each team's own boundary against its own `V(t)`, so shot
-quality divides out. Raw spread 0.41-0.84 looks large but thirty teams each fitting a two-stage
+quality divides out. Raw spread 0.33-0.67 looks large but thirty teams each fitting a two-stage
 quantity on a thirtieth of the data produces spread by construction: permuting team labels
-gives a null of 0.078 against 0.098 observed, so **37% of the variance is signal** and the real
-range is ~0.52-0.68. Philadelphia is last, by a shrunk 0.065 against league average.
+gives a null of 0.052 against 0.068 observed, so **42% of the variance is signal** and the real
+range is ~0.41-0.55. Philadelphia is fourth from the bottom, by a shrunk 0.033 against league
+average.
+
+> **The null permutes team-games, not rows.** An earlier version drew labels i.i.d. with
+> replacement and shuffled the chance panel and the shot table independently. Resampling
+> equalises group sizes toward the mean, scattering rows destroys the game clustering real team
+> samples have, and independent shuffles pair one fake team's continuation value with another's
+> shots. All three tighten the null and overstate the surviving signal. Fifty draws now, with
+> the spread across draws reported: 0.052 ± 0.007.
 
 **Win probability** (`models/winprob.py`). The ablation asked whether the clock predicts shot
 outcomes; this asks whether it predicts *game* outcomes, where `V(t)`'s 2.2x range suggests it
-should. It does not: +0.000163 log loss (0.034%) on 5.34M events, 95% CI [+0.00005, +0.00026]
+should. It does not: +0.000241 log loss (0.050%) on 5.35M events, 95% CI [+0.00014, +0.00035]
 bootstrapped over **games** rather than events, since every event in a game shares one label.
 Reliably non-zero, practically nil. Together with the ablation this brackets the finding,
 shot clock is possession-scale information, negligible at the shot scale below and the game
@@ -319,7 +344,7 @@ scale above, and the reconstruction's contribution is as an instrument rather th
 
 **Robustness** (`robustness`, `reports/stopping_robustness.csv`). The ratio holds in
 competitive games alone (0.56-0.71, against 0.46-0.58 in blowouts), so it is not garbage time,
-and it holds in **all ten seasons** with every upper bound below 1.0 (mean 0.61, SD 0.087).
+and it holds in **all ten seasons** with every upper bound below 1.0 (mean 0.549, SD 0.074).
 
 **The per-player extension fails, and the failure is arithmetic.** Mean surplus per player
 correlates 0.984 with mean late-clock `XPTS`; the SD of their difference is 0.012 against 0.067
@@ -332,7 +357,7 @@ Kept and labelled because it resembles a skill ranking closely enough to be publ
 
 ## 5. Ten-season backfill
 
-2015-16 → 2024-25 reconstructed: **2,013,170 shots**. Calibration is re-run per season, since
+2015-16 → 2024-25 reconstructed: **2,018,360 shots**. Calibration is re-run per season, since
 the 14-second rule arrives in 2018-19 and feed conventions drift.
 
 The `after_made_fg` delay came back at **2.0s in every season**, which is a useful robustness
@@ -512,7 +537,8 @@ every row (100%), and independently the shooter is among the ten on-court player
 shots. `lineups_for_season` raises if more than 2% of games fail, because a silently truncated
 lineup table would poison every downstream regression while looking healthy.
 
-**Unit.** Lineup-season with ≥100 offensive chances: 4,233 rows, 1,112,380 chances.
+**Unit.** Lineup-season with ≥100 offensive chances and a prior season of scoring history for its
+players: 3,537 rows, 934,146 chances.
 Points come from `event_points`, which reads shot value and free-throw result off the
 play-by-play description (the feed has no column for either). Weighted least squares with
 weight `sqrt(chances)`.
@@ -520,7 +546,7 @@ weight `sqrt(chances)`.
 **Three specification choices, each of which changes the answer**, so all six are reported as
 a specification curve (`reports/lineup_overlap_specifications.csv`) rather than one number:
 
-1. *Clustering by team-season.* 4,233 lineups come from 300 team-seasons and share players
+1. *Clustering by team-season.* 3,537 lineups come from 300 team-seasons and share players
    wholesale. Treating them as independent inflates t from 2.89 to 5.01. Cluster-robust
    sandwich SEs with the standard finite-cluster correction.
 2. *Team-season fixed effects.* Without them the coefficient is partly identified by good
@@ -804,7 +830,7 @@ Closed, with where they landed:
 |---|---|
 | Calibrate the DPM→rating mapping | §10, slope 1.433 ± 0.103; the identity compresses spread by 43% |
 | Free-throw points excluded from PPA | Quantified in findings *Caveats*; the caveat pointed the wrong way, late clock draws *fewer* fouls, so exclusion **understates** the decline |
-| Five-man lineup retest of the overlap null | Findings §11, 4,233 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
+| Five-man lineup retest of the overlap null | Findings §11, 3,537 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
 | Pre-register the projection | `PREREGISTRATION.md`, tag `projection-2026-27`, scoring harness live |
 | Real NBA schedule | Sampled under the league's structure (`nba_schedule`); swap in the published calendar when it is released |
 

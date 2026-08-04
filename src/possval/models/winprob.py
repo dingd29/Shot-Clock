@@ -1,7 +1,7 @@
 """Does the reconstructed shot clock improve a live win-probability model?
 
-The ablation showed it barely helps predict whether a shot goes in: 5.5% of model gain, the
-smallest of the four coarse groups. But continuation value in `stopping.py` runs 0.37 to 0.81
+The ablation showed it barely helps predict whether a shot goes in: 6.0% of model gain,
+third of the four coarse groups. But continuation value in `stopping.py` runs 0.36 to 0.81
 across the clock, so it is clearly informative about possessions. Game outcomes are the
 remaining case worth testing.
 

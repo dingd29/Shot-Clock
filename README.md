@@ -45,7 +45,7 @@ Not what I expected going in. It's useful at exactly one scale.
 | Question | Shot clock's contribution |
 |---|---|
 | Will this shot go in? | Almost nothing. 6.0% of model gain, third of four groups. |
-| Will this possession score? | A lot. Continuation value runs 0.37 to 0.81 points. |
+| Will this possession score? | A lot. Continuation value runs 0.36 to 0.81 points. |
 | Will this team win? | Almost nothing. 0.050% of log loss over 5.35M events. |
 
 A possession is about 1% of a game's scoring, so information at possession scale washes out
@@ -58,7 +58,7 @@ Full write-up in [`reports/findings.md`](reports/findings.md), method in
 
 ## Shooting as an option
 
-The clearest result here. Offenses lower their shot standard only about half as fast as an
+The clearest result here. Offenses lower their shot standard less than half as fast as an
 expiring clock calls for.
 
 Shooting is an exercise decision: take what's in front of you, or hold an option whose value
@@ -66,18 +66,18 @@ decays. Framing it that way gets around a problem the raw efficiency curve can't
 conditions on the decision (a shot was taken at second *t* worth *q*) rather than on the
 outcome.
 
-Continuation value falls from 0.81 points at 23 seconds to 0.37 at 1 second. The standard
-offenses actually accept falls by only about 54 to 70% of that, whichever quantile you use to
+Continuation value falls from 0.81 points at 23 seconds to 0.36 at 1 second. The standard
+offenses actually accept falls by only about 37 to 54% of that, whichever quantile you use to
 define the threshold. It holds in all ten seasons and in competitive games alone, so it isn't a
 garbage-time artifact. Read it as an upper bound on the shortfall rather than a point estimate:
 continuation value is estimated on the chances that declined to shoot, a group that worsens as
 the clock falls, and that biases the ratio down. See the caveats in the findings.
 
 Exercise is broadly sound otherwise. Taken shots beat continuation value by 0.39 points on
-average and only 7% fall below it. The *level* of the threshold isn't identified, since the
+average and only 5.8% fall below it. The *level* of the threshold isn't identified, since the
 quantile you pick flips the sign of "too aggressive" versus "too patient", so only the shape is
-claimed. Team variation is real but modest: a raw spread of 0.41 to 0.84 is 37% signal against a
-permutation null, putting the honest range around 0.52 to 0.68.
+claimed. Team variation is real but modest: a raw spread of 0.33 to 0.67 is 42% signal against a
+permutation null, putting the honest range around 0.41 to 0.55.
 
 ## What didn't hold up
 
@@ -97,10 +97,17 @@ testing](reports/preregistration_exploration.md) with an exploration and holdout
 confirmed. One cleared its significance test on exploration at +0.065 and came back at +0.001 on
 held-out seasons, which is the kind of false positive the protocol exists to catch.
 
-The 2018-19 rule change, which cut the reset to 14 seconds after an offensive rebound, cost
-offenses about 1.8% of second-chance efficiency (−0.016 points per chance, t = −2.5). Small.
-Getting there required noticing that the NBA changed its play-by-play timestamping in 2017-18,
-one season before the rule, which contaminates any before-and-after comparison including it.
+The 2018-19 rule change, which cut the reset to 14 seconds after an offensive rebound, doesn't
+have a measurable effect on scoring that I can defend. The point estimate is −0.016 points per
+chance and t = −2.4, which looks fine until you notice there are only nine season clusters: an
+exact wild cluster bootstrap puts it at p = 0.12. The rule's effect on chance *length* is
+unambiguous, but that was never in doubt.
+
+Two things made this worth keeping anyway. The NBA changed its play-by-play timestamping in
+2017-18, one season before the rule, so any before-and-after comparison spanning that season is
+contaminated. And the change lands almost entirely on offensive rebounds (+14pp) rather than
+defensive ones (+0.7pp), which are the treated and control arms, so dropping the bad season
+doesn't rescue the design either.
 
 ## The efficiency curve
 
@@ -221,7 +228,7 @@ exactly `24 − SHOT_CLOCK`, so permuting either one leaves its substitute in pl
 look worthless.
 
 Standard errors are clustered where the variation actually lives: on team-season for lineups
-(4,233 lineups come from 300 clusters and share players), on season for the rule change (nine
+(3,537 lineups come from 300 clusters and share players), on season for the rule change (nine
 clusters, not a million chances). Treating lineups as independent inflated one t-statistic from
 2.9 to 5.0.
 
