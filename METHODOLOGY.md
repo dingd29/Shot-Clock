@@ -240,6 +240,45 @@ null into a finding, the opposite of the usual direction.
 buried in a default. `tests/test_rulechange.py` builds panels with a known effect, with none,
 and with a shared trend, and asserts the estimator recovers each.
 
+### Optimal stopping: the identification strategy for findings 1-3
+
+`models/stopping.py`. Findings 1-3 are descriptive because the efficiency curve is a selected
+sample at every second, and no set of controls fixes selection happening *within* the chance.
+Reframing the decision as American option exercise does fix it, by conditioning on the decision
+rather than the outcome.
+
+**Continuation value.** `V(t)` = mean points among chances live at `t` that did *not* end at
+`t` — the value of declining. Live means the chance began at or above `t` and ended at or below
+it. This is continuation under *observed* behaviour, not an optimal policy, which is the right
+benchmark: the question is marginal — should *this* shot have been taken given how this offense
+would otherwise finish — so the counterfactual wanted is the team's own continuation.
+
+> **Deriving the chance start clock.** A chance's opening moment is never a logged event; the
+> first row belonging to it is already seconds in. Start is recovered as the first event's shot
+> clock plus the game-clock gap back to the previous chance's final event, exact up to the
+> inbound delay because both clocks fall together within a chance. It returns the rule values:
+> median 24 after a defensive rebound, 14 after an offensive one, 26 after a made basket —
+> that last being 24 plus the calibrated 2-second inbound delay, hence the clip back to 24.
+> Measuring within a chance's own events instead gives a 1.8-second span, the interval between
+> logged events rather than a possession — the same trap as the rule-change duration.
+
+**What is identified.** Premature exercise (shooting below continuation value) is measurable;
+holding too long is not, since a declined shot leaves no record. Every figure is one-sided.
+
+**The boundary level is not identified, and this nearly shipped as a finding.** Estimating the
+threshold as a low quantile of accepted shot values gives a gap against `V(t)` of −0.22 at the
+2nd percentile and +0.14 at the 20th — the sign of "too aggressive" versus "too patient" is a
+free parameter. Only the *shape* is quantile-invariant: the relaxation ratio (how far the
+boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.46-0.60 across every quantile
+tried**, and the excess late demand +0.17 to +0.20. Those are the reported numbers.
+
+`tests/test_stopping.py` builds offenses that accept exactly at `V(t)` and asserts the ratio
+comes back above 0.85, so the measured ~0.5 is a deviation rather than a property of the
+estimator; it also checks V(t) rises with time and that chances ending at `t` are excluded.
+
+Free throws are excluded from both sides for unit consistency with `XPTS`, which makes the
+result conservative: counting them raises `V(t)` by +0.085, a higher bar.
+
 ---
 
 ## 5. Ten-season backfill

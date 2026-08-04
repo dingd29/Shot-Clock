@@ -325,6 +325,58 @@ def cmd_ablate(first: int, last: int) -> None:
     print(f"\nwritten: {out}")
 
 
+def cmd_stopping(first: int, last: int) -> None:
+    """Shooting as optimal stopping: continuation value, exercise boundary, relaxation."""
+    from possval.models.stopping import (
+        chance_panel,
+        continuation_value,
+        exercise_boundary,
+        exercise_gap,
+        free_throw_bias,
+        relaxation,
+    )
+
+    pd.set_option("display.width", 200)
+    panel_path = PROCESSED / "chance_panel.parquet"
+    if panel_path.exists():
+        panel = pd.read_parquet(panel_path)
+    else:
+        panel = chance_panel(first, last)
+        panel.to_parquet(panel_path, index=False)
+    print(f"chances: {len(panel):,}")
+
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[shots.GAME_CLOCK_EXPIRING == 0]
+
+    values = continuation_value(panel)
+    print("\n=== continuation value V(t): expected points from declining to shoot ===")
+    print(values.round(4).to_string(index=False))
+
+    gap = exercise_gap(shots, values)
+    print("\n=== taken shots against the value they gave up ===")
+    print(gap.round(4).to_string(index=False))
+
+    boundary = exercise_boundary(shots, values)
+    print("\n=== implied exercise boundary (5th pct of accepted) vs optimal ===")
+    print(boundary.round(4).to_string(index=False))
+
+    ratios = relaxation(shots, values)
+    print("\n=== does the boundary relax as fast as V(t) collapses? ===")
+    print("(the boundary's *level* is not identified — its shape is; hence every quantile)")
+    print(ratios.round(4).to_string(index=False))
+
+    uplift = free_throw_bias(panel)
+    print(f"\nfree-throw uplift to V(t): mean {uplift.FT_UPLIFT.mean():+.4f} points "
+          "(excluded from the headline, which makes it conservative)")
+
+    for name, frame in [
+        ("stopping_continuation_value", values), ("stopping_exercise_gap", gap),
+        ("stopping_boundary", boundary), ("stopping_relaxation", ratios),
+    ]:
+        frame.to_csv(REPORTS / f"{name}.csv", index=False)
+    print(f"\nwritten: {REPORTS}/stopping_*.csv")
+
+
 def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
     """Calibrate DPM onto the rating scale, then simulate 2026-27 for all thirty teams."""
     from possval.models.dpm_calibration import calibrate, calibration_panel, slopes_differ
@@ -411,7 +463,7 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
     for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange",
-                 "ablate"):
+                 "ablate", "stopping"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
@@ -440,6 +492,7 @@ def main() -> None:
         "lineup-test": cmd_lineup_test,
         "rulechange": cmd_rulechange,
         "ablate": cmd_ablate,
+        "stopping": cmd_stopping,
     }
     if args.command in ranged:
         ranged[args.command](args.first, args.last)

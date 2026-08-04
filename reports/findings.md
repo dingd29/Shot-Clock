@@ -296,6 +296,85 @@ season's offensive environment.
 
 ---
 
+## 4d. Teams relax their shot standard only half as fast as the clock demands
+
+Findings 1-3 are descriptive and say so. The efficiency-versus-clock curve is a **selected
+sample at every point** — possessions alive at 5 seconds are the ones where nothing
+materialised earlier — so its slope cannot separate time pressure degrading shot quality from
+bad possessions being the ones that last. Conditioning on possession-start type does not fix
+this, because the selection happens *within* the chance.
+
+This finding changes the question rather than the controls. At every moment the offense holds
+a live decision: shoot now at whatever is available, or decline and draw again from a
+distribution whose value decays as the clock runs. That is **American option exercise**, and
+it is answerable, because it conditions on the **decision** — a shot was taken at second *t*
+with model value *q* — rather than on the outcome.
+
+### The continuation value
+
+`V(t)` is the expected points from *declining* to shoot with `t` seconds left: among chances
+still live at `t`, the mean outcome of those that did not end there. Estimated over **2.86
+million chances**, ten seasons:
+
+| Seconds left | 1 | 3 | 7 | 12 | 17 | 23 |
+|---|---|---|---|---|---|---|
+| `V(t)` — value of holding | 0.305 | 0.455 | 0.612 | 0.715 | 0.758 | 0.807 |
+| P(shoot this second) | 43% | 25% | 17% | 11% | 6% | 1% |
+
+It behaves as the theory requires: monotone in time remaining, flattening above ~20 seconds
+where extra clock stops helping, and collapsing toward zero as the option expires.
+
+### The exercise boundary, and what is not identified
+
+If offenses followed a threshold rule — shoot iff value ≥ `b(t)` — the bottom of the accepted
+distribution would estimate `b(t)`. **The level of that boundary is not identified**, and this
+is worth stating plainly because it would have been easy to publish and wrong: calling the 5th
+percentile of accepted shots "the threshold" rather than the 2nd or the 20th moves the
+estimated gap from −0.22 to +0.14. The sign of *too aggressive* versus *too patient* is a free
+parameter. No claim here rests on it.
+
+**The shape survives the choice.** Optimal exercise requires the threshold to track the option
+it is compared against: as `V(t)` collapses, the standard should collapse with it.
+
+| Quantile used as the boundary | 2% | 5% | 10% | 20% | 25% |
+|---|---|---|---|---|---|
+| Boundary falls, 23s → 1s | 0.281 | 0.302 | 0.232 | 0.256 | 0.246 |
+| `V(t)` falls over the same range | 0.501 | 0.501 | 0.501 | 0.501 | 0.501 |
+| **Relaxation ratio** | **0.56** | **0.60** | **0.46** | **0.51** | **0.49** |
+| Excess demand at 1-3s vs 8-23s | +0.169 | +0.172 | +0.195 | +0.198 | +0.191 |
+
+**Offenses lower their standard by only about half of what the collapse in continuation value
+warrants — a ratio near 0.5 at every quantile.** Equivalently, relative to what holding is
+worth, they demand roughly **0.18 points more** from a shot with 1-3 seconds left than from one
+with 8 or more. The clock runs out on an option they are still pricing as though it had time
+left.
+
+The estimator can return the optimal answer: on synthetic offenses that accept exactly at
+`V(t)`, the ratio comes back above 0.85 (`tests/test_stopping.py`). The measured ~0.5 is a
+deviation, not a property of the method.
+
+### What this does and does not license
+
+**Exercise is broadly sound.** Taken shots beat their continuation value by **+0.43 points on
+average**, and only **4.8% fall below it** — about 1.5 points per game across both teams. NBA
+offenses are not routinely throwing away possessions, and any story about them doing so has to
+survive that number first.
+
+**The asymmetry is real but its cause is not pinned down.** A declined shot leaves no record,
+so this cannot see whether a shot worth taking actually existed at second 2. Excess late demand
+is consistent with excessive patience, and equally consistent with nothing better being on
+offer — the option set shrinks as the defense sets, and that is not observable here. What is
+established is that the *accepted* standard does not fall as fast as the *value of waiting*,
+which is a fact about behaviour whatever generates it.
+
+**Free throws are excluded and that makes it conservative.** `XPTS` predicts field-goal points,
+so both sides run on field-goal points. Counting free throws raises `V(t)` by **+0.085** on
+average — a higher bar to clear, which would make late shooting look worse, not better.
+
+*Reproduce:* `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
+
+---
+
 ## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level
 
 This was the project's headline hypothesis, and **it failed.**

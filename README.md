@@ -79,10 +79,19 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    rebound's exact clock jump from 14.7% to 18.7% and stay. Dropping the contaminated season
    cut the standard error fourfold and turned an apparent null on efficiency into a small
    negative effect.
-6. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
+6. **Teams relax their shot standard only half as fast as the clock demands.** Reframing
+   shooting as **American option exercise** — shoot now, or hold an option whose value decays —
+   gives the one result here that conditions on the *decision* rather than the outcome, which
+   is what dissolves the selection problem in findings 1-3. The continuation value `V(t)` runs
+   from 0.81 points at 23 seconds to 0.31 at 1 second, and offenses lower their accepted
+   standard by only ~50% of that collapse (relaxation ratio 0.46-0.60 at every quantile
+   tested). Exercise is otherwise sound: taken shots beat continuation value by +0.43 points
+   on average and only 4.8% fall below it. *The boundary's **level** is not identified* — which
+   quantile you call the threshold flips the sign — so only the shape is claimed.
+7. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
    and within the 14-second-rule era each season's curve shape correlates r ≥ 0.967 with
    2024-25's.
-7. **Creation overlap does not predict offensive underperformance**, at team level or lineup
+8. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
 All eight findings are about possessions and shots — the layer built here. A separate
 projection layer sits on top of it and is scoped in its own section below, deliberately kept
