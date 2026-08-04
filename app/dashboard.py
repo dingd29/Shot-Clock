@@ -70,6 +70,14 @@ def load_report(name: str, index_col: int | None = None) -> pd.DataFrame:
     return pd.read_csv(path, index_col=index_col) if path.exists() else pd.DataFrame()
 
 
+def _winprob_label(comparison: pd.DataFrame) -> str:
+    """How much the shot-clock block moved a live win-probability model, as a percentage."""
+    if comparison.empty:
+        return "negligible — run `make winprob`"
+    worst, best = comparison.log_loss.max(), comparison.log_loss.min()
+    return f"negligible — {100 * (worst - best) / worst:.3f}% of log loss"
+
+
 @st.cache_data(show_spinner="Fitting the DPM calibration…")
 def load_calibration_panel() -> pd.DataFrame:
     """Team-level DPM-implied vs observed ratings. Empty if the inputs are not present."""
@@ -273,6 +281,35 @@ with tab_stop:
             values.merge(boundary[["SECOND", "BOUNDARY", "GAP"]], on="SECOND", how="left")
             .round(4),
             use_container_width=True, hide_index=True,
+        )
+
+        st.markdown("##### What the shot clock is worth, by scale")
+        st.caption(
+            "The project's own answer to the question it was built to ask, and not the one "
+            "it set out to find. A possession is ~1% of a game's scoring, so possession-scale "
+            "information washes out at the scale below it and the scale above."
+        )
+        winprob = load_report("winprob_comparison.csv")
+        scales = pd.DataFrame(
+            {
+                "question": [
+                    "Will this shot go in?",
+                    "Will this possession score?",
+                    "Will this team win?",
+                ],
+                "shot clock contribution": [
+                    "negligible — 0.00136 log loss, smallest ablation group",
+                    "large — V(t) spans 0.36 to 0.81, a 2.2x range",
+                    _winprob_label(winprob),
+                ],
+            }
+        )
+        st.dataframe(scales, use_container_width=True, hide_index=True)
+        st.info(
+            "**The reconstruction's value is as a measurement instrument, not a predictive "
+            "feature.** The shoot-or-hold result above exists only because a continuation "
+            "value can be computed at all, and it cannot be computed without a shot clock.",
+            icon="🔭",
         )
 
 # --------------------------------------------------------------------------- validation
