@@ -231,3 +231,150 @@ def summarise(wins: pd.DataFrame) -> pd.DataFrame:
             "P_60_PLUS": (wins >= 60).mean(),
         }
     ).sort_values("MEAN_WINS", ascending=False)
+
+
+def nba_schedule(
+    conferences: dict[str, str],
+    divisions: dict[str, str],
+    seed: int = 0,
+) -> pd.DataFrame:
+    """Sample a schedule with the real NBA's structure, when the real one is not yet published.
+
+    The league's formula is fixed even though the calendar is not, and it is worth honouring
+    exactly rather than approximating with a round robin:
+
+        4 games   against each of the 4 division rivals            16
+        4 games   against 6 of the 10 other conference teams       24
+        3 games   against the remaining 4 conference teams         12
+        2 games   against all 15 teams in the other conference     30
+                                                                   --
+                                                                   82
+
+    Only the choice of *which* six conference opponents are played four times is sampled; the
+    counts themselves are not random. Home and away split exactly: 2-2 in the four-game sets,
+    1-1 inter-conference, and the three-game sets are alternated 2-1 and 1-2 so every team
+    lands on **41 home games**.
+
+    Why this matters more than a round robin: strength of schedule genuinely differs by
+    conference, and the projection quotes conference-bracket title odds. A balanced round robin
+    hands every team the same opponents, which silently equalises the two conferences and
+    flatters whichever is weaker.
+    """
+    rng = np.random.default_rng(seed)
+    teams = sorted(conferences)
+    pairs: dict[tuple[str, str], list[str]] = {}
+
+    def add(home: str, away: str) -> None:
+        pairs.setdefault(tuple(sorted((home, away))), []).append(home)
+
+    for conference in sorted(set(conferences.values())):
+        members = sorted(t for t in teams if conferences[t] == conference)
+
+        # Four meetings with every division rival, split 2-2.
+        for team in members:
+            for rival in members:
+                if rival <= team or divisions[rival] != divisions[team]:
+                    continue
+                add(team, rival), add(team, rival), add(rival, team), add(rival, team)
+
+        # Six of the ten non-division conference opponents are played four times, four are
+        # played three. Assignment must be symmetric — if A plays B four times, so does B —
+        # so it is drawn as a regular graph rather than per team independently.
+        others = {
+            team: sorted(
+                t for t in members if t != team and divisions[t] != divisions[team]
+            )
+            for team in members
+        }
+        four_game = _regular_pairing(others, degree=6, rng=rng)
+
+        # Three meetings cannot split evenly, so one side hosts twice. Which side is not a
+        # free choice: each team has four such opponents and must host twice in exactly two of
+        # them to land on 41 home games. That is an orientation of a 4-regular graph with
+        # in-degree equal to out-degree at every vertex, which is exactly an Eulerian
+        # orientation — guaranteed to exist here because every degree is even.
+        three_game = {
+            team: [o for o in others[team] if o not in four_game[team]] for team in members
+        }
+        hosts_twice = _eulerian_orientation(three_game)
+        for team in members:
+            for opponent in others[team]:
+                if opponent <= team:
+                    continue
+                if opponent in four_game[team]:
+                    add(team, opponent), add(team, opponent)
+                    add(opponent, team), add(opponent, team)
+                else:
+                    extra = team if opponent in hosts_twice[team] else opponent
+                    other = opponent if extra == team else team
+                    add(extra, other), add(extra, other), add(other, extra)
+
+    east = sorted(t for t in teams if conferences[t] == "East")
+    west = sorted(t for t in teams if conferences[t] == "West")
+    for home in east:
+        for away in west:
+            add(home, away), add(away, home)
+
+    rows = [(home, [t for t in key if t != home][0] if key[0] != key[1] else key[1])
+            for key, hosts in pairs.items() for home in hosts]
+    schedule = pd.DataFrame(rows, columns=["HOME", "AWAY"])
+    return schedule.sample(frac=1.0, random_state=seed).reset_index(drop=True)
+
+
+def _eulerian_orientation(graph: dict[str, list[str]]) -> dict[str, set[str]]:
+    """Orient every edge so each vertex has as many out-edges as in-edges.
+
+    Hierholzer's algorithm walks an Eulerian circuit through each component and orients the
+    edges along the direction of travel. Every entry into a vertex is paired with an exit, so
+    in-degree equals out-degree — which is precisely the "hosts twice in two of four series"
+    balance the schedule needs. Requires every degree to be even, which holds by construction.
+    """
+    remaining = {team: sorted(neighbours) for team, neighbours in graph.items()}
+    out: dict[str, set[str]] = {team: set() for team in graph}
+
+    for start in graph:
+        if not remaining[start]:
+            continue
+        stack, circuit = [start], []
+        while stack:
+            node = stack[-1]
+            if remaining[node]:
+                nxt = remaining[node].pop()
+                remaining[nxt].remove(node)
+                stack.append(nxt)
+            else:
+                circuit.append(stack.pop())
+        for a, b in zip(circuit, circuit[1:], strict=False):
+            out[a].add(b)
+    return out
+
+
+def _regular_pairing(
+    candidates: dict[str, list[str]], degree: int, rng: np.random.Generator
+) -> dict[str, set[str]]:
+    """Pick a symmetric `degree`-regular subgraph by repeated greedy sampling.
+
+    Needed because "six opponents played four times" has to agree from both sides. Greedy
+    matching can paint itself into a corner, so it retries; the graph is tiny (15 nodes,
+    degree 6) and this converges in a handful of attempts.
+    """
+    for _ in range(500):
+        chosen: dict[str, set[str]] = {team: set() for team in candidates}
+        order = list(candidates)
+        rng.shuffle(order)
+        for team in order:
+            room = [
+                other
+                for other in candidates[team]
+                if len(chosen[other]) < degree and other not in chosen[team]
+            ]
+            need = degree - len(chosen[team])
+            if len(room) < need:
+                break
+            for other in rng.choice(room, size=need, replace=False):
+                chosen[team].add(other)
+                chosen[other].add(team)
+        else:
+            if all(len(v) == degree for v in chosen.values()):
+                return chosen
+    raise RuntimeError(f"could not build a {degree}-regular pairing")

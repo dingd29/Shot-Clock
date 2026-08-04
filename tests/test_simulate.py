@@ -155,3 +155,45 @@ def test_simulated_wins_conserve_games():
     average = wins.mean()
     assert average[teams[-1]] > average[teams[0]] + 20
     assert average.mean() == pytest.approx(41.0, abs=0.5)
+
+
+def test_sampled_schedule_matches_the_leagues_structure():
+    """The NBA formula is fixed even when the calendar is not, so honour it exactly.
+
+    4 games against 4 division rivals, 4 against six other conference teams, 3 against the
+    remaining four, 2 against all fifteen in the other conference. That is 150 pairs meeting
+    four times, 60 meeting three, and 225 meeting twice — and every team on exactly 41 home
+    games, which requires orienting the three-game series rather than coin-flipping them.
+    """
+    from possval.models.league import CONFERENCES, DIVISION_OF
+    from possval.models.simulate import nba_schedule
+
+    for seed in (0, 1, 2):
+        schedule = nba_schedule(CONFERENCES, DIVISION_OF, seed=seed)
+
+        played = pd.concat([schedule.HOME, schedule.AWAY]).value_counts()
+        assert len(schedule) == 1230
+        assert played.min() == played.max() == 82
+        assert schedule.HOME.value_counts().nunique() == 1, "home games must be exactly 41 each"
+        assert schedule.HOME.value_counts().iloc[0] == 41
+
+        meetings = (
+            schedule.apply(lambda r: tuple(sorted((r.HOME, r.AWAY))), axis=1)
+            .value_counts()
+            .value_counts()
+            .to_dict()
+        )
+        assert meetings == {2: 225, 3: 60, 4: 150}, meetings
+
+
+def test_division_rivals_meet_four_times():
+    from possval.models.league import CONFERENCES, DIVISION_OF
+    from possval.models.simulate import nba_schedule
+
+    schedule = nba_schedule(CONFERENCES, DIVISION_OF, seed=3)
+    counts = schedule.apply(lambda r: tuple(sorted((r.HOME, r.AWAY))), axis=1).value_counts()
+    for (a, b), n in counts.items():
+        if DIVISION_OF[a] == DIVISION_OF[b]:
+            assert n == 4, f"{a}-{b} are division rivals but meet {n} times"
+        elif CONFERENCES[a] != CONFERENCES[b]:
+            assert n == 2, f"{a}-{b} are cross-conference but meet {n} times"

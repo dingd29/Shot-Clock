@@ -53,6 +53,17 @@ WEST = [
 ]
 CONFERENCES = {team: "East" for team in EAST} | {team: "West" for team in WEST}
 
+# Divisions drive the real schedule: a team plays its four division rivals four times each.
+DIVISIONS = {
+    "Atlantic": ["BOS", "BKN", "NYK", "PHI", "TOR"],
+    "Central": ["CHI", "CLE", "DET", "IND", "MIL"],
+    "Southeast": ["ATL", "CHA", "MIA", "ORL", "WAS"],
+    "Northwest": ["DEN", "MIN", "OKC", "POR", "UTA"],
+    "Pacific": ["GSW", "LAC", "LAL", "PHX", "SAC"],
+    "Southwest": ["DAL", "HOU", "MEM", "NOP", "SAS"],
+}
+DIVISION_OF = {team: name for name, teams in DIVISIONS.items() for team in teams}
+
 
 TEAM_MINUTES_PER_GAME = 240.0
 GAMES = 82
@@ -252,13 +263,19 @@ def project_league(
     had already seen the season it was scored on, and it excludes injury, minutes
     reallocation, and every transaction this model does not know about.
     """
-    from possval.models.simulate import balanced_schedule, simulate_playoffs, simulate_season
+    from possval.models.simulate import nba_schedule, simulate_playoffs, simulate_season
 
     if extra_rating_sd is None:
         extra_rating_sd = forward_rating_sd()
 
     ratings = league_ratings(games=games).RATING
-    schedule = balanced_schedule(list(ratings.index))
+    # The published 2026-27 calendar is not out yet, so the schedule is *sampled* under the
+    # league's own structural rules rather than flattened into a round robin: division rivals
+    # four times, six conference opponents four, four conference opponents three, everyone in
+    # the other conference twice. Only which six get four games is random. Swap in the real
+    # schedule when it lands — the shape of the answer should not move, since only the
+    # opponent draw differs, but strength of schedule is exactly what a round robin erases.
+    schedule = nba_schedule(CONFERENCES, DIVISION_OF, seed=seed)
     wins = simulate_season(
         ratings, schedule, n_sims=n_sims, rating_sd=extra_rating_sd, seed=seed
     )
