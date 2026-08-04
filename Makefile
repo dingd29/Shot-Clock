@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange stopping project test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange stopping project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -40,6 +40,9 @@ rulechange:  ## the 2018-19 rule as a difference-in-differences
 
 stopping:  ## shooting as optimal stopping: continuation value and exercise boundary
 	$(PY) -m possval.pipeline stopping --first $(FIRST) --last $(LAST)
+
+scorecard:  ## score the pre-registered projection against results so far
+	$(PY) -m possval.pipeline scorecard --season 2026
 
 project:  ## calibrate DPM and simulate 2026-27 for all thirty teams
 	$(PY) -m possval.pipeline project --games 70

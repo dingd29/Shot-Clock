@@ -387,6 +387,37 @@ def cmd_stopping(first: int, last: int) -> None:
     print(f"\nwritten: {REPORTS}/stopping_*.csv")
 
 
+def cmd_scorecard(season: int) -> None:
+    """Score the pre-registered projection against results so far."""
+    from datetime import date
+
+    from possval.models.scorecard import scorecard
+
+    pd.set_option("display.width", 200)
+    result = scorecard(season)
+    print(f"completed games: {result['n_games']:,}")
+    if result["n_games"] == 0:
+        print("\nSeason has not started. The harness is wired and will score from game one.")
+        return
+
+    print("\n=== game-level scores ===")
+    print(result["scores"].round(4).to_string(index=False))
+    print("\n=== calibration ===")
+    print(result["calibration"].round(3).to_string(index=False))
+    print("\n=== win totals: projected against current pace ===")
+    print(result["win_totals"].round(1).to_string(index=False))
+
+    # Appended rather than overwritten: the point of a pre-registration is the running record,
+    # and a file that only holds the latest number cannot show whether it moved.
+    log = REPORTS / "scorecard_log.csv"
+    row = result["scores"].assign(date=date.today().isoformat(), season=season)
+    header = not log.exists()
+    row.to_csv(log, mode="a", header=header, index=False)
+    result["calibration"].to_csv(REPORTS / "scorecard_calibration.csv", index=False)
+    result["win_totals"].to_csv(REPORTS / "scorecard_win_totals.csv", index=False)
+    print(f"\nappended to {log}")
+
+
 def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
     """Calibrate DPM onto the rating scale, then simulate 2026-27 for all thirty teams."""
     from possval.models.dpm_calibration import calibrate, calibration_panel, slopes_differ
@@ -469,7 +500,7 @@ def cmd_rulechange(first: int, last: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="possval.pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
-    for name in ("ingest", "clock", "validate"):
+    for name in ("ingest", "clock", "validate", "scorecard"):
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
     for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange",
@@ -507,9 +538,12 @@ def main() -> None:
     if args.command in ranged:
         ranged[args.command](args.first, args.last)
         return
-    {"ingest": cmd_ingest, "clock": cmd_clock, "validate": cmd_validate}[args.command](
-        args.season
-    )
+    {
+        "ingest": cmd_ingest,
+        "clock": cmd_clock,
+        "validate": cmd_validate,
+        "scorecard": cmd_scorecard,
+    }[args.command](args.season)
 
 
 if __name__ == "__main__":

@@ -94,4 +94,26 @@ observation; a 2.1% forecast is not refuted by Philadelphia winning, nor confirm
 losing. That asymmetry is why the game-level numbers above are the real test and the title
 line is a derived output.
 
-*Reproduce:* `make project`.
+**The harness is built and running now, before opening night** — `make scorecard`, or
+`python -m possval.pipeline scorecard --season 2026`. That timing is the point: a scoring rule
+written after seeing results is not a scoring rule, it is a choice of the flattering one. It
+currently reports zero games and will score from game one.
+
+Three things are fixed in advance:
+
+- **Predictions are read from the committed file**, `reports/league_projection_2026_27.csv`,
+  never recomputed. Regenerating them at scoring time would let a later model version grade
+  itself, which is the exact failure a pre-registration exists to prevent — the code raises
+  rather than rebuilding if the file is missing.
+- **Both baselines are named now.** Prior-season SRS is the one that matters: the projection
+  layer only earns its keep if modelling rosters beats carrying last year's team strength
+  forward. "Home team always" (56.5%) is the floor below which it has said nothing at all.
+- **Results append, never overwrite.** `reports/scorecard_log.csv` accumulates one row per
+  run, so the running record is in git history and a bad month cannot quietly disappear.
+
+Validated by dry run on 2024-25: scoring contemporaneous ratings returns Brier 0.2005 against
+0.2404 for prior-season SRS and 0.2485 for the trivial baseline, and feeding the baseline in as
+the projection reproduces the baseline's numbers exactly — the identity check that catches
+mis-wired plumbing. `tests/test_scorecard.py` pins all of it.
+
+*Reproduce:* `make project` to rebuild the projection, `make scorecard` to grade it.
