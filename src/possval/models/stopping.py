@@ -307,3 +307,63 @@ def relaxation(
             }
         )
     return pd.DataFrame(rows)
+
+
+LATE_CLOCK = 7
+
+
+def player_exercise(
+    shots: pd.DataFrame, values: pd.DataFrame, min_late: int = 60
+) -> pd.DataFrame:
+    """Per-player exercise surplus on late-clock shots, shrunk toward the league.
+
+    The obvious extension of the boundary result: if some players are genuinely better
+    bail-out creators, holding the ball for *them* is worth more, and their optimal threshold
+    should differ. That would show up as a real spread in how far their late shots sit above
+    continuation value.
+
+    It is also the extension most likely to be noise, which is why it is shrunk before it is
+    read. A player with 60 late-clock attempts has a standard error near 0.14 points on this
+    quantity, comparable to the entire league spread, so the raw leaderboard would rank
+    small samples that happened to regress in one direction — the same trap the late-clock
+    making leaderboard fell into (§7, where only 21.6% of raw spread was signal).
+
+    `SIGNAL_SHARE` in the returned frame's `attrs` is the fraction of observed variance left
+    after subtracting sampling noise. If it is near zero, players do not differ.
+    """
+    lookup = values.set_index("SECOND").V_CONT
+    late = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()
+    late["SECOND"] = late.SHOT_CLOCK.round().clip(0, FULL_CLOCK).astype(int)
+    late = late[(late.SECOND <= LATE_CLOCK) & (late.SECOND != RESET_INSTANT)]
+    late["V_CONT"] = late.SECOND.map(lookup)
+    late = late.dropna(subset=["V_CONT"])
+    late["SURPLUS"] = late.XPTS - late.V_CONT
+
+    grouped = (
+        late.groupby(["PLAYER_ID", "PLAYER_NAME"], observed=True)
+        .agg(FGA_LATE=("SURPLUS", "size"), SURPLUS=("SURPLUS", "mean"))
+        .reset_index()
+    )
+    grouped = grouped[grouped.FGA_LATE >= min_late]
+
+    # The per-shot noise scale is measured, not assumed. `SURPLUS` is built from a model
+    # prediction rather than a realised 0/2/3 outcome, so its shot-to-shot spread is the
+    # spread of `XPTS` (~0.3), not the ~1.1 of actual points. Using the outcome figure here —
+    # which is correct for the *making* leaderboard in §7 and wrong for this *selection*
+    # quantity — inflates the assumed noise more than threefold and drives the signal share to
+    # exactly zero by construction.
+    per_shot_sd = float(late.groupby("PLAYER_ID").SURPLUS.std().mean())
+    grouped["SE"] = per_shot_sd / np.sqrt(grouped.FGA_LATE)
+    observed = grouped.SURPLUS.var()
+    noise = (grouped.SE**2).mean()
+    signal = max(observed - noise, 0.0)
+
+    league = grouped.SURPLUS.mean()
+    grouped["SHRUNK_SURPLUS"] = league + (grouped.SURPLUS - league) * (
+        signal / (signal + grouped.SE**2)
+    )
+    result = grouped.sort_values("SHRUNK_SURPLUS", ascending=False).reset_index(drop=True)
+    result.attrs["signal_share"] = float(signal / observed) if observed else 0.0
+    result.attrs["league_mean"] = float(league)
+    result.attrs["per_shot_sd"] = per_shot_sd
+    return result

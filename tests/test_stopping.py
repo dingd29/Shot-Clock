@@ -113,3 +113,32 @@ def test_relaxation_ratio_is_one_when_the_boundary_tracks_value():
     ratios = relaxation(shots, values, quantiles=(0.05, 0.10))
     assert ratios.relaxation_ratio.min() > 0.85, ratios.to_string()
     assert ratios.excess_late_demand.abs().max() < 0.05
+
+
+def test_player_noise_scale_is_measured_not_assumed():
+    """The shrinkage denominator must come from the quantity being shrunk.
+
+    `SURPLUS` is built from model predictions, whose shot-to-shot spread is about 0.3 — not
+    the ~1.1 of realised 0/2/3 outcomes that the *making* leaderboard correctly uses. Hard-
+    coding the outcome figure inflates assumed noise threefold and drives the signal share to
+    exactly zero, hiding real heterogeneity behind an arithmetic error.
+    """
+    from possval.models.stopping import player_exercise
+
+    rng = np.random.default_rng(9)
+    players = np.repeat(np.arange(60), 120)
+    skill = np.repeat(rng.normal(0, 0.12, 60), 120)
+    shots = pd.DataFrame(
+        {
+            "PLAYER_ID": players,
+            "PLAYER_NAME": [f"P{p}" for p in players],
+            "XPTS": 0.9 + skill + rng.normal(0, 0.28, len(players)),
+            "SHOT_CLOCK": rng.integers(1, 8, len(players)).astype(float),
+        }
+    )
+    values = pd.DataFrame({"SECOND": range(0, 25), "V_CONT": 0.5})
+
+    result = player_exercise(shots, values, min_late=50)
+    assert result.attrs["per_shot_sd"] == pytest.approx(0.28, abs=0.05)
+    # Real between-player spread was built in, so it must survive.
+    assert result.attrs["signal_share"] > 0.5

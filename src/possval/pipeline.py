@@ -333,6 +333,7 @@ def cmd_stopping(first: int, last: int) -> None:
         exercise_boundary,
         exercise_gap,
         free_throw_bias,
+        player_exercise,
         relaxation,
     )
 
@@ -364,6 +365,15 @@ def cmd_stopping(first: int, last: int) -> None:
     print("\n=== does the boundary relax as fast as V(t) collapses? ===")
     print("(the boundary's *level* is not identified — its shape is; hence every quantile)")
     print(ratios.round(4).to_string(index=False))
+
+    players = player_exercise(shots[shots.SEASON == shots.SEASON.max()], values)
+    print(f"\n=== per-player late-clock surplus (shrunk; signal share "
+          f"{players.attrs['signal_share']:.2f}) ===")
+    print("high scores track rim share, not judgment — see findings 4d")
+    print(pd.concat([players.head(5), players.tail(3)])[
+        ["PLAYER_NAME", "FGA_LATE", "SURPLUS", "SHRUNK_SURPLUS"]
+    ].round(3).to_string(index=False))
+    players.to_csv(REPORTS / "stopping_player_exercise.csv", index=False)
 
     uplift = free_throw_bias(panel)
     print(f"\nfree-throw uplift to V(t): mean {uplift.FT_UPLIFT.mean():+.4f} points "

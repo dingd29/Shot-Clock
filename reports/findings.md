@@ -377,6 +377,37 @@ so both sides run on field-goal points. Counting free throws raises `V(t)` by **
 average (**+0.084**) — a higher bar to clear, which would make late shooting look worse, not
 better.
 
+### Does it vary by player? Yes — but it measures role, not judgment
+
+The natural extension, and the one most likely to be noise: if some players are genuinely
+better bail-out creators, holding the ball *for them* is worth more and their threshold should
+differ. Per-player mean surplus on late-clock shots (≤7 seconds, ≥60 attempts, 282 players),
+shrunk toward the league:
+
+| | Player | Late FGA | Shrunk surplus |
+|---|---|---|---|
+| Top | Rudy Gobert | 99 | 0.757 |
+| | Jarrett Allen | 92 | 0.696 |
+| | Daniel Gafford | 67 | 0.679 |
+| Bottom | Cade Cunningham | 359 | 0.374 |
+| | DeMar DeRozan | 336 | 0.379 |
+
+**85% of the observed spread survives shrinkage** — this is real, not sampling noise. But read
+the names before reading the number. The top is entirely centres and the bottom entirely
+ball-handling creators, and the surplus correlates **+0.59 with a player's late-clock rim
+share**. Splitting by that share, the bottom three quartiles are indistinguishable (0.479,
+0.478, 0.482) and only the rim-running quartile separates (0.539).
+
+So the answer to "do bail-out creators have a different threshold" is neither yes nor
+noise-killed. **The quantity is measuring role.** A centre's late-clock attempt is a dunk that
+someone else created, so it clears continuation value easily; a guard's is the contested pull-up
+that exists *because* nothing better appeared. The players who score highest here are precisely
+the ones not making the decision, which makes this a poor measure of judgment and a decent
+proxy for who finishes.
+
+Separating the two would need the decision attributed to the ball-handler rather than the
+shooter — the passer's option set, not the shooter's outcome. That is not in this data.
+
 *Reproduce:* `python -m possval.pipeline stopping`, which writes `reports/stopping_*.csv`.
 
 ---
