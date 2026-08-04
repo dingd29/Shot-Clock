@@ -50,9 +50,9 @@ penalised down to 14. Implementing this as `min` is the most common way to get i
 
 Pre-2018-19 seasons reset to a full 24 (`FOURTEEN_SECOND_RULE_SEASON = 2018`).
 
-### Four corrections found by inspecting traces
+### Four corrections
 
-Each was found by reading actual event sequences, and each measurably improved validation.
+Each came from reading event sequences by hand, and each improved validation.
 
 1. **Shooting fouls do not return the ball.** They award free throws. The feed's action codes
    cannot distinguish a personal foul in the penalty (offense goes to the line) from one that
@@ -118,7 +118,7 @@ Measured median error, no delays applied:
 Exactly one delay is non-zero: **2.0s after a made field goal**, from the largest sample. That
 is the physically expected time to retrieve the ball and touch the inbound pass.
 
-> **Why this is not circular.** Calibration uses only shot-clock violations. It never touches
+> **Why this isn't circular.** Calibration uses only shot-clock violations. It never touches
 > the official NBA aggregates, so those remain a clean holdout for validation. Fitting the
 > delay to the bucket distribution we are trying to reproduce would invalidate the test.
 
@@ -175,7 +175,7 @@ The reference file is *per game*, so reconstructed totals are divided by games p
   corrections, 1-second game-clock quantisation) bias reconstructed clocks *high*: we miss
   resets rather than inventing them.
 
-### The 2018-19 rule as a natural experiment
+### The 2018-19 rule change
 
 `models/rulechange.py`. Treatment is assigned by rule rather than by choice: from 2018-19 the
 clock resets to 14 after an offensive rebound, and not after a defensive one. Treated =
@@ -240,7 +240,7 @@ null into a finding, the opposite of the usual direction.
 buried in a default. `tests/test_rulechange.py` builds panels with a known effect, with none,
 and with a shared trend, and asserts the estimator recovers each.
 
-### Optimal stopping: the identification strategy for findings 1-3
+### Optimal stopping
 
 `models/stopping.py`. Findings 1-3 are descriptive because the efficiency curve is a selected
 sample at every second, and no set of controls fixes selection happening *within* the chance.
@@ -361,7 +361,7 @@ Calibration tracks the diagonal across the full range (0.20 → 0.93 predicted).
 moves aggregate metrics but matters downstream, where possession value and win probability
 need calibrated probabilities rather than merely ranked ones.
 
-### Feature value: ablation, not permutation importance
+### Feature value by ablation
 
 Permutation importance was initially misleading here. `CLOCK_ELAPSED` is exactly
 `24 − SHOT_CLOCK`; permuting either left its perfect substitute in place, so both looked
@@ -425,7 +425,7 @@ Face validity: the selection leaders are all rim-running centres (Jaxson Hayes 1
 Gobert pairs the second-best selection with −12.5 making, the exact profile of a player who
 misses shots he should make.
 
-### Late-clock specialists, and why shrinkage was required
+### Late-clock specialists and shrinkage
 
 Ranking players on raw (making late ≤7s) − (making early >15s) produced a leaderboard of
 small-sample rookies. Decomposing the variance shows why: **only 21.6% of the observed spread
@@ -514,7 +514,7 @@ by staggering minutes, in which case the null reflects adaptation rather than ab
 Philadelphia's 0.973 is outside the observed team range (max 0.961), making any application to
 them an extrapolation.
 
-### Head-to-head against the incumbent
+### Head to head against usage
 
 The plan's scientific claim was not that overlap predicts efficiency — it was that overlap adds
 predictive power **on top of** the standard approach. That requires racing it.
@@ -638,7 +638,7 @@ simulation — because without it the win distribution reflects only game-level 
 and comes out far too narrow. The dominant uncertainty in a projection is whether the ratings
 are right, not how the coin lands.
 
-### Closing the calibration gap
+### Calibrating player impact to team rating
 
 The roster→rating mapping is `sum(DPM x minutes) / 48`, and it was **theoretical, not fitted**.
 It failed an obvious check: a plus-minus metric averages zero over minutes played, so an
@@ -674,9 +674,9 @@ a replacement value; the slope moves only 1.39→1.45 across a −4.0 to −1.0 
 scored against — so the fit statistics are optimistic and 2.15 is a *lower bound* on forward
 error, not an estimate of it. It is not out-of-sample validation and is not reported as such.
 
-### Two simulator bugs found by looking at the output
+### Two simulator bugs
 
-Both were in plumbing nobody checks, and both were caught only because a number downstream
+Both were in plumbing that nothing else checks, and both surfaced because a downstream number
 looked wrong.
 
 1. **The schedule was not balanced.** `balanced_schedule` enumerated all ordered pairs,
@@ -701,7 +701,7 @@ looked wrong.
 `tests/test_simulate.py` asserts game counts, home/away balance, win conservation, and that
 implied win totals match the historical scale.
 
-### From calibrated ratings to title odds
+### Ratings to title odds
 
 `league.py` projects all 30 teams, because a title probability is not a property of one team.
 Rosters start from 2025-26 minutes, transactions move players between teams, and minutes are

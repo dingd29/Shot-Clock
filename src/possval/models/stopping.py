@@ -1,30 +1,13 @@
 """Shooting as an optimal-stopping problem.
 
-The efficiency-versus-clock curve in `reports/findings.md` §2 is a **selected sample at every
-point**. Possessions still alive at 5 seconds are the ones where nothing materialised earlier,
-so the slope conflates two things that cannot be separated by conditioning: time pressure
-degrading shot quality, and bad possessions being the ones that last. Controlling for how the
-possession *started* does not help, because the selection happens *within* the chance.
+The efficiency-vs-clock curve is a selected sample at every point: possessions alive at 5
+seconds are the ones where nothing worked earlier. Framing the shot as an exercise decision
+(take what's available, or hold an option whose value decays) conditions on the decision
+rather than the outcome, which is what the curve can't do.
 
-This module changes the question. At every moment the offense holds a live decision — shoot
-now at whatever is available, or decline and draw again from a distribution whose value decays
-as the clock runs. That is American option exercise, and the useful question is not "how does
-efficiency vary with the clock" but **"are teams exercising at the right threshold?"**
-
-The reason this identifies something the curve cannot: it conditions on the **decision** (a
-shot was taken at time t, with estimated value q) rather than on the **outcome**. Whether that
-particular exercise beat its own continuation value is answerable without knowing why the
-possession lasted as long as it did.
-
-**What is identified, and what is not.**
-
-Taken shots are observed with their model value, so *premature exercise* — shooting when
-holding was worth more — is measurable. The converse is not: a shot passed up leaves no record
-of what it would have been worth, so this cannot measure teams holding too long. Every number
-here is therefore a **lower bound on total decision error**, and it is one-sided by
-construction.
+Only one side is identified. Taken shots come with a model value, so shooting when holding was
+worth more is measurable. A declined shot leaves no record, so holding too long isn't.
 """
-
 from __future__ import annotations
 
 import numpy as np
@@ -58,18 +41,11 @@ COMPETITIVE_MARGIN = 10.0
 def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     """One row per chance: when it began, when it ended, and what it produced.
 
-    **Deriving the start clock is the fiddly part.** A chance's opening moment is never itself
-    a logged event — the first row belonging to a chance is already some seconds in — so the
-    start value has to be recovered as
-
-        start = (shot clock at the first event) + (game clock at the chance's start
-                                                   − game clock at that first event)
-
-    where the chance's start is the previous chance's final event. Within a chance the shot
-    clock and game clock fall together, so this is exact up to the inbound delay. It recovers
-    the rule values cleanly: median 24 after a defensive rebound, 14 after an offensive one,
-    and 26 after a made basket — that last being 24 plus the calibrated 2-second inbound delay,
-    which is why the result is clipped back to 24.
+    A chance's opening moment is never a logged event, so the start clock is recovered as the
+    first event's shot clock plus the game-clock gap back to the previous chance's last event.
+    Both clocks fall together within a chance, so this is exact up to the inbound delay. It
+    returns the rule values: median 24 after a defensive rebound, 14 after an offensive one,
+    26 after a made basket (24 plus the 2s inbound delay), hence the clip back to 24.
     """
     from possval.models.lineup_synergy import event_points
 
@@ -156,18 +132,13 @@ def continuation_value(
 ) -> pd.DataFrame:
     """`V(t)`: expected points from declining to shoot with `t` seconds left.
 
-    A chance is *live* at `t` when it began at or above `t` and ended at or below it. Of those,
-    the ones that did **not** end at `t` are exactly the chances where the offense declined and
-    played on, so their mean outcome is the value of continuing.
+    A chance is live at `t` if it began at or above `t` and ended at or below it. Those that
+    didn't end at `t` are the ones where the offense declined and played on, so their mean
+    outcome is the value of continuing.
 
-    This is the continuation value under **observed** behaviour, not under an optimal policy,
-    and that is the right benchmark for the question being asked. The comparison is marginal —
-    *should this shot have been taken, given how this offense would otherwise have finished the
-    possession?* — so the counterfactual wanted is the team's own actual continuation, not a
-    hypothetical perfectly-played one.
-
-    `outcome` defaults to field-goal points because that is the unit `XPTS` is in. `PTS_ALL`
-    adds free throws; see `free_throw_bias`.
+    This is continuation under observed behaviour, not optimal play, which is the right
+    benchmark for a marginal question: should this shot have been taken given how this offense
+    would otherwise have finished. `outcome` defaults to field-goal points to match `XPTS`.
     """
     if "PERIOD_EXPIRED" in panel.columns and drop_period_expiry:
         panel = panel[~panel.PERIOD_EXPIRED]
@@ -202,9 +173,7 @@ def exercise_gap(
 ) -> pd.DataFrame:
     """Compare each taken shot's model value against the continuation value it gave up.
 
-    A shot at `t` with expected value `q` is *premature* when `q < V(t)`: the offense exercised
-    an option worth less than holding it. The share of such shots, and the points they cost,
-    are the two numbers this produces.
+    A shot at `t` worth `q` is premature when `q < V(t)`.
     """
     lookup = values.set_index("SECOND").V_CONT
     scored = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()
@@ -225,13 +194,12 @@ def exercise_gap(
 
 
 def free_throw_bias(panel: pd.DataFrame) -> pd.DataFrame:
-    """How much the continuation value moves when free throws are counted.
+    """How much continuation value moves when free throws are counted.
 
-    `XPTS` predicts field-goal points only, so the headline comparison runs on field-goal
-    points on both sides. That understates continuation value, because declining to shoot also
-    preserves the chance of drawing a foul — and it understates it in a *known direction*:
-    a lower bar makes fewer shots look premature. The field-goal-only result is therefore
-    conservative for the premature-exercise finding, which is why it is the one reported.
+    `XPTS` is field-goal points, so both sides run on field-goal points. That understates
+    `V(t)`, since declining also preserves the chance of drawing a foul, and understates it in
+    a known direction: a lower bar makes fewer shots look premature. So the reported result is
+    conservative.
     """
     field_goals = continuation_value(panel, "PTS_FG").set_index("SECOND").V_CONT
     everything = continuation_value(panel, "PTS_ALL").set_index("SECOND").V_CONT
@@ -258,22 +226,16 @@ def exercise_boundary(
     quantile: float = 0.05,
     min_shots: int = 200,
 ) -> pd.DataFrame:
-    """The implied shoot-or-hold boundary, against the optimal one.
+    """The implied shoot-or-hold boundary against the optimal one.
 
-    If offenses followed a threshold rule — shoot iff value at least `b(t)` — then every taken
-    shot would sit above `b(t)`, and the bottom of the accepted distribution would estimate it.
-    The 5th percentile is used rather than the minimum because the rule is plainly not sharp:
-    about 5% of shots fall below continuation value, so a hard minimum would just track the
-    worst decision of the season.
+    Under a threshold rule every taken shot sits above `b(t)`, so the bottom of the accepted
+    distribution estimates it. The 5th percentile rather than the minimum, since the rule
+    isn't sharp: ~5% of shots fall below continuation value.
 
-    Optimal exercise puts `b(t) = V(t)`. Positive `GAP` means offenses demanded **more** than
-    continuing was worth — passing up shots they should have taken.
-
-    **The unobservable half.** A declined shot leaves no record, so this cannot see whether a
-    shot worth taking actually existed at that moment. A positive gap is consistent with
-    excessive patience, and equally consistent with nothing better being on offer. The gap
-    measures what teams *accepted*, not what they *refused*, and the difference matters most
-    exactly where the gap is largest.
+    Optimal exercise puts `b(t) = V(t)`, so positive `GAP` means offenses demanded more than
+    continuing was worth. It measures what teams accepted, not what they refused; a declined
+    shot leaves no record, so a positive gap is equally consistent with nothing better being
+    on offer.
     """
     scored = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()
     scored["SECOND"] = scored.SHOT_CLOCK.round().clip(0, FULL_CLOCK).astype(int)
@@ -301,16 +263,10 @@ def relaxation(
 ) -> pd.DataFrame:
     """Do offenses relax their standard as fast as continuation value collapses?
 
-    **The level of the boundary is not identified, and this is the honest way around it.**
-    Calling the 5th percentile of accepted shots "the threshold" rather than the 2nd or the
-    20th moves the estimated gap from −0.22 to +0.14 — the sign of "too aggressive" versus
-    "too patient" is a free parameter, so no claim rests on it.
-
-    What survives the choice is the *shape*: how much offenses lower their standard between an
-    early clock and an expiring one, against how much the continuation value falls over the
-    same range. Optimal exercise requires the two to move together, since a threshold should
-    track the value of the option it is being compared against. Both summaries below are
-    computed at every quantile so the reader can see they do not depend on it.
+    The boundary's level isn't identified: calling the 5th percentile the threshold rather
+    than the 2nd or 20th moves the gap from -0.22 to +0.14, flipping the sign of "too
+    aggressive" vs "too patient". Only the shape survives that choice, so both summaries are
+    computed at every quantile.
     """
     rows = []
     for quantile in quantiles:
@@ -351,33 +307,14 @@ def player_exercise(
 ) -> pd.DataFrame:
     """Per-player exercise surplus on late-clock shots, shrunk toward the league.
 
-    The obvious extension of the boundary result: if some players are genuinely better
-    bail-out creators, holding the ball for *them* is worth more, and their optimal threshold
-    should differ. That would show up as a real spread in how far their late shots sit above
-    continuation value.
+    This measure doesn't work, and the arithmetic says why: per-player mean surplus correlates
+    0.984 with per-player mean late-clock `XPTS`, and the SD of their difference is 0.012
+    against 0.067 for either alone. Every player's late shots span roughly the same seconds,
+    so `V` enters as a near-constant and surplus is late-clock shot quality renamed. It ranks
+    who finishes (+0.59 with rim share), not who decides.
 
-    It is also the extension most likely to be noise, which is why it is shrunk before it is
-    read. A player with 60 late-clock attempts has a standard error near 0.14 points on this
-    quantity, comparable to the entire league spread, so the raw leaderboard would rank
-    small samples that happened to regress in one direction — the same trap the late-clock
-    making leaderboard fell into (§7, where only 21.6% of raw spread was signal).
-
-    `SIGNAL_SHARE` in the returned frame's `attrs` is the fraction of observed variance left
-    after subtracting sampling noise. If it is near zero, players do not differ.
-
-    **This measure does not work, and the arithmetic says why.** Per-player mean surplus
-    correlates **0.984** with per-player mean late-clock `XPTS`, and the standard deviation of
-    the difference between them is 0.012 against 0.067 for either on its own. Subtracting
-    `V(t)` removes almost nothing at player level, because every player's late-clock shots are
-    spread over roughly the same seconds, so `V` enters as a near-constant. Mean surplus is
-    therefore *mean late-clock shot quality under a different name*.
-
-    That is why the leaderboard grades shot type rather than judgment: rim-runners top it
-    (correlation +0.59 with late-clock rim share), and restricting to non-rim shots merely
-    swaps them for shooters — Merrill, Strus, Curry — with non-shooters at the bottom.
-    Measuring judgment needs the counterfactual, what *else* was available at that moment, and
-    a declined shot leaves no record. Kept because the negative is informative and the
-    temptation to publish this as a skill ranking is real.
+    Kept because it looks like a skill ranking and would be easy to publish as one.
+    `attrs["signal_share"]` is the variance left after subtracting sampling noise.
     """
     lookup = values.set_index("SECOND").V_CONT
     late = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()

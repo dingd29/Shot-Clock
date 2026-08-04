@@ -15,16 +15,10 @@ import pandas as pd
 HOOP_Y = 0.0
 RIM_ZONES = ("Restricted Area",)
 
-# A shot taken with less than this much *game* clock left in the period is a buzzer-beater
-# attempt, not a shot-clock decision. These contaminate the low shot-clock region badly:
-# **a third of all shots at 1 second or less on the shot clock also have under 3 seconds left
-# in the period**, and they are near-worthless heaves rather than possessions that ran long.
-# Left in, they made the late-clock collapse look 36% steeper than it is.
-#
-# Three seconds is a judgment call — roughly catch-and-release time — but the result does not
-# rest on it. Sweeping the threshold over ten seasons, the 0s-to-7s rise is 0.212 at a 2s cut
-# and 0.206 at 8s, against 0.342 with no cut at all: essentially the whole contamination is
-# sub-2s heaves, and anything past that changes nothing. The curve is published both ways.
+# Shots with less game clock than this are buzzer-beaters, not shot-clock decisions. A third
+# of shots at <=1s on the shot clock are one, and leaving them in makes the late-clock drop
+# look 36% steeper. The threshold barely matters: the 0s-to-7s rise is 0.212 at a 2s cut and
+# 0.206 at 8s, against 0.342 uncut.
 EXPIRING_SECONDS = 3.0
 
 CATEGORICAL = [

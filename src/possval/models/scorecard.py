@@ -1,27 +1,16 @@
 """Scoring the pre-registered 2026-27 projection against results as they land.
 
-`PREREGISTRATION.md` commits to a number before the season and promises to score it honestly
-afterwards. This is the machinery that keeps the second half of that promise, and it exists
-*before* opening night on purpose: a scoring rule written after seeing results is not a
-scoring rule, it is a choice of the flattering one.
+Written before opening night on purpose: a scoring rule written after seeing results is a
+choice of the flattering one.
 
-**What is scored, and against what.** Every completed game gets a win probability from the
-frozen pre-registration ratings, and that prediction is graded by Brier score and log loss
-against two baselines:
+Every completed game gets a win probability from the frozen pre-registration ratings, graded
+by Brier and log loss against two baselines. Prior-season SRS is the one that matters, since
+the projection only earns its keep if modelling rosters beats carrying last year's strength
+forward. Home-team-always (56.5%) is the floor.
 
-``home team always``   the trivial rule — 56.5% of NBA games are home wins. Beating this is
-                       the minimum bar for the projection to have said anything at all.
-``prior-season SRS``   last season's ratings, the honest naive alternative. This is the
-                       baseline that matters: the projection layer only earns its keep if
-                       modelling rosters beats simply carrying last year's team strength
-                       forward.
+The title probability is not scored. One championship is one observation.
 
-**What is not scored.** The title probability. One championship is one observation, and 2.1%
-is neither refuted by Philadelphia winning nor confirmed by their losing. Scoring it would be
-theatre. The game-level numbers are the real test, which is why there are ~1,230 of them.
-
-The predictions are frozen at import from the committed projection, never recomputed from
-current data — the whole point is that they cannot move.
+Predictions are read from the committed projection, never recomputed.
 """
 
 from __future__ import annotations

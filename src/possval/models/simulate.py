@@ -1,20 +1,13 @@
-"""Season and playoff simulation.
+"""Season and playoff simulation: ratings to win probabilities to title odds.
 
-Layers 3 and 4 of the projection: team ratings become per-game win probabilities, which are
-simulated forward into a win distribution, a seeding distribution, and finally a title
-probability.
-
-**The validation strategy is the point of this module.** A championship is one observation
-per season, so a title model can never be validated on title outcomes — there will never be
-enough of them. Instead the pipeline is validated where the data is and the result propagates
-upward:
+A championship is one observation per season, so a title model can't be validated on title
+outcomes. Validation happens where the data is and propagates upward:
 
     game outcomes      ~1,230 per season, ~12,000 over the sample   -> Brier, log loss
     season win totals  30 teams x 10 seasons = 300                  -> MAE, calibration
-    title odds         a *derived* output of the simulator          -> never fit directly
+    title odds         a derived output                             -> never fit directly
 
-Nothing here may be tuned against title outcomes. Doing so would overfit to roughly ten data
-points and invalidate everything downstream.
+Nothing here is tuned against title outcomes.
 """
 
 from __future__ import annotations
@@ -26,16 +19,11 @@ import pandas as pd
 # assumed; this is the initial value only.
 DEFAULT_HOME_ADVANTAGE = 2.2
 
-# Converts a point-margin edge into a win probability.
-#
-# **The right value depends on what the ratings are.** Fitted against *prior-season* ratings
-# — noisy predictors of the season being played — the scale comes out near 10.5, because the
-# fit has to flatten predictions that are only partly informative. A simulator is not in that
-# situation: it is handed the ratings it is asked to treat as true, so the correct scale is
-# the one fitted against *contemporaneous* ratings, which is 7.0 (11,968 games, 2015-2025).
-#
-# Using 10.5 here compresses everything. A +12.7 team came out at 60 wins rather than the 68
-# Oklahoma City actually won in 2024-25, and the same compression flowed into title odds.
+# Point-margin edge to win probability. The right scale depends on what the ratings are:
+# fitted against prior-season ratings it comes out near 10.5, since the fit has to flatten
+# partly-informative predictions. A simulator is handed ratings it treats as true, so the
+# contemporaneous value of 7.0 applies (11,968 games). At 10.5 a +12.7 team projects to 60
+# wins; Oklahoma City won 68 at that rating.
 CONTEMPORANEOUS_MARGIN_SCALE = 7.0
 PRIOR_SEASON_MARGIN_SCALE = 10.5
 DEFAULT_MARGIN_SCALE = CONTEMPORANEOUS_MARGIN_SCALE
@@ -113,22 +101,13 @@ def simulate_season(
 
 
 def balanced_schedule(teams: list[str], games_each: int = 82) -> pd.DataFrame:
-    """A round-robin schedule where every team plays exactly `games_each` games.
+    """Round-robin schedule where every team plays exactly `games_each` games.
 
-    Built by the circle method: one team is held fixed, the rest rotate, and each round
-    pairs them off so every team plays exactly once per round. Home and away alternate by
-    round, so the split is even to within one game.
+    Circle method: hold one team fixed, rotate the rest, pair them off each round. Home and
+    away alternate by round, so the split is even to within one game.
 
-    > The previous implementation enumerated all ordered pairs, repeated the list, and
-    > truncated it to the right total number of games. The total was right and nothing else
-    > was: truncation kept whichever pairs happened to sort first, so teams played between
-    > **70 and 99 games** and hosted between 29 and 58 of them. Philadelphia drew a short
-    > schedule and came out at 34 wins on a rating that deserved 43. A schedule generator is
-    > exactly the kind of plumbing that looks obviously fine and is checked by nobody, so
-    > `tests/test_simulate.py` now asserts the counts.
-
-    Still a stand-in for the real NBA schedule, which is conference-weighted. Good enough for
-    a win *distribution*; replace with the published schedule before quoting seeding odds.
+    A stand-in for the real NBA calendar, which is conference-weighted. Use `nba_schedule` for
+    anything where strength of schedule matters.
     """
     if len(teams) % 2:
         raise ValueError("circle-method scheduling needs an even number of teams")
@@ -163,12 +142,9 @@ def simulate_playoffs(
     in a final, as the league does. Omitting it runs one ladder over the whole field, which
     is only correct if conference has no bearing on who plays whom — it does.
 
-    `rating_sd` redraws each team's rating once per simulated postseason, and leaving it at
-    zero is a mistake worth naming: with the ratings treated as exactly known, the bracket
-    is a near-deterministic ladder and the best team's title odds barely respond to how
-    uncertain the projection actually is. Injecting it in the regular season alone changes
-    win totals and nothing else — the title numbers came out identical at every level of
-    season uncertainty, which is how this surfaced.
+    `rating_sd` redraws each team's rating once per simulated postseason. Leave it at zero and
+    the bracket is a near-deterministic ladder whose title odds barely respond to how uncertain
+    the projection is.
     """
     rng = np.random.default_rng(seed)
     fixed = {team: float(ratings[team]) for team in seeds}
@@ -238,10 +214,9 @@ def nba_schedule(
     divisions: dict[str, str],
     seed: int = 0,
 ) -> pd.DataFrame:
-    """Sample a schedule with the real NBA's structure, when the real one is not yet published.
+    """Sample a schedule with the real NBA's structure, before the calendar is published.
 
-    The league's formula is fixed even though the calendar is not, and it is worth honouring
-    exactly rather than approximating with a round robin:
+    The league's formula is fixed even when the calendar isn't:
 
         4 games   against each of the 4 division rivals            16
         4 games   against 6 of the 10 other conference teams       24
@@ -250,15 +225,13 @@ def nba_schedule(
                                                                    --
                                                                    82
 
-    Only the choice of *which* six conference opponents are played four times is sampled; the
-    counts themselves are not random. Home and away split exactly: 2-2 in the four-game sets,
-    1-1 inter-conference, and the three-game sets are alternated 2-1 and 1-2 so every team
-    lands on **41 home games**.
+    Only which six conference opponents get four games is sampled; the counts aren't random.
+    Home and away split exactly, and the three-game sets are oriented so every team lands on
+    41 home games.
 
-    Why this matters more than a round robin: strength of schedule genuinely differs by
-    conference, and the projection quotes conference-bracket title odds. A balanced round robin
-    hands every team the same opponents, which silently equalises the two conferences and
-    flatters whichever is weaker.
+    Matters because strength of schedule differs by conference and the projection quotes
+    conference-bracket odds. A round robin gives every team the same opponents, which
+    equalises the conferences.
     """
     rng = np.random.default_rng(seed)
     teams = sorted(conferences)

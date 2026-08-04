@@ -1,19 +1,12 @@
-"""A full-league 2026-27 baseline, and the Philadelphia projection built on it.
+"""A full-league 2026-27 baseline and the Philadelphia projection built on it.
 
-Title odds are not a property of one team. Philadelphia's championship probability depends
-entirely on who else is good, so the only way to quote one is to project all thirty rosters
-and simulate the league.
+Title odds aren't a property of one team, so all thirty rosters get projected and the league
+gets simulated. Each team starts from the minutes its players actually played in 2025-26,
+valued at current DARKO, calibrated onto the observed rating scale by `dpm_calibration`.
+Transactions move players between teams and the minutes follow them.
 
-**Construction.** Each team starts from the minutes its players actually played in 2025-26,
-valued at current DARKO, then calibrated onto the observed rating scale by
-`dpm_calibration`. Transactions are applied by moving players between teams and letting the
-minutes follow them.
-
-**The assumption this rests on, stated plainly.** Only the Philadelphia trade is modelled.
-Every other roster is frozen at its 2025-26 shape, so an offseason that reshapes a rival
-is invisible here. That biases *against* nobody in particular but adds real error to every
-team's number, Philadelphia's included — and it means these odds are a snapshot of a league
-that will not exist by opening night, not a forecast of the one that will.
+Only the Philadelphia trade is modelled. Every other roster is frozen at its 2025-26 shape, so
+these odds describe a league that won't exist by opening night.
 """
 
 from __future__ import annotations
@@ -83,17 +76,12 @@ def apply_transactions(
 
 
 def rebalance_minutes(minutes: pd.DataFrame) -> pd.DataFrame:
-    """Fit each team's roster back inside the 240 minutes a game actually provides.
+    """Fit each team's roster back inside the 240 minutes a game provides.
 
-    Acquiring a star does not create playing time — it takes it from whoever was playing.
-    Without this step Philadelphia keeps every 2025-26 rotation minute *and* adds LeBron's
-    1,989 and Brown's 2,443 on top, so the two stars are averaged against a bench that in
-    reality would barely play. That diluted the projection to +0.71 when the same roster
-    under an explicit ten-man rotation is worth +5.1.
-
-    Incoming players are seated by their own minutes, and the squeeze falls on the end of the
-    bench: everyone is ranked by minutes and the roster is trimmed from the bottom until it
-    fits. That is what happens to a team that signs two stars.
+    Acquiring a star takes playing time from whoever was playing. Without this, Philadelphia
+    keeps every 2025-26 rotation minute and adds LeBron's 1,989 and Brown's 2,443 on top,
+    averaging two stars against a bench that wouldn't play. Players are ranked by minutes and
+    the roster is trimmed from the bottom until it fits.
     """
     capacity = TEAM_MINUTES_PER_GAME * GAMES
     kept = []
@@ -117,15 +105,12 @@ def rebalance_minutes(minutes: pd.DataFrame) -> pd.DataFrame:
 def project_games(minutes: pd.DataFrame, games: int | None) -> pd.DataFrame:
     """Re-express minutes as a rate times a projected games-played total.
 
-    Last season's minutes carry last season's injuries. Philadelphia is the sharpest case in
-    the league: Embiid played 38 games, so leaving his total untouched projects him as the
-    tenth-most-used player on his own team and quietly assumes he misses half of 2026-27
-    again. Availability is the single largest variance term on this roster, and burying it
-    inside a minutes column disguises an assumption as data.
+    Last season's minutes carry last season's injuries. Embiid played 38 games, so leaving his
+    total untouched makes him the tenth-most-used player on his own team and assumes he misses
+    half of 2026-27 again.
 
-    `games=None` keeps minutes exactly as played. A number re-rates every player to that
-    many games at his own per-game rate, capped at his observed rate so this can only undo
-    missed time, never invent a bigger role than a player has ever held.
+    `games=None` keeps minutes as played. A number re-rates every player to that many games at
+    his own per-game rate, capped at his observed rate, so it can only undo missed time.
     """
     if games is None:
         return minutes
@@ -214,17 +199,13 @@ def aging_sensitivity(
 ) -> pd.DataFrame:
     """How much one player's decline moves his team, swept over plausible declines.
 
-    No aging is applied to the projection itself, and that is a deliberate refusal rather
-    than an oversight. Aging DPM needs a DPM aging curve, which needs DARKO across seasons;
-    only one snapshot exists here. The curve this project *can* fit is on shot efficiency,
-    and its support collapses exactly where the question lives — 12 player-seasons at age 38,
-    one at 41. Applying an extrapolated curve to the single player it matters most for would
-    dress an assumption up as a measurement.
+    No aging is applied to the projection. Aging DPM needs a DPM aging curve, which needs
+    DARKO across seasons and only one snapshot exists. The curve fittable here is on shot
+    efficiency, and its support collapses where the question lives: 12 player-seasons at 38,
+    one at 41.
 
-    A sweep is the honest substitute: rather than guess the decline, show whether the answer
-    depends on it. For LeBron entering an age-42 season it does not much — a full two points
-    of DPM, far beyond any plausible one-year fall, moves Philadelphia from 9th to 14th and
-    never near contention.
+    Sweeping shows whether the answer depends on the assumption. For LeBron it doesn't much: a
+    full two points of DPM moves Philadelphia from 9th to 14th, never near contention.
     """
     darko = load_darko()
     roster = apply_transactions(load_minutes(2025))

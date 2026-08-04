@@ -1,23 +1,16 @@
 """The 2018-19 shot-clock rule as a natural experiment.
 
-From 2018-19 the clock resets to 14 rather than 24 after an offensive rebound. That gives a
-difference-in-differences with an unusually clean structure, because the treatment is defined
-by a rule rather than by anyone's choice:
+From 2018-19 the clock resets to 14 rather than 24 after an offensive rebound, which gives a
+difference-in-differences where treatment is assigned by rule rather than by choice. Treated:
+chances starting with an offensive rebound. Control: chances starting with a defensive one.
 
-    treated   chances starting with an **offensive** rebound  — reset cut from 24 to 14
-    control   chances starting with a **defensive** rebound   — untouched by the rule
+Both are live-ball rebound starts, so they share the era's pace and officiating drift.
+Restricting the control to defensive rebounds matters, since made-basket and foul starts carry
+dead-ball time that moves for unrelated reasons.
 
-Both are live-ball rebound starts, so they share the era's pace, spacing and officiating
-trends; only one had time taken away from it. Restricting the control to defensive rebounds
-rather than "all other chances" matters: chances beginning after a made basket or a foul
-carry dead-ball time that moves for unrelated reasons.
-
-**Outcomes are measured from the raw feed, not from the reconstruction.** Chance duration
-comes from game-clock differences and points from the play-by-play descriptions. This is
-deliberate — the reconstruction *implements* the rule being tested, so using reconstructed
-shot clocks as the outcome would recover the rule by construction and prove nothing. The
-reconstruction is used only to say where one chance ends and the next begins, a judgment that
-does not depend on the 14-second rule.
+Outcomes come from the raw feed, not the reconstruction: duration from game-clock differences,
+points from descriptions. The reconstruction implements the rule being tested, so using its
+clocks as the outcome would recover the rule by construction.
 """
 
 from __future__ import annotations
@@ -32,19 +25,11 @@ TREATED, CONTROL = "off_rebound", "def_rebound"
 MAX_CHANCE_SECONDS = 24
 SHORT_CLOCK = 14
 
-# 2017-18 is dropped from the design, and the reason is a property of the feed rather than a
-# convenience. The NBA changed how it timestamps play-by-play that season: the share of events
-# immediately following a rebound that carry the *identical* game clock as the rebound jumps
-# from 14.8% (2015-16, 2016-17) to 18.7%, and stays near 18.5% every season after. Because
-# duration here is measured from game-clock differences, and because the change lands
-# specifically on events after rebounds — which is exactly how a treated chance begins — that
-# season measures shorter chances for reasons that have nothing to do with the rule.
-#
-# It is also the only season carrying the new timestamping *and* the old 24-second reset,
-# which is why it showed up as an outlier three separate ways: an anomalous DiD baseline, a
-# 3.1% pile-up of shots at exactly 24 seconds against ~0.5% elsewhere, and a 14-second
-# fingerprint appearing a year early. Including it inflates the standard error on the
-# long-chance effect more than fourfold.
+# 2017-18 is dropped because the feed changed that season. Events immediately after a rebound
+# carrying that rebound's exact game clock jump from 14.8% to 18.7% and stay there. Duration
+# here is a game-clock difference and the change lands on the events that begin a treated
+# chance, so that season measures shorter chances for non-basketball reasons. Including it
+# inflates the long-chance standard error more than fourfold.
 CONTAMINATED_SEASONS = (2017,)
 
 

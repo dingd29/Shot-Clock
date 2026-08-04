@@ -70,17 +70,11 @@ POSSESSION_FEATURES = ["SHOT_CLOCK", "CHANCE_START_TYPE"]
 GAME_STATE_FEATURES = ["PERIOD", "GAME_SECONDS_REMAINING", "IS_CLUTCH", "SCORE_MARGIN"]
 SHOOTER_FEATURES = ["PRIOR_ZONE_FG_PCT", "PRIOR_FGA"]
 
-# Two levels of grouping, and the coarse one is the honest comparison.
-#
-# Ablating `location` alone understates it for exactly the reason `SHOT_CLOCK` alone is
-# understated: **action type substitutes for geometry.** A dunk encodes "at the rim", a pullup
-# encodes mid-range. Valuing possession context against location-alone while explaining shot
-# clock's small solo number by substitution applies the argument in one direction only, and
-# flatters the constructed feature.
-#
-# So the comparison is `{action type + location}` as one geometry block against
-# `{shot clock + chance start}` as one possession block. The fine-grained rows are kept below
-# because they are informative, but no claim rests on comparing them across groups.
+# Groups must be coarse enough to contain their own substitutes. Ablating location alone
+# understates it the same way shot clock alone is understated, since action type substitutes
+# for geometry (a dunk encodes "at the rim"). So geometry is {action type + location} against
+# possession as {shot clock + chance start}. The fine rows below overlap and aren't comparable
+# across groups.
 ABLATION_GROUPS = {
     "geometry (location + action type)": [*LOCATION_FEATURES, "ACTION_TYPE"],
     "possession (shot clock + chance start)": POSSESSION_FEATURES,

@@ -1,22 +1,11 @@
-"""Live win probability, and whether the reconstructed shot clock adds anything to it.
+"""Does the reconstructed shot clock improve a live win-probability model?
 
-The ablation asked whether the shot clock helps predict whether a shot goes in and
-answered no: removing it costs 0.00136 log loss, the smallest group tested. That is the right
-answer to that question and the wrong question to stop on.
+The ablation showed it barely helps predict whether a shot goes in. But continuation value in
+`stopping.py` runs 0.36 to 0.81 across the clock, so it is clearly informative about
+possessions. Game outcomes are the remaining case worth testing.
 
-Shot clock is not about whether the shot you took goes in. It is about whether you get a good
-shot at all — the continuation value in `stopping.py` runs from 0.36 points to 0.81 across the
-clock, a 2.2x range. So the place it should earn its keep is a model of **possession and game
-outcomes**, not shot outcomes.
-
-This is that test. Live win probability from game state, fitted with and without shot-clock
-features, on the same rows and the same time-ordered split. NBA publishes its own per-second
-win probability, so a production benchmark exists — and it is built from a feed that does not
-contain a shot clock, which is exactly why this is worth asking.
-
-**The honest framing.** A win-probability model is dominated by score margin and time
-remaining; nothing else comes close. Any shot-clock contribution will be small in absolute
-terms. The question is whether it is reliably non-zero out of sample, not whether it is large.
+Win probability is dominated by score margin and time remaining, so any contribution will be
+small. The question is whether it is reliably non-zero out of sample, not whether it is large.
 """
 
 from __future__ import annotations

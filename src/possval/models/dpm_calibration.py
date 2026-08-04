@@ -1,20 +1,13 @@
 """Calibrating DPM-implied team ratings against observed ones.
 
-`project.py` converts a roster into a rating by the textbook identity — a team's rating is
-the minutes-weighted sum of its players' DPM, since five on-court slots supply 240
-player-minutes per 48-minute game. That identity is theoretical, and until now nothing in
-this project checked it. It is the reason no title probability has been quoted: an
-uncalibrated level makes an interval meaningless however tight it looks.
+The textbook identity says a team's rating is the minutes-weighted sum of its players' DPM,
+since five on-court slots supply 240 player-minutes per game. That's theoretical. 2025-26 is
+the one season where both halves exist to check it: observed ratings from `nbastatsv3`, and a
+DARKO snapshot covering the players who produced them.
 
-This module closes the loop. 2025-26 is the one season where both halves exist: observed
-team ratings from the `nbastatsv3` feed, and a DARKO snapshot (July 2026) covering the
-players who produced them.
-
-**What the calibration is not.** That DARKO snapshot postdates the season it is being scored
-against, so it has already seen those results. The fitted slope is therefore the right
-correction to apply, but the fit statistics are optimistic and the residual spread is a
-*lower bound* on how wrong a genuine forward projection will be. Reporting it as
-out-of-sample validation would be wrong. n = 30 teams, one season.
+The snapshot postdates the season it's scored against, so the fitted slope is the right
+correction to apply but the fit statistics are optimistic and the residual is a lower bound on
+forward error. n = 30 teams, one season. Not out-of-sample validation.
 """
 
 from __future__ import annotations
