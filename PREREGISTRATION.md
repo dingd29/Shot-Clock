@@ -3,15 +3,13 @@
 **Committed 1 August 2026.** The season tips in October 2026. Nothing below has seen a single
 game of it.
 
-This document exists because every other number in this repository is a backtest, and a
-backtest is a claim about how carefully its author avoided fooling themselves. A prediction
-published before the outcome is the one result that cannot be fitted after the fact. It is
-recorded here with a git tag so the timestamp is checkable, and it will be scored as the
-season runs whether or not it holds up.
+Everything else in this repo is a backtest. A prediction published before the outcome is the
+one thing that can't be fitted after the fact, so this is recorded with a git tag and will be
+scored as the season runs whether or not it holds up.
 
-## The headline claim
+## The claim
 
-**Philadelphia is not a superteam.** The model projects them ninth in the league.
+The model has Philadelphia ninth in the league. Colder than I'd like.
 
 | | Projection |
 |---|---|
@@ -21,16 +19,16 @@ season runs whether or not it holds up.
 | League rank | **9th of 30** |
 | Conference rank | 5th in the East |
 
-If Philadelphia wins 55+ games or reaches the Conference Finals, this projection was too
-cold and the reason will be worth finding.
+If they win 55+ games or reach the Conference Finals, this was too cold and the reason is
+worth finding.
 
 ## Amendments
 
-Recorded rather than made silently — the season has not started, so refining the model is
+Recorded rather than made silently, the season has not started, so refining the model is
 legitimate, but changing a pre-registered number without saying so is the exact failure this
 document exists to prevent.
 
-- **3 August 2026** — the schedule was upgraded from a balanced round robin to a sample under
+- **3 August 2026**, the schedule was upgraded from a balanced round robin to a sample under
   the NBA's real structure (4 games vs division rivals, 4 vs six conference opponents, 3 vs
   the other four, 2 inter-conference). The published calendar is still not out; only the
   opponent draw is sampled. Philadelphia moves 49.0 → **49.2** wins, title unchanged at 2.1%,
@@ -54,11 +52,11 @@ Contenders, by projected title probability:
 
 Full table: [`reports/league_projection_2026_27.csv`](reports/league_projection_2026_27.csv).
 
-## The mechanism, which is the part worth disagreeing with
+## Why the model lands here
 
-A market can price Philadelphia differently and one of us will be wrong for a reason. The
-claim is not "the market is inefficient" — title futures are sharp. It is that **the case for
-Philadelphia as a contender requires believing something specific**, and the model does not:
+A market can price them differently and one of us will be wrong for a reason. The claim isn't
+that the market is inefficient, since title futures are sharp. It's that the case for
+Philadelphia as a contender requires believing something specific, and the model doesn't:
 
 1. **Their base was 18th.** Philadelphia's 2025-26 SRS was −0.31. The trade upgrades a
    middling team; it does not add to a contender.
@@ -67,11 +65,10 @@ Philadelphia as a contender requires believing something specific**, and the mod
    Star acquisitions are worth less to a team whose starters are already decent.
 3. **Three teams are a tier above.** New York, Oklahoma City and San Antonio are five to
    seven points clear and take 72% of simulated titles between them.
-4. **The usage-redundancy story is not the problem.** The hypothesis this project was built
-   to test — that four high-usage creators cost each other efficiency — failed at team level,
-   failed to replicate at lineup level, and lost its head-to-head against a plain usage
-   measure. Philadelphia should not be marked down for offensive fit. The defensible concerns
-   are defence and availability.
+4. **Usage redundancy isn't the problem.** The idea that four high-usage creators cost each
+   other efficiency doesn't hold at team level, doesn't replicate at lineup level, and loses
+   to a plain usage measure. Philadelphia shouldn't be marked down for offensive fit. Defense
+   and availability are the real concerns.
 
 ## What would make this wrong
 
@@ -95,30 +92,29 @@ Stated in advance, so none of it can be claimed as foresight afterwards:
 
 Weekly through the season, against outcomes, published as they come:
 
-- **Game level** — Brier score and log loss on every game, against a naive
+- **Game level**, Brier score and log loss on every game, against a naive
   last-season-rating baseline and the trivial home-team-always baseline. ~1,230 observations,
   the only place with enough data to say anything statistically. *A market baseline is named
   here in an earlier draft and is not built:* it needs closing odds or Kalshi prices archived
   per game, which this repo does not collect. Claiming one without the data would be worse
   than not having it, so the naive rating baseline is the bar.
-- **Win totals** — absolute error against all 30 final records.
-- **Calibration** — do teams given a 30% chance win about 30% of the time, across the buckets.
+- **Win totals**, absolute error against all 30 final records.
+- **Calibration**, do teams given a 30% chance win about 30% of the time, across the buckets.
 
 The title probability is not scored directly and cannot be. One championship is one
 observation; a 2.1% forecast is not refuted by Philadelphia winning, nor confirmed by their
 losing. That asymmetry is why the game-level numbers above are the real test and the title
 line is a derived output.
 
-**The harness is built and running now, before opening night** — `make scorecard`, or
-`python -m possval.pipeline scorecard --season 2026`. That timing is the point: a scoring rule
-written after seeing results is not a scoring rule, it is a choice of the flattering one. It
-currently reports zero games and will score from game one.
+The harness is built and running now (`make scorecard`), which is the point: a scoring rule
+written after seeing results is a choice of the flattering one. It currently reports zero games
+and will score from game one.
 
 Three things are fixed in advance:
 
 - **Predictions are read from the committed file**, `reports/league_projection_2026_27.csv`,
   never recomputed. Regenerating them at scoring time would let a later model version grade
-  itself, which is the exact failure a pre-registration exists to prevent — the code raises
+  itself, which is the exact failure a pre-registration exists to prevent, the code raises
   rather than rebuilding if the file is missing.
 - **Both baselines are named now.** Prior-season SRS is the one that matters: the projection
   layer only earns its keep if modelling rosters beats carrying last year's team strength
@@ -128,7 +124,7 @@ Three things are fixed in advance:
 
 Validated by dry run on 2024-25: scoring contemporaneous ratings returns Brier 0.2005 against
 0.2404 for prior-season SRS and 0.2485 for the trivial baseline, and feeding the baseline in as
-the projection reproduces the baseline's numbers exactly — the identity check that catches
+the projection reproduces the baseline's numbers exactly, the identity check that catches
 mis-wired plumbing. `tests/test_scorecard.py` pins all of it.
 
 *Reproduce:* `make project` to rebuild the projection, `make scorecard` to grade it.
