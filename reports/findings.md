@@ -128,7 +128,27 @@ tell how the chance began, so they contribute no start type of their own and imp
 moves the split. The third row hands every ambiguous attempt to the half-court side, the most
 adverse assumption available, and transition still leads by 17 points.
 
-Reproduce: `possval.clock.validate.low_confidence_sensitivity(2024)`.
+**The same missingness sits under section 2's curve, so it gets the same test.** Testing only the
+finding that prompted the objection is how a check turns into decoration.
+
+| Basis | n | PPA 0-3s | PPA 4-7s | Late decline | PPA 20s+ |
+|---|---|---|---|---|---|
+| Dropped (default) | 207,097 | 0.934 | 1.041 | 0.107 | 1.269 |
+| Imputed at chance start | 215,616 | 0.934 | 1.041 | 0.107 | 1.153 |
+
+The late-clock decline is unchanged to three decimals, and it has to be: **99.6% of the restored
+shots impute to 20 seconds or higher**, because a fabricated reset is a fabricated 24. The drop is
+non-random and it is non-random at the *other end* of the clock from where section 2's claim lives.
+
+The high-clock level is a different matter. Restoring those shots pulls PPA above 20 seconds from
+1.269 to 1.153, so the missing shots are considerably worse than the ones we kept. That doesn't
+touch section 2, which is about the late decline, and it doesn't touch the transition argument
+above, which is about *shares* rather than levels. It does mean the `24-22` bucket level in section
+1 is quoted on a favourable subset, and shouldn't be read as the true efficiency of a shot taken
+immediately after a reset.
+
+Reproduce: `possval.clock.validate.low_confidence_sensitivity(2024)` and
+`low_confidence_curve_sensitivity(2024)`.
 
 ### What the shot model leans on
 
@@ -519,6 +539,11 @@ Improvement: 0.000241 log loss, or 0.050%. Bootstrapped over the 1,230 test *gam
 hundreds of times more information than exists: 95% CI [+0.00014, +0.00035], positive in 100% of
 draws.
 
+That bootstrap holds both fitted models fixed and resamples the test games, which answers whether the
+difference is stable on unseen games but not whether it's stable at all. Both fits carve their
+early-stopping split at random, and the quantity is 2e-4, so refitting is the other half of the
+question. Over five seeds the gain is +0.000233 ± 0.000016 and positive every time.
+
 Reliably non-zero and practically nil. With half a million events the improvement is statistically
 unambiguous and would round to zero in any application.
 
@@ -625,39 +650,40 @@ Reproduce: `make synergy`, `reports/synergy_team_season.csv`.
 
 The obvious objection: a team's top creators don't share the floor for all their minutes, so a real
 five-on-five effect could average away across a season. Testing it required on-court lineups, 5.57M
-events across ten seasons resolved from substitution sequences, giving 3,537 five-man lineup-seasons
-with at least 100 chances together, a prior season of scoring history for their players, and roughly
-a million chances in total.
+events across ten seasons resolved from substitution sequences, giving 3,512 five-man lineup-seasons
+with at least 100 chances together, a prior season of scoring history for their players, and 925,466
+chances in total.
 
 The retest doesn't rescue the idea. It also doesn't cleanly confirm the null, and the reason is worth
 stating, because a single number here would be a choice about which answer to believe:
 
 | Specification | n | Effect of +1 SD overlap (pts/chance) | 95% CI | t |
 |---|---|---|---|---|
-| Season FE, unclustered | 3,537 | +0.0048 | +0.0020, +0.0076 | +3.32 |
-| Season FE, clustered by team-season | 3,537 | +0.0048 | +0.0009, +0.0087 | +2.41 |
-| Team-season FE, clustered | 3,537 | +0.0045 | −0.0011, +0.0100 | +1.58 |
-| Team-season FE, ≥200 chances | 1,392 | +0.0046 | −0.0035, +0.0126 | +1.11 |
-| Team-season FE, ≥400 chances | 503 | −0.0071 | −0.0199, +0.0058 | −1.08 |
-| Team-season FE, ≥800 chances | 179 | −0.0354 | −0.0685, −0.0023 | **−2.09** |
+| Season FE, unclustered | 3,512 | +0.0048 | +0.0020, +0.0077 | +3.30 |
+| Season FE, clustered by team-season | 3,512 | +0.0048 | +0.0008, +0.0088 | +2.35 |
+| Team-season FE, clustered | 3,512 | +0.0056 | +0.0001, +0.0111 | +1.98 |
+| Team-season FE, ≥200 chances | 1,395 | +0.0058 | −0.0021, +0.0138 | +1.44 |
+| Team-season FE, ≥400 chances | 504 | −0.0043 | −0.0175, +0.0089 | −0.64 |
+| Team-season FE, ≥800 chances | 177 | −0.0338 | −0.0615, −0.0060 | **−2.39** |
 
 Three things happen down that table. Clustering matters: these lineups come from 300 team-seasons and
 share players wholesale, since one starter appears in dozens of rows, and treating them as independent
-inflates t from 2.41 to 3.32. Team-season fixed effects matter too, because without them the
+inflates t from 2.35 to 3.30. Team-season fixed effects matter too, because without them the
 coefficient is partly identified by good teams having high-overlap lineups, which is confounded. The
-pooled effect doesn't survive that. And restricting to lineups that actually played, the sign flips
-and the bottom row reaches significance in the direction the hypothesis predicts.
+pooled effect barely survives that, sitting right on the 1.96 line. And restricting to lineups that
+actually played, the sign flips and the bottom row reaches significance in the direction the
+hypothesis predicts.
 
 That bottom row is the one to be most careful with. It's the last cell of a specification curve, it
-rests on 179 lineups, and a formal test of heterogeneity, overlap interacted with log chances, comes
-back at t = +0.60. The drift across thresholds is within noise. Reading the significant cell as the
+rests on 177 lineups, and a formal test of heterogeneity, overlap interacted with log chances, comes
+back at t = +0.35. The drift across thresholds is within noise. Reading the significant cell as the
 answer, having watched five others fail to be, is the exact error a specification curve exists to
 prevent. The honest reading is that neither the positive pooled estimate nor the negative
 heavily-used estimate is robust.
 
 **What this can and can't rule out.** For the heavily-used lineups the Sixers question actually
-concerns (≥800 chances, roughly a starting unit's season), the interval is −0.069 to −0.002 points per
-chance, or −7.9% to −0.3% of league-average efficiency. A large redundancy penalty is still excluded:
+concerns (≥800 chances, roughly a starting unit's season), the interval is −0.062 to −0.006 points per
+chance, or −7.1% to −0.7% of league-average efficiency. A large redundancy penalty is still excluded:
 the 10 to 15% offensive haircut that naive diminishing-returns adjustments apply to multi-creator
 teams sits outside this interval. A modest penalty of a few percent among the most-used lineups is
 consistent with this data and can't be ruled out, and this is the one specification that positively
@@ -678,14 +704,14 @@ identical rows:
 
 | Model | Usage sum | Creation overlap | R² |
 |---|---|---|---|
-| Usage only | +0.0142 (t=8.64) | — | 0.2500 |
-| Creation overlap only | — | +0.0045 (t=1.58) | 0.2319 |
-| Both | +0.0146 (t=8.16) | −0.0020 (t=−0.70) | 0.2502 |
+| Usage only | +0.0138 (t=8.60) | — | 0.2523 |
+| Creation overlap only | — | +0.0056 (t=1.98) | 0.2349 |
+| Both | +0.0140 (t=8.05) | −0.0010 (t=−0.35) | 0.2524 |
 
 Coefficients are points per chance per +1 SD, team-season fixed effects, clustered.
 
 Creation overlap adds nothing. Once usage is in the model its coefficient changes sign and its
-t-statistic falls from 1.58 to −0.70, while usage barely moves. R² rises by two ten-thousandths. The
+t-statistic falls from 1.98 to −0.35, while usage barely moves. R² rises by one ten-thousandth. The
 two correlate 0.33 within a team-season, and on this evidence overlap's standalone effect was that
 shared component. The expensive feature, the one requiring a shot clock that exists in no public
 feed, is a worse version of a measure anyone can compute from a box score.

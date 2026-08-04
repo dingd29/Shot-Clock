@@ -40,17 +40,33 @@ def player_team_map(pbp: pd.DataFrame) -> pd.Series:
 def offensive_lineups(events: pd.DataFrame, teams: pd.Series) -> pd.DataFrame:
     """For every event, the five players on offense and the team they play for.
 
-    Which side is on offense is decided by testing membership: whichever of the two
-    five-man groups contains players belonging to `OFF_TEAM_ID`.
+    Which side is on offense is decided by a **majority vote across all ten slots**: count how
+    many of the five home players and how many of the five away players map to `OFF_TEAM_ID`,
+    and take the side with more.
+
+    An earlier version read a single slot, `HOME_PLAYER1`, and fell back to `AWAY_PLAYER1` when
+    that was unmapped. `teams` is a modal player-to-team map, so a player traded mid-season
+    carries one team all year and every event in the wrong half of his season resolves to the
+    wrong side. One mislabelled slot decided the whole event; now it is outvoted four to one.
     """
     df = events.dropna(subset=["OFF_TEAM_ID"]).copy()
 
-    home_team = df[HOME_COLUMNS[0]].map(teams)
-    away_team = df[AWAY_COLUMNS[0]].map(teams)
-    home_on_offense = home_team == df.OFF_TEAM_ID
+    offense_id = df.OFF_TEAM_ID.to_numpy()[:, None]
+    home_votes = (
+        df[HOME_COLUMNS].apply(lambda col: col.map(teams)).to_numpy() == offense_id
+    ).sum(axis=1)
+    away_votes = (
+        df[AWAY_COLUMNS].apply(lambda col: col.map(teams)).to_numpy() == offense_id
+    ).sum(axis=1)
 
-    # Fall back to the away side's identity where the first home slot is unmapped.
-    home_on_offense = home_on_offense.where(home_team.notna(), away_team != df.OFF_TEAM_ID)
+    # Ties are events where neither five-man group can be matched to the offensive team at all,
+    # usually because the lineup carries players missing from the map. Falling back to "home"
+    # would silently label them; they are dropped instead.
+    df = df[home_votes != away_votes].copy()
+    home_on_offense = pd.Series(
+        home_votes[home_votes != away_votes] > away_votes[home_votes != away_votes],
+        index=df.index,
+    )
 
     offense = np.where(
         home_on_offense.to_numpy()[:, None],

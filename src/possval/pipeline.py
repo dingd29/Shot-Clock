@@ -562,7 +562,12 @@ def cmd_scorecard(season: int) -> None:
 
 def cmd_winprob(first: int, last: int) -> None:
     """Does the reconstructed shot clock add anything to a live win-probability model?"""
-    from possval.models.winprob import bootstrap_difference, compare, load_state
+    from possval.models.winprob import (
+        bootstrap_difference,
+        compare,
+        compare_seeds,
+        load_state,
+    )
 
     pd.set_option("display.width", 200)
     path = PROCESSED / "winprob_state.parquet"
@@ -581,6 +586,11 @@ def cmd_winprob(first: int, last: int) -> None:
     with_clock = scores[scores.model == "base + shot clock"].iloc[0]
     gain = base.log_loss - with_clock.log_loss
     print(f"\nlog-loss improvement {gain:+.6f} ({100 * gain / base.log_loss:+.3f}%)")
+
+    across = compare_seeds(state)
+    print(f"\nrefit over {len(across)} seeds: gain {across.attrs['gain_mean']:+.6f} "
+          f"+/- {across.attrs['gain_sd']:.6f}, positive in {across.attrs['share_positive']:.0%}")
+    across.to_csv(REPORTS / "winprob_by_seed.csv", index=False)
 
     interval = bootstrap_difference(state, n_boot=300)
     print(f"game-clustered bootstrap over {interval['n_games']} games: "

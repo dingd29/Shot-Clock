@@ -19,6 +19,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from possval.features.shots import EXPIRING_SECONDS
 from possval.paths import OFFICIAL_SHOTCLOCK_2024_25
 
 # The four possession starts that account for essentially all shots once the clock is high.
@@ -242,3 +243,75 @@ def low_confidence_sensitivity(season: int = 2024) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def low_confidence_curve_sensitivity(season: int = 2024) -> pd.DataFrame:
+    """The same missingness test, applied to the efficiency curve rather than to finding 3.
+
+    `low_confidence_sensitivity` tests one finding. The same non-random 4% drop sits underneath
+    the efficiency curve in finding 2 and the continuation value in finding 7, and testing only
+    the finding that prompted the objection is how a check becomes decoration.
+
+    The drop concentrates at the *high*-clock end, so the two ends of the curve are not equally
+    exposed: restoring the dropped shots should move the 20s+ region and leave the late-clock
+    region nearly alone. That asymmetry is the thing to look at. The late-clock decline, which
+    is what finding 2 actually claims, is the part that cannot be rescued by imputation because
+    almost none of the missing shots belong there.
+    """
+    from possval.clock import rules as R
+    from possval.ingest import load_season
+    from possval.paths import PROCESSED
+
+    recon = pd.read_parquet(
+        PROCESSED / f"pbp_clock_{season}.parquet",
+        columns=["GAME_ID", "EVENTNUM", "SHOT_CLOCK", "CHANCE_START_TYPE"],
+    )
+    shots = load_season("shotdetail", season)[
+        ["GAME_ID", "GAME_EVENT_ID", "SHOT_MADE_FLAG", "SHOT_TYPE",
+         "MINUTES_REMAINING", "SECONDS_REMAINING"]
+    ]
+    merged = shots.merge(
+        recon.rename(columns={"EVENTNUM": "GAME_EVENT_ID"}),
+        on=["GAME_ID", "GAME_EVENT_ID"],
+        how="inner",
+    )
+    merged["IS_3"] = merged.SHOT_TYPE.astype(str).str.startswith("3").astype(int)
+    merged["PTS"] = merged.SHOT_MADE_FLAG * (2 + merged.IS_3)
+    # Heaves out, matching every other clock-conditioned table.
+    period_left = merged.MINUTES_REMAINING * 60 + merged.SECONDS_REMAINING
+    merged = merged[period_left >= EXPIRING_SECONDS]
+
+    short = R.short_reset_value(season)
+    fallback = np.where(merged.CHANCE_START_TYPE == "off_rebound", short, R.FULL_CLOCK)
+    merged["IMPUTED"] = merged.SHOT_CLOCK.fillna(pd.Series(fallback, index=merged.index))
+
+    rows = []
+    for label, frame, column in [
+        ("dropped (default)", merged[merged.SHOT_CLOCK.notna()], "SHOT_CLOCK"),
+        ("imputed at chance start", merged, "IMPUTED"),
+    ]:
+        second = frame[column].round().clip(0, 24)
+        late = frame[second <= 3].PTS.mean()
+        mid = frame[(second >= 4) & (second <= 7)].PTS.mean()
+        high = frame[second >= 20].PTS.mean()
+        rows.append(
+            {
+                "basis": label,
+                "n_shots": len(frame),
+                "ppa_0_to_3s": round(float(late), 3),
+                "ppa_4_to_7s": round(float(mid), 3),
+                "ppa_20s_plus": round(float(high), 3),
+                # The claim in finding 2 is the late decline; the high-clock column is where
+                # the missingness actually lives.
+                "late_decline": round(float(mid - late), 3),
+                "dropped_share_pct": round(
+                    100 * float(frame[column].isna().mean() if column == "SHOT_CLOCK" else 0), 2
+                ),
+            }
+        )
+    out = pd.DataFrame(rows)
+    out.attrs["n_restored"] = int(merged.SHOT_CLOCK.isna().sum())
+    out.attrs["restored_high_clock_share"] = float(
+        (merged.loc[merged.SHOT_CLOCK.isna(), "IMPUTED"] >= HIGH_CLOCK_SECONDS).mean()
+    )
+    return out

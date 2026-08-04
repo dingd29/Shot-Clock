@@ -165,6 +165,35 @@ def compare(
     return pd.DataFrame(rows)
 
 
+def compare_seeds(
+    state: pd.DataFrame, seeds: tuple[int, ...] = (0, 1, 2, 3, 4), **kwargs
+) -> pd.DataFrame:
+    """`compare` over several seeds, so the measured gain carries a spread.
+
+    The game-clustered bootstrap resamples test games with both models held fixed, which is the
+    right question for "is this difference stable on unseen games" and the wrong one for "is
+    this difference stable at all". Both fits have a random early-stopping split, and the gain
+    being measured is 2e-4. Refitting under different seeds is the missing half.
+    """
+    rows = []
+    for seed in seeds:
+        scores = compare(state, seed=seed, **kwargs).set_index("model")
+        rows.append(
+            {
+                "seed": seed,
+                "base": scores.loc["base", "log_loss"],
+                "with_clock": scores.loc["base + shot clock", "log_loss"],
+                "gain": scores.loc["base", "log_loss"]
+                - scores.loc["base + shot clock", "log_loss"],
+            }
+        )
+    out = pd.DataFrame(rows)
+    out.attrs["gain_mean"] = float(out.gain.mean())
+    out.attrs["gain_sd"] = float(out.gain.std(ddof=1))
+    out.attrs["share_positive"] = float((out.gain > 0).mean())
+    return out
+
+
 def bootstrap_difference(
     state: pd.DataFrame,
     n_boot: int = 200,

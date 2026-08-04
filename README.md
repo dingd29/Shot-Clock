@@ -84,9 +84,9 @@ permutation null, putting the honest range around 0.41 to 0.55.
 Some of the more useful things here are ideas that didn't survive testing.
 
 Creation overlap, a measure of whether players want the ball at the same moments, doesn't
-predict offensive underperformance. Not across 270 team-seasons, not across 3,537 five-man
+predict offensive underperformance. Not across 270 team-seasons, not across 3,512 five-man
 lineups. Run head to head against a plain box-score usage measure, its t-statistic drops from
-1.58 to −0.70 and R² improves by two ten-thousandths. Usage does the same work and anyone can
+1.98 to −0.35 and R² improves by one ten-thousandth. Usage does the same work and anyone can
 compute it from a box score.
 
 A per-player version of the stopping result correlates 0.984 with mean late-clock shot quality.
@@ -228,7 +228,7 @@ exactly `24 − SHOT_CLOCK`, so permuting either one leaves its substitute in pl
 look worthless.
 
 Standard errors are clustered where the variation actually lives: on team-season for lineups
-(3,537 lineups come from 300 clusters and share players), on season for the rule change (nine
+(3,512 lineups come from 300 clusters and share players), on season for the rule change (nine
 clusters, not a million chances). Treating lineups as independent inflated one t-statistic from
 2.9 to 5.0.
 

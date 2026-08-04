@@ -538,7 +538,7 @@ shots. `lineups_for_season` raises if more than 2% of games fail, because a sile
 lineup table would poison every downstream regression while looking healthy.
 
 **Unit.** Lineup-season with ≥100 offensive chances and a prior season of scoring history for its
-players: 3,537 rows, 934,146 chances.
+players: 3,512 rows, 925,466 chances.
 Points come from `event_points`, which reads shot value and free-throw result off the
 play-by-play description (the feed has no column for either). Weighted least squares with
 weight `sqrt(chances)`.
@@ -546,7 +546,7 @@ weight `sqrt(chances)`.
 **Three specification choices, each of which changes the answer**, so all six are reported as
 a specification curve (`reports/lineup_overlap_specifications.csv`) rather than one number:
 
-1. *Clustering by team-season.* 3,537 lineups come from 300 team-seasons and share players
+1. *Clustering by team-season.* 3,512 lineups come from 300 team-seasons and share players
    wholesale. Treating them as independent inflates t from 2.89 to 5.01. Cluster-robust
    sandwich SEs with the standard finite-cluster correction.
 2. *Team-season fixed effects.* Without them the coefficient is partly identified by good
@@ -830,7 +830,7 @@ Closed, with where they landed:
 |---|---|
 | Calibrate the DPM→rating mapping | §10, slope 1.433 ± 0.103; the identity compresses spread by 43% |
 | Free-throw points excluded from PPA | Quantified in findings *Caveats*; the caveat pointed the wrong way, late clock draws *fewer* fouls, so exclusion **understates** the decline |
-| Five-man lineup retest of the overlap null | Findings §11, 3,537 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
+| Five-man lineup retest of the overlap null | Findings §11, 3,512 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
 | Pre-register the projection | `PREREGISTRATION.md`, tag `projection-2026-27`, scoring harness live |
 | Real NBA schedule | Sampled under the league's structure (`nba_schedule`); swap in the published calendar when it is released |
 
