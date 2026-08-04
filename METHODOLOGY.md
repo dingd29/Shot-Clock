@@ -708,12 +708,28 @@ minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See `reports/findi
 
 ## Open items
 
-- **Calibrate the DPM→rating mapping** against 2025-26 results (`nbastatsv3`). Blocks any
-  credible title probability.
-- Real NBA schedule instead of a balanced round robin, before quoting seeding odds —
-  strength of schedule genuinely differs by conference.
-- Free-throw points are excluded from PPA; joining FT events to chances would quantify how
-  much this understates late-clock possessions.
-- Five-man lineup data (`nba_on_court`) to retest the overlap null at the level where
-  redundancy would actually bite.
-- Pre-register the projection with a timestamped tag before opening night (Oct 2026).
+Closed, with where they landed:
+
+| Item | Outcome |
+|---|---|
+| Calibrate the DPM→rating mapping | §10 — slope 1.433 ± 0.103; the identity compresses spread by 43% |
+| Free-throw points excluded from PPA | Quantified in findings *Caveats*; the caveat pointed the wrong way — late clock draws *fewer* fouls, so exclusion **understates** the decline |
+| Five-man lineup retest of the overlap null | §8 — 4,233 lineup-seasons; does not rescue the hypothesis, and it loses its head-to-head against usage |
+| Pre-register the projection | `PREREGISTRATION.md`, tag `projection-2026-27`, scoring harness live |
+| Real NBA schedule | Sampled under the league's structure (`nba_schedule`); swap in the published calendar when it is released |
+
+Still open:
+
+- **The published 2026-27 calendar**, when it appears. The sampler reproduces the league's
+  structure exactly — 2/3/4 meetings, 41 home games — but not the actual opponent draw, and
+  strength of schedule differs by conference.
+- **Defender proximity.** No public feed carries it, so xPTS is a shot-*selection* model. This
+  is a ceiling on the whole shot-quality layer, not a task.
+- **Robustness of the stopping result.** `V(t)` is unconditional: it does not know the score
+  margin, so blowouts and late-game fouling sit inside it. Conditioning on game state is the
+  check most likely to move the relaxation finding.
+- **Per-season stability of the relaxation ratio.** Finding 4c did this for the efficiency
+  curves and it paid off; the stopping result is currently one pooled number.
+- **Role versus judgment in per-player exercise.** Surplus correlates +0.59 with late-clock rim
+  share, so it grades finishers rather than decision-makers. Attributing the choice to the
+  ball-handler would need the passer's option set, which this data does not contain.
