@@ -527,6 +527,41 @@ measurement instrument is a different kind of contribution from a feature that l
 
 ---
 
+## 4g. Three pre-registered follow-ups, none confirmed
+
+Finding 4d raises three obvious questions, and all three could be answered twenty ways until
+one came out interesting. They were **pre-registered before any of them was run** —
+hypotheses, directions, decision rules, and an exploration/holdout split — in
+[`preregistration_exploration.md`](preregistration_exploration.md), committed one commit
+before the analysis code.
+
+| | Hypothesis | Predicted | Observed | Verdict |
+|---|---|---|---|---|
+| H1 | Under-relaxing costs points | positive ρ | +0.251 explore, +0.065 full sample | **Not supported** |
+| H2 | Offenses adapted to the 2018 rule | two-sided | DiD −0.160 vs placebo mean −0.108 (z = −1.9) | **Marginal** |
+| H3 | Creator on floor → lower ratio | **negative** | **+0.065** explore, **+0.001** holdout | **Failed** |
+
+**H1 cannot be answered with this data**, which is different from being answered no. The
+correlation is the right sign and below the |ρ| ≈ 0.36 detectability floor stated in advance,
+and it collapses to +0.065 on the full sample. The holdout is not estimable at all: the ratio
+anchors on the boundary at 23 seconds, and two seasons split thirty ways leaves too few shots
+that late.
+
+**H2's placebos are the story.** Fake rule-years produce DiDs of −0.083 to −0.145 against the
+real −0.160. The effect clears the pre-registered bar, but every placebo being large says a
+secular trend runs through both arms that the design does not remove.
+
+**H3 is the one worth dwelling on.** On exploration the gap was +0.065 and **cleared its
+permutation null** — a defensible-looking result with a ready story about stars changing how
+offenses wait. On held-out seasons it is **+0.001**. It was also the wrong sign from the start.
+
+That is a false positive that would have survived every check this repo normally applies. It
+took a held-out sample to kill it, which is the entire argument for writing the protocol first.
+
+*Reproduce:* logs in `reports/exploration_h*.log`.
+
+---
+
 ## 5. Creation overlap does not predict offensive underperformance — at team level or lineup level
 
 This was the project's headline hypothesis, and **it failed.**

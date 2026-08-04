@@ -89,3 +89,111 @@ better spacing, or coaches who differ on ten other axes. H1 in particular is a *
 between two team attributes** and will be reported as one. The instrument that would fix it —
 knowing what shot was available and declined — does not exist in this data, and that limit is
 the same one that caps finding 4d.
+
+---
+
+# Results
+
+**Run 4 August 2026**, against the protocol above. Every test listed was run; nothing was
+added, dropped, or re-specified after seeing an outcome. Two deviations are recorded below and
+labelled.
+
+## Scoreboard
+
+| | Hypothesis | Predicted | Observed | Verdict |
+|---|---|---|---|---|
+| **H1** | Under-relaxing costs points | positive ρ | +0.251 explore, +0.065 full sample | **Not supported** |
+| **H2** | Offenses adapted to the 2018 rule | two-sided | DiD −0.160 vs placebo mean −0.108 | **Marginal** |
+| **H3** | Creators on floor → lower ratio | **negative** | **+0.065** explore, +0.001 holdout | **Failed** |
+
+**Nothing cleanly confirmed.** That is the expected yield from three honest tests, and it is
+the reason the protocol was written first.
+
+## H1 — not supported
+
+| Window | n | Spearman ρ | One-sided p |
+|---|---|---|---|
+| Exploration, 2015-16 → 2021-22 | 30 | +0.251 | 0.091 |
+| Full sample, 2015-16 → 2024-25 | 30 | +0.065 | 0.367 |
+| Holdout, 2022-23 → 2023-24 | — | **not estimable** | — |
+
+The sign is right and the magnitude is not. +0.251 sits below the |ρ| ≈ 0.36 detectability
+floor stated in advance, and it **falls to +0.065 on the full sample** — a correlation that
+moves that much with the window is not a finding.
+
+*The holdout could not be run, and the reason is a real constraint rather than an excuse.* The
+relaxation ratio is anchored on the boundary at 23 seconds, and two seasons split thirty ways
+leaves each team with too few shots that late to estimate one. The code now raises
+`InsufficientData` rather than returning a number, which is how this was discovered.
+
+**So the honest statement is not "under-relaxing is costless" — it is that this test cannot
+tell.** A team-level correlation at n = 30 was underpowered from the start, and the
+pre-registration said so before the number came back.
+
+## H2 — marginal, and the placebos are the story
+
+Difference-in-differences on the boundary gap, treated = offensive-rebound chances, control =
+defensive-rebound chances, 2017-18 excluded for the timestamping artifact:
+
+| Cut point | DiD |
+|---|---|
+| 2016 (placebo) | −0.127 |
+| **2018 (real rule)** | **−0.160** |
+| 2019 (placebo) | −0.145 |
+| 2020 (placebo) | −0.093 |
+| 2021 (placebo) | −0.091 |
+| 2022 (placebo) | −0.083 |
+
+Placebo mean −0.108, SD 0.027, **z = −1.94**. The real cut is the largest in magnitude and
+sits outside the placebo range, which satisfies the pre-registered decision rule — but only
+just, and the rule was arguably too lenient.
+
+**Every placebo is large and negative.** That is the finding worth taking from this: a strong
+secular trend in the boundary gap runs through both arms, and the difference-in-differences
+does not remove it. An effect only 1.9 SD from what fake rule-years produce is not something
+to build on. The nearest placebo, 2019, is adjacent to the real change and plausibly
+contaminated by it; dropping it lifts z to −3.1, but that exclusion is **post hoc** and is not
+claimed.
+
+**Verdict: suggestive, not established.** Teams may have adapted. This design cannot separate
+adaptation from drift.
+
+## H3 — failed, and it is the most useful result here
+
+| Window | Gap (with creator − without) | Permutation null max | Exceeds null? |
+|---|---|---|---|
+| Exploration | **+0.0646** | 0.0506 | **yes** |
+| Holdout | +0.0011 | 0.0728 | no |
+
+Two independent failures:
+
+1. **The direction was wrong.** I predicted lineups with a high-usage creator would relax
+   *more slowly* — more reason to keep waiting. Both windows came back positive.
+2. **It did not replicate.** The exploration gap cleared its permutation null. On held-out
+   data it is **+0.001**, indistinguishable from zero.
+
+**This is exactly the false positive the protocol exists to catch.** Without a holdout I would
+have reported a +0.065 gap that beat its own null — a defensible-looking finding, with a story
+about stars changing how offenses wait, and it would have been wrong.
+
+## Deviations from the protocol
+
+Both recorded because concealing them would defeat the point.
+
+1. **H3's group definition was changed before any outcome was computed.** The registered "top
+   quartile of players with ≥200 FGA" put a creator on the floor for **99% of chances** — not a
+   split. Replaced with the top 15 by FGA per season, which gives 44/56. The threshold was
+   chosen from on-floor share alone, with no outcome inspected; the sweep is in the log.
+2. **H2 has no holdout, and the protocol should not have implied one.** The rule change is a
+   one-time event in 2018-19, inside the exploration window, so later seasons cannot confirm
+   it. The placebo cut-points carry that load instead. This was a design error in the
+   registration, not a result-driven change.
+
+## What this cost, and what it bought
+
+Three hypotheses, zero confirmations, one marginal. On raw output that is a poor day.
+
+What it bought is the ability to say which of these numbers to trust — and the answer for all
+three is *not much*, stated in advance rather than discovered by a reader. The H3 exploration
+result in particular would have survived every check this repo normally applies. It took a
+held-out sample to kill it.

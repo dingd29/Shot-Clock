@@ -1,0 +1,15 @@
+[EXPLORE 2015-2021] n=30 null=0.0893 signal=39%
+   spearman(ratio, pts/chance) rho=+0.251  two-sided p=0.181  one-sided p=0.091
+   pearson raw ratio: +0.234
+
+Traceback (most recent call last):
+  File "/private/tmp/claude-501/-Users-davidding/ade81969-d1e3-4e17-b921-811417a5e1e1/scratchpad/h1.py", line 25, in <module>
+    hold,rho_h = run(2022,2023,'HOLDOUT 2022-2023')
+                 ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/private/tmp/claude-501/-Users-davidding/ade81969-d1e3-4e17-b921-811417a5e1e1/scratchpad/h1.py", line 11, in run
+    null=team_relaxation_null(ss,cp,n_draws=20,min_shots=1500)
+  File "/Users/davidding/Shot-Clock/src/possval/models/stopping.py", line 561, in team_relaxation_null
+    raise InsufficientData(
+        "no permutation draw produced enough teams to estimate a null spread"
+    )
+possval.models.stopping.InsufficientData: no permutation draw produced enough teams to estimate a null spread

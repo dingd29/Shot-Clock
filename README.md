@@ -108,6 +108,12 @@ These are here because they are the reason to trust the rest.
   Getting there meant finding that **the NBA changed its play-by-play timestamping in
   2017-18**, one season before the rule; dropping that season cut the standard error fourfold
   and turned an apparent null into a small real effect.
+- **Three pre-registered follow-ups, none confirmed.** Hypotheses, directions and decision
+  rules were [committed before the analysis](reports/preregistration_exploration.md), with an
+  exploration/holdout split. One failed outright, one is uninformative, one is marginal. The
+  failure is the instructive part: it cleared its permutation null on exploration (+0.065) and
+  came back at **+0.001** on held-out seasons — a false positive that would have survived every
+  check applied elsewhere in this repo.
 - **An earlier, friendlier claim was withdrawn.** Possession context was reported as worth
   about as much as shot location. Grouping action type with location — a dunk encodes "at the
   rim" — geometry is worth **3.8×** more. What survives is 13.6% of model gain.
