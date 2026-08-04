@@ -316,6 +316,16 @@ def relaxation(
     for quantile in quantiles:
         boundary = exercise_boundary(shots, values, quantile=quantile).set_index("SECOND")
         late, early = LATE_SECONDS, EARLY_SECONDS
+        # The ratio is anchored on specific seconds, and a thin subsample can fail to populate
+        # them — a two-season slice split thirty ways leaves some teams with too few shots at
+        # 23 seconds to clear the reporting threshold. Fail with the reason rather than a bare
+        # KeyError from the index.
+        missing = [t for t in (late[0], early[1]) if t not in boundary.index]
+        if missing:
+            raise InsufficientData(
+                f"no boundary estimate at second(s) {missing}; "
+                f"{len(shots):,} shots is too few to anchor the ratio"
+            )
         boundary_drop = float(boundary.BOUNDARY[early[1]] - boundary.BOUNDARY[late[0]])
         value_drop = float(boundary.V_CONT[early[1]] - boundary.V_CONT[late[0]])
         rows.append(
@@ -453,6 +463,10 @@ def robustness(shots: pd.DataFrame, panel: pd.DataFrame) -> pd.DataFrame:
 MIN_TEAM_SHOTS = 5_000
 
 
+class InsufficientData(ValueError):
+    """A subsample too thin to anchor the relaxation ratio at its endpoint seconds."""
+
+
 def team_relaxation(
     shots: pd.DataFrame,
     panel: pd.DataFrame,
@@ -483,7 +497,11 @@ def team_relaxation(
         chances = panel[panel.TEAM == team]
         if len(taken) < min_shots or chances.empty:
             continue
-        ratios = relaxation(taken, continuation_value(chances, min_chances=min_chances))
+        try:
+            ratios = relaxation(taken, continuation_value(chances, min_chances=min_chances))
+        except InsufficientData:
+            # Dropping the team is right: an unanchored ratio is not a low ratio.
+            continue
         rows.append(
             {
                 "TEAM": team,
@@ -492,6 +510,12 @@ def team_relaxation(
                 "relaxation_ratio": float(ratios.relaxation_ratio.mean()),
                 "excess_late_demand": float(ratios.excess_late_demand.mean()),
             }
+        )
+    if not rows:
+        # Every team was too thin to anchor a ratio. Returning an empty frame with the right
+        # columns keeps callers (and the permutation null) from failing on a missing key.
+        return pd.DataFrame(
+            columns=["TEAM", "n_chances", "n_shots", "relaxation_ratio", "excess_late_demand"]
         )
     result = pd.DataFrame(rows).sort_values("relaxation_ratio").reset_index(drop=True)
     if null_sd is not None and len(result) > 1:
@@ -510,6 +534,8 @@ def team_relaxation_null(
     panel: pd.DataFrame,
     n_draws: int = 20,
     seed: int = 0,
+    min_shots: int = MIN_TEAM_SHOTS,
+    min_chances: int = 50,
 ) -> dict:
     """How much team-to-team spread appears when team labels are meaningless.
 
@@ -524,6 +550,15 @@ def team_relaxation_null(
         rng = np.random.default_rng(seed + draw)
         fake_panel = panel.assign(TEAM=rng.choice(teams, len(panel)))
         fake_shots = shots.assign(TEAM_ABBREVIATION=rng.choice(teams, len(shots)))
-        result = team_relaxation(fake_shots, fake_panel)
-        spreads.append(float(result.relaxation_ratio.std(ddof=1)))
+        # Thresholds must match the real call exactly. Letting the null keep its defaults
+        # while the observed estimate used looser ones compares two different calculations.
+        result = team_relaxation(
+            fake_shots, fake_panel, min_shots=min_shots, min_chances=min_chances
+        )
+        if len(result) > 1:
+            spreads.append(float(result.relaxation_ratio.std(ddof=1)))
+    if not spreads:
+        raise InsufficientData(
+            "no permutation draw produced enough teams to estimate a null spread"
+        )
     return {"null_spreads": spreads, "null_mean": float(np.mean(spreads))}

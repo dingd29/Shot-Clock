@@ -170,6 +170,9 @@ def cmd_score(first: int, last: int) -> None:
         # Game state, so the stopping model can condition on it: an unconditional V(t) has
         # blowouts and late-game fouling folded into it.
         "PERIOD", "SCORE_MARGIN",
+        # Keys back to the chance and the play-by-play event, so shots can be joined to
+        # on-court lineups without re-deriving anything.
+        "GAME_EVENT_ID", "CHANCE_ID",
     ]
     # Fail loudly rather than filtering: quietly dropping an absent column is how
     # TEAM_ABBREVIATION went missing here once already, taking IS_HOME down with it.
