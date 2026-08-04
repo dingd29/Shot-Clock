@@ -21,6 +21,16 @@ import pandas as pd
 
 from possval.paths import OFFICIAL_SHOTCLOCK_2024_25
 
+# The four possession starts that account for essentially all shots once the clock is high.
+# Finding 3 reports shares *among these*, which matters: at 20 seconds they are 99% of
+# attempts, but at 5 seconds only 75%, the rest being made free throws and defensive fouls.
+# Comparing a 5-second share against a 20-second one is comparing different denominators
+# unless that is said out loud.
+MAIN_START_TYPES = ("after_made_fg", "after_turnover", "def_rebound", "off_rebound")
+
+# "Early clock" for the transition argument in finding 3: at least this many seconds left.
+HIGH_CLOCK_SECONDS = 20
+
 # NBA's published buckets, in clock order. Upper bound exclusive, lower bound inclusive,
 # except the final bucket which includes 0.
 BUCKETS: list[tuple[str, float, float]] = [
@@ -144,3 +154,79 @@ def report(shots_with_clock: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     official = load_official()
     recon = build_reconstructed_shots(shots_with_clock)
     return compare_league_wide(recon, official), compare_per_player(recon, official)
+
+
+def low_confidence_sensitivity(season: int = 2024) -> pd.DataFrame:
+    """Put the dropped low-confidence shots back and see whether finding 3 survives.
+
+    The reconstruction sets the clock to NaN wherever a reset had to be invented, and those
+    rows are dropped rather than imputed — the right default, since fabricating a 24 would
+    corrupt the bucket distribution more than dropping does (METHODOLOGY §2).
+
+    But the drop is **not random**: low-confidence rows concentrate in the high-clock region,
+    which is precisely where finding 3 lives. So the finding is drawn from data missing
+    disproportionately at its own end, and that deserves a test rather than an argument.
+
+    Three bases are compared over the high-clock region:
+
+    ``dropped``        the default — 4.2% of shots absent.
+    ``imputed``        every dropped shot restored at its chance's start value (24, or 14 for
+                       a frontcourt reset). 86% of them carry an ``inferred_*`` start type,
+                       meaning the reconstruction could not classify how the chance began, so
+                       they contribute no start type of their own.
+    ``worst case``     the same restoration, but every unclassifiable shot is *counted as a
+                       half-court start*. This is the most adverse assumption available:
+                       finding 3 claims the early clock is dominated by transition, and this
+                       hands every ambiguous attempt to the other side.
+
+    If the conclusion holds under the third basis it cannot be an artifact of the missingness.
+    """
+    from possval.clock import rules as R
+    from possval.ingest import load_season
+    from possval.paths import PROCESSED
+
+    recon = pd.read_parquet(
+        PROCESSED / f"pbp_clock_{season}.parquet",
+        columns=["GAME_ID", "EVENTNUM", "SHOT_CLOCK", "CHANCE_START_TYPE"],
+    )
+    shots = load_season("shotdetail", season)[["GAME_ID", "GAME_EVENT_ID"]]
+    merged = shots.merge(
+        recon.rename(columns={"EVENTNUM": "GAME_EVENT_ID"}),
+        on=["GAME_ID", "GAME_EVENT_ID"],
+        how="inner",
+    )
+
+    short = R.short_reset_value(season)
+    fallback = np.where(merged.CHANCE_START_TYPE == "off_rebound", short, R.FULL_CLOCK)
+    merged["IMPUTED"] = merged.SHOT_CLOCK.fillna(pd.Series(fallback, index=merged.index))
+    merged["WAS_DROPPED"] = merged.SHOT_CLOCK.isna()
+
+    worst = merged.CHANCE_START_TYPE.where(
+        ~(merged.WAS_DROPPED & ~merged.CHANCE_START_TYPE.isin(MAIN_START_TYPES)),
+        "after_made_fg",
+    )
+
+    bases = [
+        ("dropped (default)", merged[~merged.WAS_DROPPED], "SHOT_CLOCK", None),
+        ("imputed at chance start", merged, "IMPUTED", None),
+        ("worst case: unclassified = half-court", merged, "IMPUTED", worst),
+    ]
+
+    rows = []
+    for label, frame, column, override in bases:
+        second = frame[column].round().clip(0, 24)
+        starts = (override.loc[frame.index] if override is not None
+                  else frame.CHANCE_START_TYPE)
+        high = starts[second >= HIGH_CLOCK_SECONDS]
+        main = high[high.isin(MAIN_START_TYPES)]
+        share = main.value_counts(normalize=True) * 100
+        transition = float(share.get("after_turnover", 0) + share.get("def_rebound", 0))
+        rows.append(
+            {
+                "basis": label,
+                "n_shots": len(high),
+                "half_court_pct": round(float(share.get("after_made_fg", 0)), 1),
+                "transition_pct": round(transition, 1),
+            }
+        )
+    return pd.DataFrame(rows)

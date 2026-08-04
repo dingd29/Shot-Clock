@@ -4,6 +4,12 @@
 Points per attempt (PPA) counts field-goal points only — free throws are excluded, since
 `shotdetail` contains no FT rows. Method and validation: [METHODOLOGY.md](../METHODOLOGY.md).
 
+**Buzzer-beater heaves are excluded throughout findings 1-3** — shots with under 3 seconds of
+*game* clock left in the period, 1.85% of attempts. They are not shot-clock decisions, and a
+third of all shots at 1 second or less on the shot clock are one. Leaving them in made the
+late-clock collapse look **36% steeper than it is**; see the note in finding 2. Every number
+below is on the excluded-heaves basis, flagged in the data as `GAME_CLOCK_EXPIRING`.
+
 ---
 
 ## 1. NBA's published buckets hide the steepest part of the curve
@@ -18,44 +24,83 @@ actually changes, so the reported bucket average conceals very different amounts
 | 18-15 | 1.122 | 1.111 – 1.131 | 0.020 |
 | 15-7 | 1.096 | 1.047 – 1.132 | 0.085 |
 | 7-4 | 1.037 | 1.009 – 1.049 | 0.040 |
-| **4-0** | 0.879 | **0.708 – 0.989** | **0.281** |
+| **4-0** | 0.933 | **0.831 – 0.989** | **0.158** |
 
-The `4-0` bucket reports a single number, 0.879, for a region where true efficiency falls
-from 0.989 to 0.708 — a **28% swing collapsed into one figure**. Meanwhile `18-15` spans a
-range of just 0.020 and is genuinely well summarised by its average.
+The `4-0` bucket reports a single number, 0.933, for a region where true efficiency falls
+from 0.989 to 0.831 — a **17% swing collapsed into one figure**, and the second-widest spread
+of the six. Meanwhile `18-15` spans a range of just 0.020 and is genuinely well summarised by
+its average.
+
+(With heaves left in, `4-0` reads 0.879 over a 0.708–0.989 range. Almost the entire apparent
+extra spread was buzzer-beaters, which is the point of excluding them.)
 
 A team studying its own late-clock offense from the published splits cannot distinguish a
 possession that dies with 4 seconds left from one that dies with 1. Those are very different
 outcomes.
 
-## 2. The late-clock collapse is real, and it is not a selection artifact
+## 2. Efficiency declines steeply into the late clock — descriptively
 
-PPA falls from **1.047 at 7 seconds to 0.708 at 0 seconds** — a drop of 0.339 (SE ≈ 0.020,
-so roughly 17 standard errors). It holds across every possession-start type:
+**PPA falls from 1.047 at 7 seconds to 0.831 at 0 seconds, a drop of 0.216.** Stated
+carefully, because two things have to be said about that number.
 
-| Start type | PPA at 0s | PPA at 7s |
-|---|---|---|
-| After made FG | 0.742 | 1.043 |
-| After defensive rebound | 0.599 | 1.020 |
-| After turnover | 0.629 | 1.016 |
-| After offensive rebound | 0.679 | 1.091 |
+**What it is not: a causal estimate of time pressure.** Possessions surviving to 5 seconds are
+selected on everything earlier having failed — the pass that was not there, the drive that was
+cut off. Conditioning on how the possession *started* does not address selection on what
+happened *during* it, and no version of this curve can. The honest statement is descriptive:
+*conditional on possession-start type, observed efficiency declines as the clock runs down.*
+Whether time pressure degrades shot quality, or bad possessions are simply the ones that last,
+is **not identified here**. Finding 3 makes exactly this argument about the early-clock end of
+the curve, and finding 2 is held to the same standard. The identification strategy is the
+optimal-stopping model in the open items — conditioning on the *decision* rather than the
+*outcome* is what dissolves the selection problem.
 
-Because the collapse appears identically no matter how the possession began, it reflects
-genuine deterioration in shot quality under time pressure rather than a difference in which
-possessions survive that long.
+**What it is: a lower bound on the descriptive decline.** Two measurement biases push in
+opposite directions, and the net is conservative:
 
-**The mechanism is visible in the shot mix.** As the clock runs out, teams are forced off the
-rim and into contested mid-range jumpers:
+- *Heaves inflated it.* Buzzer-beaters are now excluded, which cut the 0s→7s figure from
+  0.339 to **0.216** — 36% of the apparent collapse was end-of-period garbage, not late-clock
+  offense.
+- *Clock error attenuates what remains.* Every documented reconstruction error biases clocks
+  **high** (missed resets rather than invented ones — METHODOLOGY §2, §4), so genuinely-late
+  shots are placed one bucket early, flattening the true decline. eFG is biased high by
+  1.78pp, worst late.
+- *Excluding free throws attenuates it too.* Late clock draws **fewer** fouls, not more: 2.1%
+  of chances produce a free throw at 0s against 13.6% at 20s (see Caveats).
+
+So 0.216 is a floor on the descriptive decline once heaves are removed, not a possibly-inflated
+figure.
+
+**It holds across every possession-start type, though not uniformly:**
+
+| Start type | PPA at 7s | PPA at 0s | Drop | n at 0s |
+|---|---|---|---|---|
+| After made FG | 1.043 | 0.886 | −0.157 | 1,203 |
+| After turnover | 1.016 | 0.750 | −0.266 | 180 |
+| After defensive rebound | 1.020 | 0.671 | −0.349 | 292 |
+| After offensive rebound | 1.091 | 0.489 | −0.603 | 176 |
+
+The sign is the same everywhere, which is what rules out the decline being an artifact of one
+start type. The *magnitude* varies four-fold and the three smallest groups have under 300
+attempts at 0s, so the ordering should not be over-read. (An earlier version of this table
+described the collapse as appearing "identically" across start types; that was true only with
+heaves included, which flattened the differences by adding near-zero attempts everywhere.)
+
+**The shot mix moves as the clock runs out.** Teams end up off the rim and in the mid-range:
 
 | Clock | Rim share | Mid share | 3PT share |
 |---|---|---|---|
 | 23s | 65.3% | 11.3% | 23.4% |
 | 15s | 26.1% | 29.3% | 44.6% |
 | 5s | 20.6% | 38.3% | 41.1% |
-| 0s | 16.3% | 33.6% | 50.1% |
+| 0s | 17.4% | **44.6%** | 38.0% |
 
-Rim attempts fall by three quarters. The 3PT share spike at 0s is desperation heaves, not
-good looks — which is why PPA keeps falling even as three-point rate rises.
+Rim attempts fall by nearly three quarters, and the mid-range share nearly quadruples.
+
+*This table also validates the heave exclusion.* With buzzer-beaters left in, the 3PT share at
+0s read **50.1%** and had to be explained away as desperation launches. Excluding them the
+spike disappears — 3PT share at 0s is 38.0%, *below* its 15s peak — and the pattern is a clean
+monotone shift from rim to mid-range. The previous explanation was correct about what those
+shots were; removing them makes the explanation unnecessary.
 
 ## 3. Early-clock efficiency is mostly transition, not "shooting early"
 
@@ -69,12 +114,36 @@ beginning after a made basket — a dead-ball, half-court start — PPA is essen
 
 | Clock | After made FG | After turnover | After def. rebound |
 |---|---|---|---|
-| 5s | 57.7% of shots | 9.9% | 22.0% |
+| 5s | 57.7% | 9.9% | 22.0% |
 | 20s | **7.5%** | **34.3%** | **54.5%** |
+
+Shares are **among the four main possession starts** (made FG, turnover, defensive rebound,
+offensive rebound), which is worth stating because the denominators differ: those four are 99%
+of attempts at 20 seconds but only 75% at 5 seconds, the remainder being made free throws and
+defensive fouls. Comparing the rows without that caveat compares different bases.
 
 At 20 seconds remaining, only 7.5% of shots come from a half-court inbound start, while 34%
 come off live-ball turnovers. Those are fast breaks against a broken defense. The clock is a
 *proxy* for transition, not a cause of efficiency.
+
+**The 4.2% of shots dropped for low clock confidence do not explain this.** The drop is not
+random — it concentrates at the high-clock end, exactly where this finding lives — so the
+objection is fair and gets a test rather than an argument. Restoring every dropped shot at its
+chance's start value, over the region at or above 20 seconds:
+
+| Basis | n | Half-court | Transition |
+|---|---|---|---|
+| Dropped (default) | 17,319 | 7.4% | **84.0%** |
+| Imputed at chance start | 26,421 | 10.5% | **81.3%** |
+| Worst case: every unclassifiable shot counted as half-court | 26,421 | 38.6% | **55.8%** |
+
+86% of the dropped shots carry an `inferred_*` start type — the reconstruction could not tell
+how the chance began — so they contribute no start type of their own and imputation barely
+moves the split. The third row is the stress test: hand *every* ambiguous attempt to the
+half-court side, the most adverse assumption available, and transition still leads by 17
+points. The conclusion is not an artifact of the missingness.
+
+*Reproduce:* `possval.clock.validate.low_confidence_sensitivity(2024)`.
 
 **Practical implication:** "shoot earlier in the clock" is not supported by this data. What is
 supported is "generate live-ball turnovers and defensive rebounds," because those create the
@@ -184,14 +253,21 @@ They are not. Every season's efficiency curve has the same shape:
 
 | | 2015-16 | 2017-18 | 2020-21 | 2022-23 | 2024-25 |
 |---|---|---|---|---|---|
-| PPA at 0s | 0.696 | 0.630 | 0.663 | 0.725 | 0.708 |
+| PPA at 0s | 0.788 | 0.793 | 0.791 | 0.845 | 0.831 |
 | PPA at 7s | 0.963 | 1.010 | 1.038 | 1.046 | 1.047 |
 | PPA at 20s | 1.284 | 1.172 | 1.263 | 1.297 | 1.254 |
-| **Rise, 0s → 7s** | 0.268 | 0.380 | 0.376 | 0.321 | **0.339** |
+| **Rise, 0s → 7s** | 0.176 | 0.218 | 0.247 | 0.201 | **0.216** |
 
-Across all ten seasons the 0s→7s rise averages **0.342 with a standard deviation of 0.035**,
-and the 7s→20s rise averages 0.238 (SD 0.047). Correlating each season's centred curve against
-2024-25's gives **r ≥ 0.939 in every season**, and ≥ 0.988 in eight of ten.
+Across all ten seasons the 0s→7s rise averages **0.211 with a standard deviation of 0.022**,
+and the 7s→20s rise averages 0.238 (SD 0.047). Excluding heaves makes the late-clock figure
+*more* stable, not less — the standard deviation falls from 0.035 to 0.022 while the mean
+drops, because buzzer-beater frequency varied by season and was adding noise as well as bias.
+
+Correlating each season's centred curve against 2024-25's gives **r ≥ 0.967 for every season
+under the 14-second rule** (2018-19 onward), rising to 0.99. Pre-2018 seasons sit lower, at
+0.82–0.91, which is expected rather than troubling: the 14-second reset changes the shape of
+the curve around 14 seconds, so a pre-rule season *should* correlate less well with a post-rule
+one. That the split falls exactly at the rule is itself a check.
 
 The whole curve drifts *upward* over the decade — league efficiency rose, as it did on every
 other measure — but the shape does not move. The late-clock collapse is not a property of one
@@ -447,6 +523,11 @@ optimistic. These odds describe a league that will not exist on opening night.
 
 ## Caveats
 
+- **Buzzer-beater heaves are excluded** from findings 1-3 (game clock under 3 seconds, 1.85%
+  of shots), flagged as `GAME_CLOCK_EXPIRING`. The threshold is a judgment call but the result
+  does not rest on it: sweeping it over ten seasons, the 0s→7s rise is 0.212 at a 2-second cut
+  and 0.206 at 8 seconds, against 0.342 with no cut. Essentially the whole contamination is
+  sub-2-second heaves.
 - **The free-throw caveat was backwards, and is now measured.** Findings 1-3 exclude free
   throws, because `shotdetail` carries no FT rows. This was recorded as a reason finding 2
   might *overstate* the late-clock penalty, on the assumption that late clock draws more
@@ -464,6 +545,9 @@ optimistic. These odds describe a league that will not exist on opening night.
   on the reset instant. Small sample, treated as noise.
 - 4.2% of shots have no reconstructed clock (low-confidence chances) and are excluded rather
   than imputed. See METHODOLOGY.md §2.
-- The curves in findings 1-3 are 2024-25. The backfill now covers ten seasons, and finding 4b
-  uses all of it; re-cutting the continuous curves per season to test their stability across
-  the sample is not yet done.
+- The curves in findings 1-3 are 2024-25; finding 4c re-cuts them per season across all ten.
+- **The decline in finding 2 is descriptive, not causal**, and no amount of conditioning on
+  possession-start type makes it causal — selection happens *within* the chance. The
+  identification strategy is an optimal-stopping model: compare the value of shooting now
+  against the continuation value of holding, which conditions on the decision rather than the
+  outcome. That work is next.

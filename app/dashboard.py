@@ -103,9 +103,21 @@ with st.container():
     team = mid.selectbox("Team", teams)
     min_fga = right.slider("Minimum attempts (player views)", 50, 600, 200, step=50)
 
+# Exposed as a control rather than applied silently: it moves the headline late-clock number
+# by 36%, and a filter that large should be something the reader can switch off and see.
+keep_heaves = st.checkbox(
+    "Include buzzer-beater heaves (shots with under 3s of game clock left)",
+    value=False,
+    help="A third of shots at 1s or less on the shot clock are end-of-period heaves. They "
+         "are near-worthless attempts, not shot-clock decisions, and they sit exactly where "
+         "the late-clock findings live.",
+)
+
 view = shots[season == shots.SEASON]
 if team != "All teams":
     view = view[team == view.TEAM_ABBREVIATION]
+if not keep_heaves:
+    view = view[view.GAME_CLOCK_EXPIRING == 0]
 
 tab_curve, tab_valid, tab_rule, tab_grade, tab_late, tab_proj, tab_data = st.tabs(
     ["Efficiency curve", "Validation", "2018-19 rule change", "Shot Quality Grade",
@@ -118,7 +130,8 @@ with tab_curve:
     st.subheader("Field-goal points per attempt, by second on the shot clock")
     st.caption(
         "The continuous curve NBA's six published buckets cannot show. Free throws are "
-        "excluded — shot detail carries no FT rows."
+        "excluded — shot detail carries no FT rows. Buzzer-beater heaves are excluded too "
+        "unless the box above is ticked; toggling it is the quickest way to see why."
     )
 
     by_zone = st.toggle("Split by shot zone", value=False)
@@ -169,7 +182,9 @@ with tab_curve:
     c.metric("~20s remaining", f"{at20:.3f}", f"{at20 - at7:+.3f} vs 7s")
 
     st.info(
-        "**The early-clock advantage is mostly transition, not shooting early.** "
+        "**Descriptive, not causal.** Possessions surviving to 5 seconds are selected on "
+        "everything earlier having failed, so this curve does not identify time pressure as "
+        "the cause. Relatedly: **the early-clock advantage is mostly transition.** "
         "At 20s remaining only ~7% of shots come from a half-court inbound start, against "
         "~34% off live-ball turnovers. Restricted to possessions that began after a made "
         "basket, the curve is nearly flat from 12s to 21s.",

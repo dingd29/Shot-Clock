@@ -51,11 +51,15 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
 [`METHODOLOGY.md`](METHODOLOGY.md).
 
 1. **NBA's buckets hide the steepest part of the curve.** The `4-0` bucket reports one
-   number, 0.879 points per attempt, for a region where efficiency actually runs from 0.989
-   down to 0.708 — a 28% swing collapsed into a single figure.
-2. **The late-clock collapse is real**, −0.339 points per attempt from 7s to 0s, and holds
-   across every possession-start type. Rim attempts fall by three quarters as teams get
-   forced into contested mid-range jumpers.
+   number, 0.933 points per attempt, for a region where efficiency actually runs from 0.989
+   down to 0.831 — a 17% swing collapsed into a single figure.
+2. **Efficiency declines steeply into the late clock** — −0.216 points per attempt from 7s to
+   0s, same sign across every possession-start type, with rim attempts falling by nearly three
+   quarters and the mid-range share nearly quadrupling. Reported **descriptively**: possessions
+   surviving to 5 seconds are selected on everything earlier having failed, so this is not a
+   causal estimate of time pressure. Getting there needs the optimal-stopping model.
+   *Buzzer-beater heaves are excluded* — a third of shots at ≤1s on the shot clock also have
+   under 3 seconds of game clock, and leaving them in made the collapse look 36% steeper.
 3. **Early-clock efficiency is mostly transition, not "shooting early."** Controlling for how
    the possession began flattens the curve from 12s to 21s. At 20s remaining, only ~7% of
    shots come from a half-court start against ~34% off live-ball turnovers. The clock is a
@@ -70,8 +74,9 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    rebound's exact clock jump from 14.7% to 18.7% and stay. Dropping the contaminated season
    cut the standard error fourfold and turned an apparent null on efficiency into a small
    negative effect.
-6. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.342 ± 0.035,
-   and each season's curve shape correlates r ≥ 0.939 with 2024-25's.
+6. **The efficiency curves replicate in all ten seasons** — the 0s→7s rise is 0.211 ± 0.022,
+   and within the 14-second-rule era each season's curve shape correlates r ≥ 0.967 with
+   2024-25's.
 7. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
 8. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against

@@ -164,6 +164,9 @@ def cmd_score(first: int, last: int) -> None:
         "PLAYER_ID", "PLAYER_NAME", "TEAM_ABBREVIATION", "SEASON", "GAME_ID",
         "SHOT_CLOCK", "CHANCE_START_TYPE", "SHOT_ZONE_BASIC", "SHOT_DISTANCE",
         "IS_3", "IS_HOME", "SHOT_MADE_FLAG", "PTS", "XPTS",
+        # Carried so downstream consumers can drop buzzer-beater heaves without
+        # re-deriving the rule. See features/shots.EXPIRING_SECONDS.
+        "PERIOD_SECONDS_REMAINING", "GAME_CLOCK_EXPIRING",
     ]
     # Fail loudly rather than filtering: quietly dropping an absent column is how
     # TEAM_ABBREVIATION went missing here once already, taking IS_HOME down with it.
