@@ -16,7 +16,7 @@ season runs whether or not it holds up.
 | | Projection |
 |---|---|
 | Net rating | **+3.5** points per game |
-| Wins | **49.0**, 80% interval **36-61** |
+| Wins | **49.2**, 80% interval **37-61** |
 | Title probability | **2.1%** |
 | League rank | **9th of 30** |
 | Conference rank | 5th in the East |
@@ -24,21 +24,33 @@ season runs whether or not it holds up.
 If Philadelphia wins 55+ games or reaches the Conference Finals, this projection was too
 cold and the reason will be worth finding.
 
+## Amendments
+
+Recorded rather than made silently — the season has not started, so refining the model is
+legitimate, but changing a pre-registered number without saying so is the exact failure this
+document exists to prevent.
+
+- **3 August 2026** — the schedule was upgraded from a balanced round robin to a sample under
+  the NBA's real structure (4 games vs division rivals, 4 vs six conference opponents, 3 vs
+  the other four, 2 inter-conference). The published calendar is still not out; only the
+  opponent draw is sampled. Philadelphia moves 49.0 → **49.2** wins, title unchanged at 2.1%,
+  rank unchanged at 9th. Every figure below is post-amendment.
+
 ## The rest of the league
 
 Contenders, by projected title probability:
 
 | Team | Rating | Wins | 80% interval | Title |
 |---|---|---|---|---|
-| NYK | +10.5 | 63.1 | 53-73 | 30.1% |
-| OKC | +10.7 | 63.1 | 53-72 | 28.0% |
-| SAS | +8.8 | 59.7 | 48-70 | 14.2% |
-| DEN | +6.0 | 54.0 | 42-66 | 5.2% |
-| CLE | +5.2 | 52.4 | 40-64 | 4.8% |
-| HOU | +5.0 | 52.1 | 40-64 | 3.5% |
-| BOS | +4.4 | 50.8 | 38-63 | 3.2% |
-| TOR | +4.0 | 50.1 | 37-62 | 2.4% |
-| **PHI** | **+3.5** | **49.0** | **36-61** | **2.1%** |
+| NYK | +10.5 | 63.9 | 54-73 | 29.2% |
+| OKC | +10.7 | 64.1 | 54-73 | 28.7% |
+| SAS | +8.8 | 60.7 | 50-71 | 14.3% |
+| DEN | +6.0 | 54.0 | 42-66 | 5.0% |
+| CLE | +5.2 | 53.0 | 41-65 | 4.8% |
+| HOU | +5.0 | 52.4 | 40-64 | 3.5% |
+| BOS | +4.4 | 51.4 | 39-63 | 3.2% |
+| TOR | +4.0 | 50.2 | 37-63 | 2.7% |
+| **PHI** | **+3.5** | **49.2** | **37-61** | **2.1%** |
 
 Full table: [`reports/league_projection_2026_27.csv`](reports/league_projection_2026_27.csv).
 
@@ -83,9 +95,12 @@ Stated in advance, so none of it can be claimed as foresight afterwards:
 
 Weekly through the season, against outcomes, published as they come:
 
-- **Game level** — Brier score and log loss on every game, against a market baseline and a
-  naive last-season-rating baseline. ~1,230 observations, the only place with enough data to
-  say anything statistically.
+- **Game level** — Brier score and log loss on every game, against a naive
+  last-season-rating baseline and the trivial home-team-always baseline. ~1,230 observations,
+  the only place with enough data to say anything statistically. *A market baseline is named
+  here in an earlier draft and is not built:* it needs closing odds or Kalshi prices archived
+  per game, which this repo does not collect. Claiming one without the data would be worse
+  than not having it, so the naive rating baseline is the bar.
 - **Win totals** — absolute error against all 30 final records.
 - **Calibration** — do teams given a 30% chance win about 30% of the time, across the buckets.
 

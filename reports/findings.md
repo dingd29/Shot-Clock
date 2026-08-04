@@ -598,7 +598,7 @@ points per team.
 | Scenario | Rating | Wins | 80% interval | Title | League rank |
 |---|---|---|---|---|---|
 | Minutes as played (injuries repeat) | +2.50 | **47.1** | 34-60 | 1.5% | 11th |
-| Health-adjusted (70 games each) | +3.49 | **49.0** | 36-61 | **2.1%** | 9th |
+| Health-adjusted (70 games each) | +3.49 | **49.2** | 37-61 | **2.1%** | 9th |
 
 **The superteam is a 47-49 win team with roughly a 2% title chance.** That is the headline,
 and it is much colder than the premise. Three things drive it:

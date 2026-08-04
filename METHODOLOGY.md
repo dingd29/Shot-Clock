@@ -701,7 +701,7 @@ at 41. `aging_sensitivity` sweeps the decline instead of guessing it: LeBron los
 moves Philadelphia from 9th to 11th, and a 2.0 collapse to 14th. The answer does not turn on
 the assumption, which is the only reason omitting it is acceptable.
 
-**Philadelphia: +3.49, 49.0 wins (36-61), 2.1% title, 9th of 30** under health-adjusted
+**Philadelphia: +3.49, 49.2 wins (37-61), 2.1% title, 9th of 30** under health-adjusted
 minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See `reports/findings.md` §6.
 
 ---

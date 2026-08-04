@@ -136,7 +136,7 @@ result that cannot be fitted after the fact — not because the point estimate i
 standard errors away. Simulating all 30 teams (conference brackets, 20,000 seasons,
 year-over-year rating uncertainty of 3.95):
 
-**Philadelphia projects to 49.0 wins (36-61), a 2.1% title chance, and 9th in the league.**
+**Philadelphia projects to 49.2 wins (37-61), a 2.1% title chance, and 9th in the league.**
 
 **Read the interval, not the point.** The slope is fitted at n = 30 on a single season; the
 DARKO snapshot postdates the season it is scored against, so its residual is a floor rather
@@ -154,8 +154,13 @@ to 70 games each is worth a full point of rating.
 ## Pre-registered
 
 The 2026-27 projection is committed before opening night, with a timestamped tag:
-[PREREGISTRATION.md](PREREGISTRATION.md). Everything else here is a backtest; that one is not,
-and it will be scored on game-level Brier and log loss as the season runs.
+[PREREGISTRATION.md](PREREGISTRATION.md). Everything else here is a backtest; that one is not.
+
+**The scoring harness is already built and running** (`make scorecard`) — before the season,
+which is the only time it can be written honestly. Predictions are read from the committed
+file and never recomputed, both baselines are named in advance, and results append to
+`reports/scorecard_log.csv` so the running record lives in git history. Amendments made
+between commitment and opening night are logged in the document itself.
 
 ## Layout
 
