@@ -243,10 +243,18 @@ def report(
     """
     full = chance_table(first, last)
     table = full[~full.SEASON.isin(CONTAMINATED_SEASONS)] if drop_contaminated else full
+    # Ordered deliberately: first stage, then behaviour, then the outcome anyone cares about.
+    #
+    # `RAN_LONG` is **not a result**. After 2018-19 an offensive rebound under 14 seconds
+    # resets to exactly 14, so a treated chance essentially cannot run past 14s except through
+    # the `max(remaining, 14)` case. Finding that the rule cut long chances confirms the rule
+    # took effect and that the reset is implemented correctly — a manipulation check, and a
+    # good one given the flat pre-trend and the sharp step, but it is close to mechanically
+    # guaranteed by the treatment and must not be presented as a behavioural finding.
     outcomes = {
-        "RAN_LONG": "P(chance lasts past 14s)",
-        "DURATION": "chance duration (seconds)",
-        "PTS": "points per chance",
+        "RAN_LONG": "first stage: P(chance lasts past 14s)",
+        "DURATION": "reduced form: chance duration (seconds)",
+        "PTS": "RESULT: points per chance",
     }
     estimates = pd.DataFrame(
         [
@@ -277,4 +285,65 @@ def report(
             index="outcome", columns="baseline", values="change"
         ),
         "event_studies": {c: event_study(table, c) for c in outcomes},
+    }
+
+
+def treatment_label_agreement(season: int = 2024) -> dict:
+    """Check treatment assignment against the feed's own rebound bookkeeping.
+
+    Treatment here is "the chance began with an offensive rebound", and the reconstruction
+    decides that by comparing the rebounding team to the team that took the last shot. Error in
+    that labelling is measurement error *in treatment*, which attenuates the estimate toward
+    zero — so it is worth bounding rather than assuming small.
+
+    **What the classification does and does not touch.** It uses the feed's team ids and event
+    ordering plus our own tracking of who shot last. It does not use the reconstructed shot
+    clock, the 14-second rule, or anything downstream of them, so treatment cannot be
+    contaminated by the outcome. (The repo's claim that "outcomes never touch the
+    reconstruction" is about outcomes; this is the matching statement for treatment, and it is
+    weaker — treatment does depend on the reconstruction's chance-boundary logic, just not on
+    its clock arithmetic.)
+
+    The independent label comes from the description text, which carries each player's running
+    offensive and defensive rebound counters — `REBOUND (Off:1 Def:2)`. Whichever counter
+    increments identifies the type, from the feed's bookkeeping rather than our inference.
+    """
+    columns = [
+        "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PLAYER1_ID",
+        "CHANCE_ID", "CHANCE_START_TYPE", "HOMEDESCRIPTION", "VISITORDESCRIPTION",
+    ]
+    events = pd.read_parquet(
+        PROCESSED / f"pbp_clock_{season}.parquet", columns=columns
+    ).sort_values(["GAME_ID", "EVENTNUM"]).reset_index(drop=True)
+
+    # A rebound row belongs to the chance it *ends*; the chance it *starts* is the next one.
+    next_start = events.groupby("GAME_ID").CHANCE_START_TYPE.shift(-1)
+    next_id = events.groupby("GAME_ID").CHANCE_ID.shift(-1)
+    events["STARTS"] = np.where(next_id > events.CHANCE_ID, next_start, None)
+
+    rebounds = events[events.EVENTMSGTYPE == 4].copy()
+    text = rebounds.HOMEDESCRIPTION.fillna("") + " " + rebounds.VISITORDESCRIPTION.fillna("")
+    counters = text.str.extract(r"Off:(\d+)\s+Def:(\d+)")
+    rebounds["OFF"] = pd.to_numeric(counters[0])
+    rebounds["DEF"] = pd.to_numeric(counters[1])
+    rebounds = rebounds.dropna(subset=["OFF", "DEF"])
+
+    by_player = rebounds.groupby(["GAME_ID", "PLAYER1_ID"])
+    offensive, defensive = by_player.OFF.diff(), by_player.DEF.diff()
+    # A player's first rebound of the game has no predecessor; the counters are the increment.
+    offensive = offensive.fillna(rebounds.OFF)
+    defensive = defensive.fillna(rebounds.DEF)
+    rebounds["FEED"] = np.where(
+        offensive == 1, TREATED, np.where(defensive == 1, CONTROL, None)
+    )
+
+    comparable = rebounds[
+        rebounds.FEED.notna() & rebounds.STARTS.isin([TREATED, CONTROL])
+    ]
+    agreement = float((comparable.STARTS == comparable.FEED).mean())
+    return {
+        "n_compared": len(comparable),
+        "agreement": agreement,
+        "n_disagree": int((comparable.STARTS != comparable.FEED).sum()),
+        "confusion": pd.crosstab(comparable.STARTS, comparable.FEED),
     }

@@ -210,15 +210,25 @@ the chance boundaries, a judgment independent of the 14-second rule.
 nine clusters, because the identifying variation is between seasons, not between a million
 chances.
 
-| Outcome | DiD | SE | t |
-|---|---|---|---|
-| P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
-| Chance duration (s) | −0.202 | 0.042 | −4.81 |
-| Points per chance | −0.0159 | 0.0063 | −2.52 |
+| | Outcome | DiD | SE | t |
+|---|---|---|---|---|
+| First stage | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
+| Reduced form | Chance duration (s) | −0.202 | 0.042 | −4.81 |
+| **Result** | **Points per chance** | **−0.0159** | 0.0063 | **−2.52** |
+
+> **The first row is a manipulation check, not a result.** After 2018-19 an offensive rebound
+> under 14 seconds resets to exactly 14, so a treated chance essentially cannot run past 14s
+> except through `max(remaining, 14)`. Confirming that long chances vanished confirms the rule
+> took effect and the reset is implemented correctly — necessary, and the flat pre-trend plus
+> sharp step are what a clean first stage looks like — but it is close to mechanically implied
+> by the treatment, and presenting it as the headline would be reading the treatment back out
+> of itself. `report` labels the three rows accordingly.
 
 The long-chance share falls 9.1% → 1.4% and stays; the surviving 1.4% is the
 `max(remaining, 14)` case, where an early rebound keeps a clock above 14. The event study is
-flat pre-rule (−0.0007, 0.000) and steps at 2018-19.
+flat pre-rule (−0.0007, 0.000) and steps at 2018-19. Mean duration falls only 0.20s — second
+chances already averaged 6.1s, so the allowance was mostly unexercised optionality, which is
+also why the efficiency effect is small.
 
 The efficiency result is the weakest of the three and is reported as suggestive: negative in
 all seven post-rule seasons, but the two remaining pre-seasons differ from each other by 0.014,
@@ -287,19 +297,43 @@ worthless. `CLOCK_ELAPSED` was dropped and feature groups are valued by **refitt
 them** — "what if I never had this information", which is the question that matters for a
 feature we went to trouble to construct.
 
-| Removed | Log-loss cost | Share of total model gain |
-|---|---|---|
-| Action type | 0.00892 | 13.9% |
-| Game state | 0.00812 | 12.7% |
-| Location (distance, x/y, angle, zones) | 0.00484 | 7.6% |
-| **Shot clock + chance start type** | **0.00396** | **6.2%** |
-| Shooter prior | 0.00184 | 2.9% |
-| Shot clock alone | 0.00136 | 2.1% |
+**Groups must be coarse enough to contain their own substitutes.** Ablating `location` alone
+understates it for exactly the reason `SHOT_CLOCK` alone is understated: **action type
+substitutes for geometry.** A dunk encodes "at the rim", a pullup encodes mid-range. An earlier
+version of this table valued possession context against location-*alone* while explaining shot
+clock's small solo number by substitution — applying the argument in one direction only, which
+flattered the constructed feature.
 
-Possession context is worth roughly as much as *every shot-location feature combined* —
-and location is what every public xPTS model already has. Shot clock alone is smaller because
-chance start type partially substitutes for it; the two are correlated by construction, since
-transition possessions carry a high clock.
+The honest comparison groups each block with its substitutes:
+
+| Removed | Log-loss cost | Share of gain |
+|---|---|---|
+| **Geometry** (location + action type) | **0.01519** | **52.2%** |
+| Game state | 0.00812 | 27.9% |
+| **Possession** (shot clock + chance start) | **0.00396** | **13.6%** |
+| Shooter prior | 0.00184 | 6.3% |
+
+**Geometry is worth 3.8× possession context.** The previous claim — that possession context is
+worth about as much as every location feature combined — does not survive grouping action type
+where it belongs, and is withdrawn.
+
+What survives is smaller and still worth stating: possession context carries **13.6% of total
+model gain**, from two features, neither of which exists in any public feed. That is a real
+contribution to a shot-quality model, just not a rival to knowing where the shot came from.
+
+Fine-grained detail, kept because it is informative but **not comparable across groups** (the
+rows overlap the coarse blocks and each other):
+
+| Removed | Log-loss cost |
+|---|---|
+| Action type alone | 0.00892 |
+| Location alone | 0.00524 |
+| Chance start type alone | 0.00290 |
+| Shot clock alone | 0.00136 |
+
+Shot clock alone is smallest because chance start type substitutes for it — the two are
+correlated by construction, since transition possessions carry a high clock. That is the same
+substitution argument, now applied symmetrically to both sides.
 
 **Known ceiling:** no public feed carries shot-level defender proximity. This is a
 shot-*selection* model, not a contested-ness model, and the "making" residual below absorbs

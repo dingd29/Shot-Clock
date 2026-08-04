@@ -62,6 +62,39 @@ GBM_CATEGORICAL = [
     "CHANCE_START_TYPE",
 ]
 
+LOCATION_FEATURES = [
+    "SHOT_DISTANCE", "LOC_X", "LOC_Y", "SHOT_ANGLE", "IS_3",
+    "SHOT_ZONE_BASIC", "SHOT_ZONE_AREA", "SHOT_ZONE_RANGE",
+]
+POSSESSION_FEATURES = ["SHOT_CLOCK", "CHANCE_START_TYPE"]
+GAME_STATE_FEATURES = ["PERIOD", "GAME_SECONDS_REMAINING", "IS_CLUTCH", "SCORE_MARGIN"]
+SHOOTER_FEATURES = ["PRIOR_ZONE_FG_PCT", "PRIOR_FGA"]
+
+# Two levels of grouping, and the coarse one is the honest comparison.
+#
+# Ablating `location` alone understates it for exactly the reason `SHOT_CLOCK` alone is
+# understated: **action type substitutes for geometry.** A dunk encodes "at the rim", a pullup
+# encodes mid-range. Valuing possession context against location-alone while explaining shot
+# clock's small solo number by substitution applies the argument in one direction only, and
+# flatters the constructed feature.
+#
+# So the comparison is `{action type + location}` as one geometry block against
+# `{shot clock + chance start}` as one possession block. The fine-grained rows are kept below
+# because they are informative, but no claim rests on comparing them across groups.
+ABLATION_GROUPS = {
+    "geometry (location + action type)": [*LOCATION_FEATURES, "ACTION_TYPE"],
+    "possession (shot clock + chance start)": POSSESSION_FEATURES,
+    "game state": GAME_STATE_FEATURES,
+    "shooter prior": SHOOTER_FEATURES,
+}
+
+ABLATION_GROUPS_FINE = {
+    "action type alone": ["ACTION_TYPE"],
+    "location alone": LOCATION_FEATURES,
+    "shot clock alone": ["SHOT_CLOCK"],
+    "chance start type alone": ["CHANCE_START_TYPE"],
+}
+
 
 @dataclass
 class SeasonSplit:

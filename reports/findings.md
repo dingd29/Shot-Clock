@@ -202,14 +202,21 @@ design. Doing so cuts the standard error on the long-chance effect more than fou
 
 931,897 chances across nine seasons, 199,857 treated, standard errors clustered on season.
 
-| Outcome | DiD | SE | t |
-|---|---|---|---|
-| P(chance lasts past 14s) | **−0.0223** | 0.0016 | **−13.77** |
-| Chance duration (seconds) | **−0.202** | 0.042 | **−4.81** |
-| Points per chance | −0.0159 | 0.0063 | −2.52 |
+| | Outcome | DiD | SE | t |
+|---|---|---|---|---|
+| **First stage** | P(chance lasts past 14s) | −0.0223 | 0.0016 | −13.77 |
+| **Reduced form** | Chance duration (seconds) | −0.202 | 0.042 | −4.81 |
+| **Result** | **Points per chance** | **−0.0159** | 0.0063 | **−2.52** |
 
-**The rule bound almost entirely on the tail.** The share of second chances running past 14
-seconds collapses the year it takes effect and never returns:
+**The first row is a manipulation check, not a finding.** After 2018-19 an offensive rebound
+with under 14 seconds left resets to exactly 14, so a treated chance essentially *cannot* run
+past 14 seconds. Confirming that long chances vanished confirms the rule took effect and that
+the reconstruction implements the reset correctly — worth establishing, and the flat pre-trend
+and sharp step are exactly what a clean first stage should look like. It is not evidence about
+behaviour, and reading it as the headline effect would be reading the treatment back out of
+itself.
+
+The first stage is nonetheless strong, which is what licenses the rest:
 
 | | 2015-16 | 2016-17 | **2018-19** | 2019-20 | … | 2024-25 |
 |---|---|---|---|---|---|---|
@@ -222,14 +229,16 @@ treated-minus-control gap sits at −0.0007 and 0.000 in the two pre-seasons, th
 error — a team rebounding early enough keeps a clock above 14, since the reset is
 `max(remaining, 14)`.
 
-Mean duration fell only 0.20 seconds, because second chances already averaged 6.1 seconds
-before the rule. The 24-second allowance was mostly optionality, and most of it went
-unexercised.
+**The behavioural response is small.** Mean duration fell only 0.20 seconds, because second
+chances already averaged 6.1 seconds before the rule. The 24-second allowance was mostly
+optionality, and most of it went unexercised — which is the reduced-form fact worth carrying
+forward, and the reason the efficiency effect is small too.
 
-### Did it cost offenses anything? Probably a little
+### The result: did it cost offenses anything? Probably a little
 
-**−0.016 points per chance, about −1.8% of second-chance efficiency, and this is the weakest
-of the three results.** It is negative in all seven post-rule seasons, which is not nothing.
+**−0.016 points per chance, about −1.8% of second-chance efficiency. This is the finding** —
+the only one of the three rows that is about behaviour rather than about the rule — and it is
+also the weakest of the three statistically. It is negative in all seven post-rule seasons, which is not nothing.
 But with 2017-18 removed the pre-period is two seasons, and those two differ from each other
 by 0.014 — nearly the size of the estimate. One post-season (2022-23, −0.030) carries much of
 the average.
@@ -239,7 +248,19 @@ all**, which was wrong for an instructive reason — the contaminated season inf
 standard error enough to bury a real signal. Removing bad data made a null into a finding,
 which is the opposite of the usual direction and worth stating plainly.
 
-*Reproduce:* `python -m possval.pipeline rulechange`.
+**Treatment assignment is not contaminated either, and this is checkable.** The design rests
+on classifying each chance as beginning with an offensive or a defensive rebound; error there
+is measurement error *in treatment*, which attenuates the estimate. The classification uses the
+feed's team ids and event ordering plus our tracking of who shot last — never the reconstructed
+clock or the 14-second rule, so it cannot inherit the outcome.
+
+It agrees with an independent label **99.815% of the time** (105,827 rebounds, 196
+disagreements). That independent label is the feed's own bookkeeping: descriptions carry each
+player's running rebound counters, `REBOUND (Off:1 Def:2)`, and whichever increments identifies
+the type. At that rate, attenuation from treatment misclassification is negligible.
+
+*Reproduce:* `python -m possval.pipeline rulechange`;
+`possval.models.rulechange.treatment_label_agreement(2024)`.
 
 ---
 

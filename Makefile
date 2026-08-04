@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy project test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy ablate rulechange project test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -31,6 +31,12 @@ lineups:  ## derive on-court lineups from substitutions
 
 synergy:  ## lineup-level overlap test + head-to-head against usage
 	$(PY) -m possval.pipeline lineup-test --first $(FIRST) --last $(LAST)
+
+ablate:  ## value feature groups by refitting without them
+	$(PY) -m possval.pipeline ablate --first $(FIRST) --last $(LAST)
+
+rulechange:  ## the 2018-19 rule as a difference-in-differences
+	$(PY) -m possval.pipeline rulechange --first $(FIRST) --last $(LAST)
 
 project:  ## calibrate DPM and simulate 2026-27 for all thirty teams
 	$(PY) -m possval.pipeline project --games 70

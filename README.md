@@ -64,12 +64,17 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    the possession began flattens the curve from 12s to 21s. At 20s remaining, only ~7% of
    shots come from a half-court start against ~34% off live-ball turnovers. The clock is a
    proxy for transition, not a cause of efficiency.
-4. **Possession context is worth about as much as shot location** in the xPTS model — 6.2% of
-   total model gain against 7.6% for every location feature combined, by ablation.
-5. **The 2018-19 rule change, and the feed artifact hiding inside it.** A
-   difference-in-differences over 932k chances — offensive rebounds treated, defensive
-   rebounds control — kills 83% of long second chances (9.1% → 1.4% past 14s, t = −13.8).
-   Getting there meant finding that **the NBA changed its play-by-play timestamping in
+4. **Possession context carries 13.6% of xPTS model gain** by ablation — from two features
+   that exist in no public feed. Shot geometry is worth 3.8× more, and saying so matters: an
+   earlier version compared possession context against *location alone* while explaining shot
+   clock's small solo number by substitution. Action type substitutes for location the same
+   way, so the groups are now coarse enough to contain their own substitutes and the older,
+   friendlier claim is withdrawn.
+5. **The 2018-19 rule change cost offenses about 1.8% of second-chance efficiency**
+   (−0.016 points per chance, t = −2.5) — a difference-in-differences over 932k chances,
+   offensive rebounds treated, defensive rebounds control. The 83% collapse in long second
+   chances (9.1% → 1.4%) is reported as the **first stage**, not the result: it is close to
+   mechanically implied by the reset. Getting there meant finding that **the NBA changed its play-by-play timestamping in
    2017-18**, one season before the rule: events immediately after a rebound sharing that
    rebound's exact clock jump from 14.7% to 18.7% and stay. Dropping the contaminated season
    cut the standard error fourfold and turned an apparent null on efficiency into a small
@@ -79,8 +84,9 @@ Full write-up in [`reports/findings.md`](reports/findings.md); method and audit 
    2024-25's.
 7. **Creation overlap does not predict offensive underperformance**, at team level or lineup
    level — and loses its head-to-head against a plain usage measure. See below.
-8. **The DPM→rating identity compresses spread by 43%** (fitted slope 1.433 ± 0.103 against
-   observed 2025-26 ratings), which is why the projection could not be levelled before.
+All eight findings are about possessions and shots — the layer built here. A separate
+projection layer sits on top of it and is scoped in its own section below, deliberately kept
+out of this list.
 
 ## The Sixers question, and a hypothesis that failed
 
@@ -106,12 +112,29 @@ ten-thousandth. The expensive feature, the one requiring a shot clock that exist
 feed, turns out to be a worse version of something computable from a box score. That is
 reported as the headline result rather than buried.
 
-**The projection, now calibrated.** The DPM→rating mapping is fitted against observed
-2025-26 ratings: **slope 1.433 ± 0.103** — the textbook identity compresses spread by 43%, and
-1.0 is over four standard errors away. Simulating all 30 teams (conference brackets, 20,000
-seasons, year-over-year rating uncertainty of 3.95):
+---
+
+## The projection layer, and what it does not rest on
+
+**This section is scoped separately on purpose.** Everything above is built from possessions
+and validated against data this repo produces. The projection is a different kind of object:
+it depends on **someone else's impact metric** (DARKO), and it emits a headline number more
+precise-looking than its inputs support. It is kept because the pre-registration is the one
+result that cannot be fitted after the fact — not because the point estimate is strong.
+
+**Calibrated.** The DPM→rating mapping is fitted against observed 2025-26 ratings:
+**slope 1.433 ± 0.103** — the textbook identity compresses spread by 43%, and 1.0 is over four
+standard errors away. Simulating all 30 teams (conference brackets, 20,000 seasons,
+year-over-year rating uncertainty of 3.95):
 
 **Philadelphia projects to 49.0 wins (36-61), a 2.1% title chance, and 9th in the league.**
+
+**Read the interval, not the point.** The slope is fitted at n = 30 on a single season; the
+DARKO snapshot postdates the season it is scored against, so its residual is a floor rather
+than an estimate; aging is omitted by design and swept instead; and `rating_sd` is chosen by a
+defensible but discretionary argument that moves the favourite's title odds between 26% and
+39%. The 80% win interval spans 25 games. Anyone reading 2.1% as a precise quantity is reading
+it wrong, and the [pre-registration](PREREGISTRATION.md) says so in advance.
 
 The superteam is not one. Their 2025-26 base was 18th (SRS −0.31); LeBron at 41 plus Brown
 minus Paul George is about +2 DPM, and it displaces bench minutes rather than bad starters.

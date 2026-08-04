@@ -293,6 +293,38 @@ def cmd_backfill(first: int, last: int) -> None:
             print(f"  FAILED: {type(exc).__name__}: {exc}", flush=True)
 
 
+def cmd_ablate(first: int, last: int) -> None:
+    """Value feature groups by refitting without them."""
+    from possval.features import build_shot_features
+    from possval.models.xpts import ABLATION_GROUPS, ABLATION_GROUPS_FINE, ablate
+
+    features = build_shot_features(load_all_shots(first, last))
+    groups = {**ABLATION_GROUPS, **ABLATION_GROUPS_FINE}
+    result = ablate(features, groups)
+
+    base = result[result.removed == "full_model"].iloc[0]
+    result["share_of_gain"] = result.logloss_cost / result[
+        result.removed.isin(ABLATION_GROUPS)
+    ].logloss_cost.sum()
+
+    pd.set_option("display.width", 200)
+    print(f"\n=== ablation (test = 2024-25, full-model log loss {base.log_loss:.5f}) ===")
+    print("share_of_gain is over the four coarse groups only; the fine rows overlap them.")
+    coarse = result[result.removed.isin(ABLATION_GROUPS)]
+    fine = result[result.removed.isin(ABLATION_GROUPS_FINE)]
+    cols = ["removed", "logloss_cost", "auc_cost", "share_of_gain"]
+    print("\ncoarse groups:")
+    print(coarse[cols].sort_values("logloss_cost", ascending=False)
+          .round(5).to_string(index=False))
+    print("\nfine detail (overlapping; not comparable across groups):")
+    print(fine[cols[:-1]].sort_values("logloss_cost", ascending=False)
+          .round(5).to_string(index=False))
+
+    out = REPORTS / "ablation.csv"
+    result.to_csv(out, index=False)
+    print(f"\nwritten: {out}")
+
+
 def cmd_project(n_sims: int, games: int | None, rating_sd: float | None) -> None:
     """Calibrate DPM onto the rating scale, then simulate 2026-27 for all thirty teams."""
     from possval.models.dpm_calibration import calibrate, calibration_panel, slopes_differ
@@ -378,7 +410,8 @@ def main() -> None:
     for name in ("ingest", "clock", "validate"):
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
-    for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange"):
+    for name in ("backfill", "train", "score", "lineups", "lineup-test", "rulechange",
+                 "ablate"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
@@ -406,6 +439,7 @@ def main() -> None:
         "lineups": cmd_lineups,
         "lineup-test": cmd_lineup_test,
         "rulechange": cmd_rulechange,
+        "ablate": cmd_ablate,
     }
     if args.command in ranged:
         ranged[args.command](args.first, args.last)
