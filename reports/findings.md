@@ -464,6 +464,10 @@ Shrunk accordingly:
 | | CHA | 0.828 | 0.675 |
 | | TOR | 0.840 | **0.679** |
 
+*The null is itself estimated and needs enough permutations:* ten draws put it at 0.074 and
+twenty at 0.078, which moves the signal share from 43% to 37%. Twenty is the default, and
+`stopping_team_relaxation.csv` carries whichever the run used.
+
 **The real range is roughly 0.52 to 0.68, not 0.41 to 0.84.** A team effect exists and it is
 about a third the size the raw numbers suggest. Every team is still well below 1.0, so this is
 a league-wide behaviour with modest variation, not a few bad offenses dragging an average.
