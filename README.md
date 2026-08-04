@@ -6,7 +6,7 @@ per-player, per-game averages, which is enough to make a chart and not much else
 This reconstructs it. Play-by-play records the game clock at every event and every event that
 resets the shot clock, so you can walk a period in order, track when the current possession
 started and with how many seconds, and recover the clock at any shot in between. That gives
-2,013,170 shots from 2015-16 through 2024-25, each with a shot clock attached, and it opens up
+2,018,360 shots from 2015-16 through 2024-25, each with a shot clock attached, and it opens up
 questions you can't ask from bucket averages.
 
 ```bash
@@ -24,11 +24,11 @@ matching numbers the NBA publishes separately.
 
 | Check | Result |
 |---|---|
-| Mean absolute bucket-share error | 1.19 pp |
-| Mean absolute bucket eFG error | 1.05 pp |
+| Mean absolute bucket-share error | 1.20 pp |
+| Mean absolute bucket eFG error | 1.04 pp |
 | Per-player FGA agreement (R², 3,148 cells) | 0.973 |
 | Per-player FG% agreement (R²) | 0.646 |
-| Shots with a usable clock | 95.8% |
+| Shots with a usable clock | 96.0% |
 
 About 4% of possessions need a reset the play-by-play doesn't record. Those get NaN rather than
 an invented 24, because 84% of them would land in one bucket and skew it badly.
@@ -44,9 +44,9 @@ Not what I expected going in. It's useful at exactly one scale.
 
 | Question | Shot clock's contribution |
 |---|---|
-| Will this shot go in? | Almost nothing. Smallest group in the ablation. |
-| Will this possession score? | A lot. Continuation value runs 0.36 to 0.81 points. |
-| Will this team win? | Almost nothing. 0.034% of log loss over 5.34M events. |
+| Will this shot go in? | Almost nothing. 6.0% of model gain, third of four groups. |
+| Will this possession score? | A lot. Continuation value runs 0.37 to 0.81 points. |
+| Will this team win? | Almost nothing. 0.050% of log loss over 5.35M events. |
 
 A possession is about 1% of a game's scoring, so information at possession scale washes out
 above and below it. The reconstruction earns its keep as a measurement tool rather than as a
@@ -66,10 +66,12 @@ decays. Framing it that way gets around a problem the raw efficiency curve can't
 conditions on the decision (a shot was taken at second *t* worth *q*) rather than on the
 outcome.
 
-Continuation value falls from 0.81 points at 23 seconds to 0.36 at 1 second. The standard
-offenses actually accept falls by only 55 to 65% of that. The ratio lands between 0.52 and 0.67
-whichever quantile you use to define the threshold, holds in all ten seasons, and holds in
-competitive games alone, so it isn't a garbage-time artifact.
+Continuation value falls from 0.81 points at 23 seconds to 0.37 at 1 second. The standard
+offenses actually accept falls by only about 54 to 70% of that, whichever quantile you use to
+define the threshold. It holds in all ten seasons and in competitive games alone, so it isn't a
+garbage-time artifact. Read it as an upper bound on the shortfall rather than a point estimate:
+continuation value is estimated on the chances that declined to shoot, a group that worsens as
+the clock falls, and that biases the ratio down. See the caveats in the findings.
 
 Exercise is broadly sound otherwise. Taken shots beat continuation value by 0.39 points on
 average and only 7% fall below it. The *level* of the threshold isn't identified, since the
@@ -82,9 +84,9 @@ permutation null, putting the honest range around 0.52 to 0.68.
 Some of the more useful things here are ideas that didn't survive testing.
 
 Creation overlap, a measure of whether players want the ball at the same moments, doesn't
-predict offensive underperformance. Not across 270 team-seasons, not across 4,233 five-man
+predict offensive underperformance. Not across 270 team-seasons, not across 3,537 five-man
 lineups. Run head to head against a plain box-score usage measure, its t-statistic drops from
-2.89 to 0.49 and R² improves by one ten-thousandth. Usage does the same work and anyone can
+1.58 to −0.70 and R² improves by two ten-thousandths. Usage does the same work and anyone can
 compute it from a box score.
 
 A per-player version of the stopping result correlates 0.984 with mean late-clock shot quality.
@@ -132,11 +134,14 @@ random four-player groups. LeBron and Jaylen Brown sit at 0.988. Embiid is the o
 creation profile looks different from the others.
 
 That turns out not to predict anything. Across 270 team-seasons, controlling for the same
-players' prior-season quality, overlap doesn't significantly predict efficiency, and among the
-top three creators the sign is positive. The five-man retest doesn't rescue it either. So the
-"too many ball-handlers" worry, at least as measured here, isn't where the risk sits. Defense and
-availability are: three of the four grade negative defensively, and Embiid played 38 games last
-season.
+players' prior-season quality, one of nine specifications reaches significance and it has the
+wrong sign: more overlap, *better* offense. That's what the construction produces on its own,
+since similar players concentrate their shots early in the clock and early-clock possessions
+score better. The five-man retest doesn't rescue the idea either.
+
+So the "too many ball-handlers" worry, at least as measured here, isn't where the risk sits.
+Defense and availability are: three of the four grade negative defensively, and Embiid played 38
+games last season.
 
 ## The projection
 
@@ -144,21 +149,28 @@ Scoped separately from everything above, on purpose. It leans on DARKO, someone 
 metric, and it produces a headline number more precise-looking than its inputs support.
 
 The mapping from player impact to team rating is fitted against observed 2025-26 ratings, giving
-a slope of 1.433 ± 0.103. The textbook version of that identity assumes 1.0, so it compresses
-real spread by 43%. Simulating all 30 teams with conference brackets over 20,000 seasons:
+a slope of 1.433 ± 0.103. That slope is contemporaneous, so it can't be applied forward as it
+stands: a team's rating is only about 59% persistent year to year, and composing the two gives
+the 0.84 actually used. Simulating all 30 teams with conference brackets over 20,000 seasons:
 
-**Philadelphia projects to 49.2 wins (37 to 61), a 2.1% title chance, and 9th in the league.**
+**Philadelphia projects to 46.1 wins (33 to 59), a 3.5% title chance, and 9th in the league.**
 
 Colder than I wanted. Their 2025-26 base was 18th, LeBron at 41 plus Brown minus Paul George is
 roughly +2 DPM of talent, and it displaces bench minutes rather than replacing bad starters. New
-York, Oklahoma City and San Antonio sit six points ahead and take 72% of simulated titles.
-Embiid's availability is the biggest single lever: projecting the roster to 70 games each is
-worth a full point of rating.
+York, Oklahoma City and San Antonio sit three to four points ahead and take half of simulated
+titles between them. Embiid's availability is the biggest single lever: projecting the roster to
+70 games each is worth about half a point of rating and 1.3 wins.
 
 Read the interval rather than the point. The slope is fitted at n = 30 on one season, the DARKO
 snapshot postdates the season it's scored against, aging is swept rather than applied, and the
-rating uncertainty parameter moves the favourite's title odds between 26% and 39%. The 80% win
-interval spans 25 games.
+rating uncertainty parameter moves the favourite's title odds between 17% and 25%. The 80% win
+interval spans 26 games.
+
+An independent review found three defects in this layer after it was first tagged, all of them
+fixed before opening night and all recorded in the pre-registration's amendment log: a playoff
+field that was fixed across every simulation, the forward-slope problem above, and a circular
+margin scale. The pre-amendment projection is committed beside the corrected one and both are
+scored all season.
 
 ## Pre-registered
 

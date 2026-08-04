@@ -28,18 +28,28 @@ PRIOR_SEASON = 2025
 BASE_HOME_WIN_RATE = 0.5649
 
 
-def frozen_projection() -> pd.Series:
+def frozen_projection(original: bool = False) -> pd.Series:
     """The pre-registered ratings, read from the committed projection.
 
     Deliberately loaded from `reports/league_projection_2026_27.csv` rather than recomputed.
     Regenerating them at scoring time would silently let a later model version grade itself,
     which is the exact failure the pre-registration exists to rule out. If the file is missing
     the answer is to check out the `projection-2026-27` tag, not to rebuild it.
+
+    `original=True` loads the pre-amendment version, tagged `projection-2026-27-original` and
+    committed alongside. Both are scored all season. A correction made before opening night is
+    legitimate, but only if the version it replaced stays visible and gets graded too —
+    otherwise "we fixed it before the season" is unfalsifiable.
     """
-    path = REPORTS / "league_projection_2026_27.csv"
+    name = (
+        "league_projection_2026_27_original.csv"
+        if original
+        else "league_projection_2026_27.csv"
+    )
+    path = REPORTS / name
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} is missing. It is the pre-registered prediction and must not be "
+            f"{path} is missing. It is a pre-registered prediction and must not be "
             "regenerated to score itself — recover it from the projection-2026-27 tag."
         )
     return pd.read_csv(path, index_col=0).RATING
@@ -77,13 +87,21 @@ def _metrics(probabilities: np.ndarray, outcomes: np.ndarray) -> dict:
     }
 
 
-def score_games(games: pd.DataFrame, ratings: pd.Series, baseline: pd.Series) -> pd.DataFrame:
+def score_games(
+    games: pd.DataFrame,
+    ratings: pd.Series,
+    baseline: pd.Series,
+    original: pd.Series | None = None,
+) -> pd.DataFrame:
     """Grade the projection and both baselines on every completed game.
 
     Each model is converted to a win probability at *its own* margin scale. A prior-season
-    rating predicts a smaller margin than a contemporaneous one, so grading it at 7.0 would
+    rating predicts a smaller margin than a contemporaneous one, so grading it at 7.5 would
     make it overconfident and hand the projection a win it did not earn. `simulate.py` fits
-    10.5 for prior-season ratings and 7.0 for contemporaneous ones; the baseline gets 10.5.
+    10.5 for prior-season ratings and 7.5 for contemporaneous ones; the baseline gets 10.5.
+
+    `original` is the pre-amendment projection, scored as a fourth row so the correction made
+    before opening night can be checked rather than taken on trust.
     """
     from possval.models.simulate import (
         CONTEMPORANEOUS_MARGIN_SCALE,
@@ -110,12 +128,27 @@ def score_games(games: pd.DataFrame, ratings: pd.Series, baseline: pd.Series) ->
     )
     trivial = np.full(len(known), BASE_HOME_WIN_RATE)
 
-    rows = []
-    for name, probabilities in [
+    models = [
         ("pre-registered projection", projected),
         ("prior-season SRS", naive),
         ("home team always", trivial),
-    ]:
+    ]
+    if original is not None:
+        models.insert(
+            1,
+            (
+                "pre-registered projection (pre-amendment)",
+                win_probability(
+                    known.HOME.map(original).fillna(0.0).to_numpy()
+                    - known.AWAY.map(original).fillna(0.0).to_numpy(),
+                    True,
+                    scale=CONTEMPORANEOUS_MARGIN_SCALE,
+                ),
+            ),
+        )
+
+    rows = []
+    for name, probabilities in models:
         rows.append({"model": name, "n_games": len(known), **_metrics(probabilities, outcomes)})
     return pd.DataFrame(rows)
 
@@ -177,7 +210,9 @@ def scorecard(season: int = SEASON) -> dict:
 
     return {
         "n_games": len(games),
-        "scores": score_games(games, ratings, prior_season_ratings()),
+        "scores": score_games(
+            games, ratings, prior_season_ratings(), original=frozen_projection(original=True)
+        ),
         "calibration": calibration(games, ratings),
         "win_totals": win_total_error(games, projection),
     }

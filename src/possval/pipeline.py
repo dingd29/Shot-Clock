@@ -439,7 +439,7 @@ def cmd_ablate(first: int, last: int) -> None:
     print(f"\nwritten: {out}")
 
 
-def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
+def cmd_stopping(first: int, last: int, n_null_draws: int = 50) -> None:
     """Shooting as optimal stopping: continuation value, exercise boundary, relaxation."""
     from possval.models.stopping import (
         chance_panel,
@@ -450,6 +450,7 @@ def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
         player_exercise,
         relaxation,
         robustness,
+        start_clip_diagnostic,
         team_relaxation,
         team_relaxation_null,
     )
@@ -485,10 +486,14 @@ def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
 
     # The null costs a minute and is not optional: two thirds of the raw team spread is the
     # noise of splitting one dataset thirty ways, and the raw ranking is misleading without it.
+    # 50 rather than 20: the null is itself an estimate, and the repo's own sensitivity showed
+    # it still moving between 10 and 20 draws.
     null = team_relaxation_null(shots, panel, n_draws=n_null_draws)
     teams = team_relaxation(shots, panel, null_sd=null["null_mean"])
     print(f"\n=== relaxation ratio by team (null spread {null['null_mean']:.4f} from "
           f"{n_null_draws} permutations; signal share {teams.attrs['signal_share']:.0%}) ===")
+    print(f"null spread {null['null_mean']:.4f} +/- {null['null_sd']:.4f} across draws "
+          f"(5th-95th {null['null_p05']:.4f}-{null['null_p95']:.4f})")
     print(pd.concat([teams.head(5), teams.tail(5)]).round(3).to_string(index=False))
     teams.to_csv(REPORTS / "stopping_team_relaxation.csv", index=False)
 
@@ -509,6 +514,12 @@ def cmd_stopping(first: int, last: int, n_null_draws: int = 20) -> None:
     uplift = free_throw_bias(panel)
     print(f"\nfree-throw uplift to V(t): mean {uplift.FT_UPLIFT.mean():+.4f} points "
           "(excluded from the headline, which makes it conservative)")
+
+    clip = start_clip_diagnostic(panel)
+    print(f"\nchance-start clock: {clip['clipped_pct']:.1f}% land on the 24 clip, of which "
+          f"{clip['beyond_delay_pct']:.2f}% sit beyond what the 2s inbound delay explains "
+          f"(max {clip['max']:.0f}s). The second figure is the one that would signal a "
+          "non-adjacent predecessor.")
 
     for name, frame in [
         ("stopping_continuation_value", values), ("stopping_exercise_gap", gap),

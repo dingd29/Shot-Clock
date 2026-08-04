@@ -1,6 +1,6 @@
 # Findings
 
-2024-25 regular season unless noted. 210,394 shots with a reconstructed shot clock, 95.8% of
+2024-25 regular season unless noted. 210,805 shots with a reconstructed shot clock, 96.0% of
 all field-goal attempts. Points per attempt (PPA) counts field-goal points only, since the shot
 detail feed has no free-throw rows. Method and validation in [METHODOLOGY.md](../METHODOLOGY.md).
 
@@ -132,23 +132,23 @@ Reproduce: `possval.clock.validate.low_confidence_sensitivity(2024)`.
 
 ### What the shot model leans on
 
-The shot model behind the expected-points figures used here reaches log loss 0.6351 and AUC 0.663
+The shot model behind the expected-points figures used here reaches log loss 0.6349 and AUC 0.663
 on 2024-25, trained through 2022-23, an 8.2% improvement on predicting the league mean for every
 shot. Every downstream number depends on it, so it's worth being explicit about which features
 carry it. Each group is valued by refitting without it, averaged over five seeds:
 
 | Removed | Log-loss cost | SD over seeds | Share of gain |
 |---|---|---|---|
-| Geometry (location + action type) | 0.01658 | 0.00012 | 83.1% |
-| Shooter prior | 0.00199 | 0.00006 | 10.0% |
-| Possession (shot clock + chance start) | 0.00110 | 0.00012 | 5.5% |
-| Game state | 0.00029 | 0.00010 | 1.4% |
+| Geometry (location + action type) | 0.01657 | 0.00008 | 82.9% |
+| Shooter prior | 0.00193 | 0.00010 | 9.7% |
+| Possession (shot clock + chance start) | 0.00120 | 0.00010 | 6.0% |
+| Game state | 0.00029 | 0.00006 | 1.5% |
 
 Where the shot came from is worth about 15 times what the possession context is worth. Groups have
 to be coarse enough to contain their own substitutes, which is why action type sits with location:
 a dunk encodes "at the rim" and a pullup encodes mid-range, so ablating location alone credits
 geometry with far less than it has. Splitting the possession block finer, the shot clock on its own
-costs 0.00081, but that number isn't comparable to the coarse rows and shouldn't be read against
+costs 0.00095, but that number isn't comparable to the coarse rows and shouldn't be read against
 them.
 
 So the reconstructed clock does almost nothing for predicting whether a shot goes in. That's a
@@ -343,9 +343,11 @@ calls for**, at every quantile. Put another way, relative to what holding is wor
 roughly 0.15 points more from a shot with 1-3 seconds left than from one with 8 or more. The clock
 runs out on an option they're still pricing as though it had time left.
 
-The estimator can return the optimal answer. On synthetic offenses that accept exactly at `V(t)`,
-the ratio comes back above 0.85 (`tests/test_stopping.py`), so the measured 0.5 is a deviation
-rather than a property of the method.
+The estimator can return the optimal answer: on synthetic offenses that accept exactly at `V(t)`,
+the ratio comes back above 0.85 (`tests/test_stopping.py`). That check is narrower than it looks,
+though. It hands the estimator a correct value function rather than computing one, so it establishes
+that the ratio arithmetic is sound and says nothing about bias in `V(t)` itself. There is a reason to
+expect such a bias, and it pushes the ratio down. See Caveats.
 
 ### What this licenses
 
@@ -456,16 +458,16 @@ it's plainly informative about possessions.
 Does it improve a live win-probability model? The NBA publishes one built from a feed with no shot
 clock in it, which makes this the strongest remaining case for predictive value.
 
-5.34M events, ten seasons, time-ordered split, test on 2024-25:
+5.35M events, ten seasons, time-ordered split, test on 2024-25:
 
 | Model | Log loss | Brier | AUC |
 |---|---|---|---|
-| Score margin + time + possession | 0.48545 | 0.16507 | 0.83332 |
-| + shot clock, chance elapsed, late-clock flag | 0.48528 | 0.16500 | 0.83347 |
+| Score margin + time + possession | 0.48536 | 0.16506 | 0.83335 |
+| + shot clock, chance elapsed, late-clock flag | 0.48512 | 0.16496 | 0.83356 |
 
-Improvement: 0.000163 log loss, or 0.034%. Bootstrapped over the 1,230 test *games* rather than the
-550,132 events, since every event in a game shares one label and an event-level interval would claim
-hundreds of times more information than exists: 95% CI [+0.00005, +0.00026], positive in 100% of
+Improvement: 0.000241 log loss, or 0.050%. Bootstrapped over the 1,230 test *games* rather than the
+550,651 events, since every event in a game shares one label and an event-level interval would claim
+hundreds of times more information than exists: 95% CI [+0.00014, +0.00035], positive in 100% of
 draws.
 
 Reliably non-zero and practically nil. With half a million events the improvement is statistically
@@ -475,9 +477,9 @@ unambiguous and would round to zero in any application.
 
 | Question | Where the shot clock lands |
 |---|---|
-| Will *this shot* go in? | Negligible, 5.5% of model gain, smallest coarse group in the ablation |
+| Will *this shot* go in? | Negligible, 6.0% of model gain, third of four coarse groups |
 | Will *this possession* score? | Large, `V(t)` spans 0.37 to 0.81 |
-| Will *this team* win? | Negligible, 0.034% of log loss |
+| Will *this team* win? | Negligible, 0.050% of log loss |
 
 The shot clock is possession-scale information, and a possession is about 1% of a game's scoring.
 It's genuinely informative about the object it describes and washes out at the scale below and the
@@ -548,15 +550,15 @@ seeing the others is where a null quietly becomes a finding:
 
 | Core size | Outcome | Effect of +1 SD overlap | t |
 |---|---|---|---|
-| Top 3 | Points per attempt | +0.0034 | +1.73 |
-| Top 3 | Points above expected | +0.0008 | +0.42 |
-| Top 3 | Offensive rating | +0.48 | **+2.57** |
-| Top 4 | Points per attempt | +0.0014 | +0.71 |
-| Top 4 | Points above expected | −0.0005 | −0.25 |
-| Top 4 | Offensive rating | +0.31 | +1.71 |
-| Top 8 | Points per attempt | −0.0010 | −0.50 |
-| Top 8 | Points above expected | −0.0011 | −0.62 |
-| Top 8 | Offensive rating | +0.18 | +0.99 |
+| Top 3 | Points per attempt | +0.0033 | +1.68 |
+| Top 3 | Points above expected | +0.0007 | +0.36 |
+| Top 3 | Offensive rating | +0.47 | **+2.52** |
+| Top 4 | Points per attempt | +0.0013 | +0.68 |
+| Top 4 | Points above expected | −0.0004 | −0.20 |
+| Top 4 | Offensive rating | +0.30 | +1.63 |
+| Top 8 | Points per attempt | −0.0010 | −0.51 |
+| Top 8 | Points above expected | −0.0011 | −0.59 |
+| Top 8 | Offensive rating | +0.18 | +0.95 |
 
 One of nine clears |t| = 2, and it points the wrong way. The hypothesis says more overlap should
 *hurt*; every significant reading here says the opposite. That's what the construction produces on
@@ -574,7 +576,7 @@ Reproduce: `make synergy`, `reports/synergy_team_season.csv`.
 
 The obvious objection: a team's top creators don't share the floor for all their minutes, so a real
 five-on-five effect could average away across a season. Testing it required on-court lineups, 5.57M
-events across ten seasons resolved from substitution sequences, giving 3,552 five-man lineup-seasons
+events across ten seasons resolved from substitution sequences, giving 3,537 five-man lineup-seasons
 with at least 100 chances together, a prior season of scoring history for their players, and roughly
 a million chances in total.
 
@@ -583,30 +585,30 @@ stating, because a single number here would be a choice about which answer to be
 
 | Specification | n | Effect of +1 SD overlap (pts/chance) | 95% CI | t |
 |---|---|---|---|---|
-| Season FE, unclustered | 3,552 | +0.0048 | +0.0020, +0.0076 | +3.31 |
-| Season FE, clustered by team-season | 3,552 | +0.0048 | +0.0009, +0.0087 | +2.41 |
-| Team-season FE, clustered | 3,552 | +0.0046 | −0.0009, +0.0102 | +1.65 |
-| Team-season FE, ≥200 chances | 1,396 | +0.0046 | −0.0034, +0.0126 | +1.13 |
-| Team-season FE, ≥400 chances | 505 | −0.0068 | −0.0196, +0.0060 | −1.04 |
-| Team-season FE, ≥800 chances | 179 | −0.0348 | −0.0660, −0.0035 | **−2.18** |
+| Season FE, unclustered | 3,537 | +0.0048 | +0.0020, +0.0076 | +3.32 |
+| Season FE, clustered by team-season | 3,537 | +0.0048 | +0.0009, +0.0087 | +2.41 |
+| Team-season FE, clustered | 3,537 | +0.0045 | −0.0011, +0.0100 | +1.58 |
+| Team-season FE, ≥200 chances | 1,392 | +0.0046 | −0.0035, +0.0126 | +1.11 |
+| Team-season FE, ≥400 chances | 503 | −0.0071 | −0.0199, +0.0058 | −1.08 |
+| Team-season FE, ≥800 chances | 179 | −0.0354 | −0.0685, −0.0023 | **−2.09** |
 
 Three things happen down that table. Clustering matters: these lineups come from 300 team-seasons and
 share players wholesale, since one starter appears in dozens of rows, and treating them as independent
-inflates t from 2.41 to 3.31. Team-season fixed effects matter too, because without them the
+inflates t from 2.41 to 3.32. Team-season fixed effects matter too, because without them the
 coefficient is partly identified by good teams having high-overlap lineups, which is confounded. The
 pooled effect doesn't survive that. And restricting to lineups that actually played, the sign flips
 and the bottom row reaches significance in the direction the hypothesis predicts.
 
 That bottom row is the one to be most careful with. It's the last cell of a specification curve, it
 rests on 179 lineups, and a formal test of heterogeneity, overlap interacted with log chances, comes
-back at t = +0.36. The drift across thresholds is within noise. Reading the significant cell as the
+back at t = +0.60. The drift across thresholds is within noise. Reading the significant cell as the
 answer, having watched five others fail to be, is the exact error a specification curve exists to
 prevent. The honest reading is that neither the positive pooled estimate nor the negative
 heavily-used estimate is robust.
 
 **What this can and can't rule out.** For the heavily-used lineups the Sixers question actually
-concerns (≥800 chances, roughly a starting unit's season), the interval is −0.066 to −0.004 points per
-chance, or −7.6% to −0.4% of league-average efficiency. A large redundancy penalty is still excluded:
+concerns (≥800 chances, roughly a starting unit's season), the interval is −0.069 to −0.002 points per
+chance, or −7.9% to −0.3% of league-average efficiency. A large redundancy penalty is still excluded:
 the 10 to 15% offensive haircut that naive diminishing-returns adjustments apply to multi-creator
 teams sits outside this interval. A modest penalty of a few percent among the most-used lineups is
 consistent with this data and can't be ruled out, and this is the one specification that positively
@@ -627,14 +629,14 @@ identical rows:
 
 | Model | Usage sum | Creation overlap | R² |
 |---|---|---|---|
-| Usage only | +0.0139 (t=8.49) | — | 0.2488 |
-| Creation overlap only | — | +0.0046 (t=1.65) | 0.2313 |
-| Both | +0.0143 (t=8.00) | −0.0017 (t=−0.60) | 0.2489 |
+| Usage only | +0.0142 (t=8.64) | — | 0.2500 |
+| Creation overlap only | — | +0.0045 (t=1.58) | 0.2319 |
+| Both | +0.0146 (t=8.16) | −0.0020 (t=−0.70) | 0.2502 |
 
 Coefficients are points per chance per +1 SD, team-season fixed effects, clustered.
 
 Creation overlap adds nothing. Once usage is in the model its coefficient changes sign and its
-t-statistic falls from 1.65 to −0.60, while usage barely moves. R² rises by one ten-thousandth. The
+t-statistic falls from 1.58 to −0.70, while usage barely moves. R² rises by two ten-thousandths. The
 two correlate 0.33 within a team-season, and on this evidence overlap's standalone effect was that
 shared component. The expensive feature, the one requiring a shot clock that exists in no public
 feed, is a worse version of a measure anyone can compute from a box score.
@@ -690,6 +692,15 @@ Two things fall out. The textbook identity, team rating = minutes-weighted DPM, 
 and 1.0 sits more than four standard errors away. And the fitted intercept replaces the old
 rotation-size guess entirely, since the fit uses every player's actual 2025-26 minutes.
 
+**That slope cannot be applied forward as it stands, and this is the subtlest thing in the section.**
+The DARKO snapshot is from July 2026, after the season it's regressed on. What 1.433 measures is how
+much DARKO shrinks its own within-season estimates, so un-shrinking by it is the right correction for
+*reproducing* 2025-26 and the wrong one for *projecting* 2026-27, where a team's rating is only about
+59% persistent year to year. Composing the two gives a forward slope near 0.84, and that is what the
+projection uses. The composition is an approximation and its error runs in the safe direction, since
+DARKO's snapshot is already partly forward-looking. The clean version regresses on a snapshot taken
+*before* the season, which needs a back-dated DARKO pull that doesn't exist here.
+
 A trap avoided: calibrating offence and defence separately against points scored and allowed gives
 slopes of 0.90 and 1.78, apparently showing DARKO compresses defensive spread twice as hard, which for
 an offence-heavy roster like Philadelphia's would matter enormously. It's an artifact. Both targets
@@ -707,19 +718,25 @@ seasons, conference brackets, uncertainty of 3.95 points per team.
 
 | Scenario | Rating | Wins | 80% interval | Title | League rank |
 |---|---|---|---|---|---|
-| Minutes as played (injuries repeat) | +2.50 | 47.1 | 34-60 | 1.5% | 11th |
-| Health-adjusted (70 games each) | +3.49 | 49.2 | 37-61 | 2.1% | 9th |
+| Minutes as played (injuries repeat) | +1.47 | 44.8 | 32-58 | 2.9% | 11th |
+| Health-adjusted (70 games each) | +2.05 | 46.1 | 33-59 | 3.5% | 9th |
 
-**A 47 to 49 win team with roughly a 2% title chance.** Colder than the premise. Three things drive
+**A 45 to 46 win team with roughly a 3% title chance.** Colder than the premise. Three things drive
 it. Their 2025-26 base was 18th in the league at −0.31 SRS, so the trade upgrades a middling team
 rather than adding to a contender. The upgrade itself is about +2 DPM: LeBron (1.31, age 41) plus
 Jaylen Brown (1.78) minus Paul George (1.07), displacing bench minutes rather than replacing bad
-starters. And three teams sit a tier above, with New York (+10.5), Oklahoma City (+10.7) and San
-Antonio (+8.8) taking 72% of simulated titles between them.
+starters. And three teams sit a tier above, with New York (+6.2), Oklahoma City (+6.3) and San
+Antonio (+5.2) taking half of simulated titles between them.
 
 Availability is the largest single lever. Embiid played 38 games in 2025-26. Projecting every player
-to 70 games is worth a full point of rating and doubles the lower tail, and the entire difference
-between the two scenarios above is his health and Brown's.
+to 70 games is worth about half a point of rating and 1.3 wins, and the entire difference between the
+two scenarios above is his health and Brown's.
+
+The playoff field is rebuilt inside every one of the 20,000 simulations rather than seeded once from
+mean wins. That sounds like a detail and isn't: seeding once makes reaching the playoffs an assumption
+instead of an outcome, and in the first version of this projection it left **14 of 30 teams at exactly
+0.000** title probability, including a +0.27 team whose 80% interval reached 55 wins. Two teams sit at
+zero now.
 
 ### How much is model and how much is knowledge
 
@@ -728,9 +745,9 @@ observable:
 
 | Rating uncertainty | Best team's title odds | Philadelphia | Top-3 share |
 |---|---|---|---|
-| 2.15 (calibration residual, a floor) | 38.5% | 0.8% | 87% |
-| 3.95 (year-over-year, used) | 30.2% | 2.0% | 73% |
-| 5.00 | 26.0% | 2.7% | 65% |
+| 2.15 (calibration residual, a floor) | 25.3% | 2.9% | 63% |
+| 3.95 (year-over-year, used) | 18.9% | 3.7% | 50% |
+| 5.00 | 17.0% | 3.8% | 44% |
 
 3.95 is the residual from predicting each season's SRS from the previous season's over ten seasons,
 which is how far a team actually moves in a year. The 2.15 floor would be right only if the roster
@@ -750,10 +767,10 @@ The sweep answers the question instead:
 
 | LeBron's DPM decline | Philadelphia rating | League rank |
 |---|---|---|
-| 0.0 (as modelled) | +3.49 | 9th |
-| 0.5 | +3.08 | 9th |
-| 1.0 | +2.67 | 11th |
-| 2.0 (implausibly steep) | +1.86 | 14th |
+| 0.0 (as modelled) | +2.05 | 9th |
+| 0.5 | +1.81 | 9th |
+| 1.0 | +1.57 | 11th |
+| 2.0 (implausibly steep) | +1.09 | 14th |
 
 The conclusion doesn't depend on it. Even a two-point collapse, far beyond any plausible one-year fall,
 leaves Philadelphia a mid-table playoff team rather than moving it toward or away from contention.
@@ -763,7 +780,14 @@ Embiid's decline sweeps almost identically.
 
 Only the Philadelphia trade is modelled. The other 29 rosters are frozen at their 2025-26 shape, so any
 rival's offseason is invisible. And the calibration's DARKO snapshot postdates the season it was scored
-against, so its residual is optimistic. These odds describe a league that won't exist on opening night.
+against, so its residual is optimistic and its slope needs the forward shrink described above. These
+odds describe a league that won't exist on opening night.
+
+The margin scale converting a rating edge into a win probability is 7.5, from fitting SRS on each
+season's odd-numbered games and scoring it on the even ones, then correcting for the noise half-season
+ratings add. The obvious alternative, fitting on a whole season and scoring on the same season, is
+circular: the ratings have already absorbed those outcomes and the scale comes out too small. That
+route gave 7.0 here, defended by an argument that turned out to be circular too.
 
 ---
 
@@ -795,3 +819,45 @@ imputed. See METHODOLOGY §2.
 The decline in section 2 is descriptive rather than causal, and no amount of conditioning on
 possession-start type makes it causal, since selection happens within the chance. Section 7 is the
 identification strategy.
+
+### Four limitations that don't have a fix here
+
+These are design problems rather than defects, and none of them has a patch. They're the sharpest
+objections I know of to the results above, and where they cut is stated rather than hedged.
+
+**`V(t)` is adversely selected, and the bias lands on the shape.** `V(t)` averages the outcomes of
+chances that *declined* to shoot at `t`, and that group gets worse as the clock falls: 94% of live
+chances continue past 17 seconds, only 48% past 1. So `V(t)` is biased down, increasingly so late,
+which makes it fall faster than the true option value and pushes the relaxation ratio below 1 on its
+own. This is the selection argument from section 2 applied to section 7's own estimator, and it lands
+on the shape, which is the only thing section 7 claims is identified. Fixing it means changing what
+`V(t)` is, not correcting a calculation. Until that's done, read 0.54-0.70 as an upper bound on how
+far offenses actually fall short rather than a point estimate.
+
+Relatedly, the synthetic check in `tests/test_stopping.py` hands the estimator a hand-written value
+function and never calls `continuation_value`. It shows the ratio arithmetic returns 1 when given a
+correct `V(t)`; it can't detect bias in `V(t)` itself. Section 7 says the measured 0.5 is a deviation
+rather than a property of the method, and that claim is broader than the tests support.
+
+**`V(t)` omits offensive-rebound continuation.** A chance ending in a missed shot the offense rebounds
+scores 0 on field-goal points, but the *possession* continues and has real value. Off-rebound chances
+are 10.2% of the panel. The free-throw omission above is quantified and signed at +0.084; this larger
+one isn't, and folding it in would change what a chance's value means rather than correct a number.
+
+**Creation overlap is entangled with its own outcome.** Overlap is a similarity between two players'
+distributions over (shot-clock bucket × zone), measured in the same season as the efficiency it
+predicts. Players who both concentrate early in the clock score high similarity, and early-clock
+chances are more efficient by section 2, so a positive coefficient is what the construction produces
+before any redundancy story. Team-season fixed effects don't break that channel. Separately, the
+Jensen-Shannon divergence is biased upward on finite samples by roughly (cells−1)/(2n ln 2), which
+with 18 cells and a 150-attempt floor varies across the sample and correlates with usage; the Laplace
+smoothing pushes the same way. Neither is corrected. This is why the one significant team-season
+specification in section 11 having a *positive* sign is evidence about the construction, not about
+basketball.
+
+**The uncorrected off-rebound timing residual sits on the treated arm.** METHODOLOGY §3 records a
++2.0s residual on `off_rebound` chances and attributes it to airballs, which get no 14-second reset in
+reality because the rule requires rim contact and the feed doesn't record it. `off_rebound` is the
+treated group in the rule-change experiment, whose outcome is a game-clock difference and whose
+estimate is 0.202s. The residual and the estimate are the same order of magnitude. Bounding it needs a
+model of rim contact, which isn't available here.

@@ -39,6 +39,13 @@ def timestamp_granularity(first: int = 2015, last: int = 2024) -> pd.DataFrame:
     A feed-quality measure, not a basketball one, and the diagnostic that identified the
     2017-18 problem. Reported alongside the experiment because a design resting on
     game-clock differences is only as good as the timestamps underneath it.
+
+    Split by rebound type, because that is what decides whether the experiment survives. The
+    after-rebound identical-clock share steps up in 2017-18 and never comes back down, so
+    dropping that season makes the feed regime almost collinear with treatment. The
+    difference-in-differences is then only safe if the shift hit both arms equally: offensive
+    rebounds are the treated group and defensive rebounds the control, and a shift that
+    landed harder on one of them would show up as a treatment effect.
     """
     rows = []
     for season in range(first, last + 1):
@@ -46,7 +53,11 @@ def timestamp_granularity(first: int = 2015, last: int = 2024) -> pd.DataFrame:
         if not path.exists():
             continue
         events = pd.read_parquet(
-            path, columns=["GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "GAME_CLOCK"]
+            path,
+            columns=[
+                "GAME_ID", "EVENTNUM", "EVENTMSGTYPE", "PERIOD", "GAME_CLOCK",
+                "CHANCE_START_TYPE",
+            ],
         ).sort_values(["GAME_ID", "EVENTNUM"])
 
         same_game = (events.GAME_ID == events.GAME_ID.shift()) & (
@@ -54,15 +65,24 @@ def timestamp_granularity(first: int = 2015, last: int = 2024) -> pd.DataFrame:
         )
         identical = (events.GAME_CLOCK.diff() == 0) & same_game
         after_rebound = (events.EVENTMSGTYPE.shift() == 4) & same_game
-        rows.append(
-            {
-                "SEASON": season,
-                "identical_clock_pct": 100 * identical.mean(),
-                "after_rebound_identical_pct": 100
-                * (identical & after_rebound).sum()
-                / max(after_rebound.sum(), 1),
-            }
+
+        row = {
+            "SEASON": season,
+            "identical_clock_pct": 100 * identical.mean(),
+            "after_rebound_identical_pct": 100
+            * (identical & after_rebound).sum()
+            / max(after_rebound.sum(), 1),
+        }
+        for arm, start_type in [("off", "off_rebound"), ("def", "def_rebound")]:
+            in_arm = after_rebound & (events.CHANCE_START_TYPE == start_type)
+            row[f"after_{arm}_rebound_identical_pct"] = (
+                100 * (identical & in_arm).sum() / max(in_arm.sum(), 1)
+            )
+            row[f"n_{arm}_rebound"] = int(in_arm.sum())
+        row["arm_gap_pp"] = (
+            row["after_off_rebound_identical_pct"] - row["after_def_rebound_identical_pct"]
         )
+        rows.append(row)
     return pd.DataFrame(rows).set_index("SEASON")
 
 
@@ -146,9 +166,8 @@ def _cluster_ols(x: np.ndarray, y: np.ndarray, clusters: np.ndarray, names: list
     }
 
 
-def difference_in_differences(table: pd.DataFrame, outcome: str) -> dict:
-    """The DiD estimate for one outcome, with season-clustered standard errors."""
-    design = np.column_stack(
+def _did_design(table: pd.DataFrame) -> np.ndarray:
+    return np.column_stack(
         [
             np.ones(len(table)),
             table.TREATED.to_numpy(),
@@ -156,8 +175,73 @@ def difference_in_differences(table: pd.DataFrame, outcome: str) -> dict:
             (table.TREATED * table.POST).to_numpy(),
         ]
     )
+
+
+def wild_cluster_bootstrap(table: pd.DataFrame, outcome: str, seed: int = 0) -> dict:
+    """Wild cluster bootstrap-t p-value for the DiD coefficient.
+
+    Nine season clusters is far too few for the asymptotic clustered standard error. The
+    finite-sample correction applied there is only G/(G-1), and the resulting t is read
+    against a normal when the reference distribution is closer to t with 8 degrees of freedom:
+    the reported t = -2.52 clears 1.96 but only just clears the 2.31 that t(8) asks for.
+
+    This is the standard fix (Cameron, Gelbach and Miller 2008): impose the null, then flip the
+    sign of every residual within a whole cluster at a time and read the observed t against the
+    distribution that generates.
+
+    With Rademacher weights and G clusters there are only 2^G distinct sign vectors, so at this
+    cluster count the whole reference distribution is **enumerated** rather than sampled. 512
+    draws is not a small bootstrap here, it is all of them, and the p-value is exact rather than
+    simulated. `seed` is unused when enumerating and is kept for the sampled branch.
+    """
+    design = _did_design(table)
+    y = table[outcome].to_numpy(dtype=float)
+    clusters = table.SEASON.to_numpy()
+    unique = np.unique(clusters)
+    names = ["intercept", "treated", "post", "did"]
+
+    observed = _cluster_ols(design, y, clusters, names)["did"]
+    observed_t = observed["t"]
+
+    # Fit under H0: drop the interaction, so the residuals carry no treatment effect.
+    restricted = design[:, :3]
+    coefficients, *_ = np.linalg.lstsq(restricted, y, rcond=None)
+    fitted = restricted @ coefficients
+    residual = y - fitted
+
+    masks = [clusters == cluster for cluster in unique]
+    n_clusters = len(unique)
+    exhaustive = n_clusters <= 12
+    n_draws = 2**n_clusters if exhaustive else 9_999
+    rng = np.random.default_rng(seed)
+
+    stats = np.empty(n_draws)
+    weights = np.ones(len(y))
+    for draw in range(n_draws):
+        if exhaustive:
+            signs = [1.0 if (draw >> bit) & 1 else -1.0 for bit in range(n_clusters)]
+        else:
+            signs = rng.choice([-1.0, 1.0], n_clusters)
+        for rows, sign in zip(masks, signs, strict=True):
+            weights[rows] = sign
+        star = fitted + residual * weights
+        stats[draw] = _cluster_ols(design, star, clusters, names)["did"]["t"]
+
+    return {
+        "estimate": observed["estimate"],
+        "t": observed_t,
+        "p_wild": float(np.mean(np.abs(stats) >= abs(observed_t))),
+        "n_clusters": n_clusters,
+        "n_draws": n_draws,
+        "exhaustive": exhaustive,
+        "crit_95": float(np.quantile(np.abs(stats), 0.95)),
+    }
+
+
+def difference_in_differences(table: pd.DataFrame, outcome: str) -> dict:
+    """The DiD estimate for one outcome, with season-clustered standard errors."""
     return _cluster_ols(
-        design,
+        _did_design(table),
         table[outcome].to_numpy(dtype=float),
         table.SEASON.to_numpy(),
         ["intercept", "treated", "post", "did"],
@@ -243,7 +327,12 @@ def report(
     }
     estimates = pd.DataFrame(
         [
-            {"outcome": label, **difference_in_differences(table, column)}
+            {
+                "outcome": label,
+                **difference_in_differences(table, column),
+                # Nine clusters is too few to read the asymptotic t against a normal.
+                "p_wild": wild_cluster_bootstrap(table, column)["p_wild"],
+            }
             for column, label in outcomes.items()
         ]
     )

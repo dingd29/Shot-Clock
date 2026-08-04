@@ -276,8 +276,8 @@ holding too long is not, since a declined shot leaves no record. Every figure is
 threshold as a low quantile of accepted shot values gives a gap against `V(t)` of −0.22 at the
 2nd percentile and +0.14 at the 20th, the sign of "too aggressive" versus "too patient" is a
 free parameter. Only the *shape* is quantile-invariant: the relaxation ratio (how far the
-boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.52-0.67 across every quantile
-tried**, and the excess late demand +0.14 to +0.17. Those are the reported numbers.
+boundary falls from 23s to 1s, over how far `V(t)` falls) is **0.54-0.70 across every quantile
+tried**, and the excess late demand +0.14 to +0.16. Those are the reported numbers.
 
 > **Period expiries are dropped before the fit, not after.** A chance ending because the period
 > ran out is not a shot-clock decision, and they concentrate where the model is most sensitive:
@@ -287,8 +287,17 @@ tried**, and the excess late demand +0.14 to +0.17. Those are the reported numbe
 > rather than assumed.
 
 `tests/test_stopping.py` builds offenses that accept exactly at `V(t)` and asserts the ratio
-comes back above 0.85, so the measured ~0.5 is a deviation rather than a property of the
-estimator; it also checks V(t) rises with time and that chances ending at `t` are excluded.
+comes back above 0.85; it also checks `V(t)` rises with time and that chances ending at `t` are
+excluded.
+
+> **How far that test goes.** It hands `relaxation` a hand-written value function rather than
+> calling `continuation_value`, so it validates the ratio arithmetic *given* a correct `V(t)`
+> and cannot detect bias in `V(t)` itself. An earlier version of this section read the test as
+> showing the measured ~0.5 is a deviation rather than a property of the estimator, which is
+> more than it supports. There is a specific reason to expect downward bias in `V(t)` — it
+> averages the chances that declined to shoot, and that group worsens as the clock falls — and
+> it pushes the ratio in exactly the direction observed. See findings, Caveats. The reported
+> range should be read as an upper bound on the shortfall.
 
 Free throws are excluded from both sides for unit consistency with `XPTS`, which makes the
 result conservative: counting them raises `V(t)` by +0.084, a higher bar.
@@ -361,7 +370,7 @@ no `libomp` system dependency, so the repo clones and runs anywhere.
 |---|---|---|---|---|
 | League mean | 0.6914 | 0.2491 | 0.500 | — |
 | Logistic | 0.6539 | 0.2309 | 0.646 | 5.4% |
-| GBM | 0.6351 | 0.2234 | 0.663 | **8.2%** |
+| GBM | 0.6349 | 0.2233 | 0.663 | **8.2%** |
 | GBM + isotonic | 0.6350 | 0.2233 | 0.663 | 8.2% |
 
 An earlier version of this table read 0.6273 and 9.3%. The difference is leakage, not tuning:
@@ -397,22 +406,22 @@ resampled one. The spreads turn out to be small enough that the group ordering i
 
 | Removed | Log-loss cost | SD over seeds | Share of gain |
 |---|---|---|---|
-| **Geometry** (location + action type) | **0.01658** | 0.00012 | **83.1%** |
-| Shooter prior | 0.00199 | 0.00006 | 10.0% |
-| **Possession** (shot clock + chance start) | **0.00110** | 0.00012 | **5.5%** |
-| Game state | 0.00029 | 0.00010 | 1.4% |
+| **Geometry** (location + action type) | **0.01657** | 0.00008 | **82.9%** |
+| Shooter prior | 0.00193 | 0.00010 | 9.7% |
+| **Possession** (shot clock + chance start) | **0.00120** | 0.00010 | **6.0%** |
+| Game state | 0.00029 | 0.00006 | 1.5% |
 
-**Geometry is worth 15× possession context.** The previous claim, that possession context is
+**Geometry is worth 14× possession context.** The previous claim, that possession context is
 worth about as much as every location feature combined, does not survive grouping action type
 where it belongs, and is withdrawn.
 
 Two of these rows moved a lot when the `SCORE_MARGIN` leak was removed. Game state fell from
 0.00812 (27.9%) to 0.00029, which is the direct consequence: most of what that block was worth
 was a feature that already knew the answer. Possession context fell too, from 0.00396 to
-0.00110, and its share from 13.6% to 5.5%.
+0.00120, and its share from 13.6% to 6.0%.
 
 That leaves a smaller claim than the one this section used to make. Possession context carries
-**5.5% of total model gain**, from two features that exist in no public feed. It is a real but
+**6.0% of total model gain**, from two features that exist in no public feed. It is a real but
 minor contribution to a shot-quality model. The case for the reconstruction does not rest here;
 it rests on section 7's continuation value, which is a possession-scale quantity.
 
@@ -421,10 +430,10 @@ rows overlap the coarse blocks and each other):
 
 | Removed | Log-loss cost | SD over seeds |
 |---|---|---|
-| Action type alone | 0.00961 | 0.00014 |
-| Location alone | 0.00584 | 0.00007 |
-| Shot clock alone | 0.00081 | 0.00010 |
-| Chance start type alone | 0.00031 | 0.00002 |
+| Action type alone | 0.00958 | 0.00006 |
+| Location alone | 0.00586 | 0.00010 |
+| Shot clock alone | 0.00095 | 0.00016 |
+| Chance start type alone | 0.00037 | 0.00013 |
 
 Shot clock alone is small partly because chance start type substitutes for it, the two being
 correlated by construction since transition possessions carry a high clock. That is the same
@@ -707,6 +716,15 @@ a replacement value; the slope moves only 1.39→1.45 across a −4.0 to −1.0 
 scored against, so the fit statistics are optimistic and 2.15 is a *lower bound* on forward
 error, not an estimate of it. It is not out-of-sample validation and is not reported as such.
 
+> **The contamination reaches the slope, not only the fit statistics.** Because the snapshot
+> postdates the season, 1.433 measures how much DARKO shrinks its own *within-season*
+> estimates. Un-shrinking by it reproduces 2025-26 correctly and over-projects 2026-27, where
+> a rating is about 59% persistent year to year. `apply_calibration(forward=True)` composes the
+> two, 1.433 x 0.587 ≈ 0.84, and that is what the projection uses; `forward=False` recovers the
+> contemporaneous slope for the backtest. An earlier version of this document said only that
+> the fit *statistics* were optimistic, which understated the problem. The clean fix is a
+> back-dated DARKO snapshot, which does not exist here.
+
 ### Two simulator bugs
 
 Both were in plumbing that nothing else checks, and both surfaced because a downstream number
@@ -719,11 +737,17 @@ looked wrong.
    schedule and came out at 34 wins on a rating worth 43. Replaced with the circle method,
    every team now plays exactly 82, hosting 40 to 42.
 
-2. **The margin scale was the wrong one.** `DEFAULT_MARGIN_SCALE` was 10.5, the value fitted
-   against *prior-season* ratings. A simulator is handed ratings it must treat as true, so
-   the correct scale is the contemporaneous one, **7.0** (11,968 games). At 10.5 a +12.7 team
-   projected to 60 wins; Oklahoma City won 68 at that rating. At 7.0 the implied totals track
-   history, win-total MAE 3.15, correlation 0.949 against actual team-seasons.
+2. **The margin scale was the wrong one, and then it was circular.** `DEFAULT_MARGIN_SCALE`
+   was 10.5, the value fitted against *prior-season* ratings. A simulator is handed ratings it
+   must treat as true, so the contemporaneous scale applies. The first replacement, 7.0, was
+   fitted on whole seasons and scored on those same seasons, and defended by noting that a
+   +12.7 team projected to 60 wins where Oklahoma City won 68 — a +12.7 computed from those 68
+   wins. Both the fit and its defence were circular, and circularity here biases the scale
+   *down*. `fit_margin_scale_split_half` fits on each season's odd games and scores on the
+   even ones: 22 half-seasons, mean scale 9.12. Half-season ratings are noisy and noise
+   attenuates a coefficient, which inflates the scale by 1/reliability, and odd-half against
+   even-half SRS correlates 0.826. The corrected value is **7.5**. The win-total MAE of 3.15
+   quoted below it is circular in the same way and should be read as a floor.
 
 3. **Rating uncertainty never reached the bracket.** `rating_sd` was injected into the regular
    season only, so the playoffs treated ratings as exactly known. The tell was that title odds
@@ -746,7 +770,14 @@ against a bench that would not play, which diluted the rating to +0.71.
 previous season's across ten seasons, how far a team actually moves in a year. Not the 2.15
 calibration residual, which would be right only if a roster snapshot were the whole story.
 This is the most consequential single parameter in the projection: the best team's title odds
-run 38.5% at 2.15, 30.2% at 3.95, and 26.0% at 5.0.
+run 25.3% at 2.15, 18.9% at 3.95, and 17.0% at 5.0.
+
+**The playoff field is rebuilt inside every simulation.** Seeding once from mean wins, which is
+what the code did first, averages away exactly what simulating a season is for: the sixteen
+teams become fixed, qualifying stops being an outcome, and every bubble team's title
+probability collapses to a hard zero. That version had 14 of 30 teams at 0.00000, including a
++0.27 team whose 80% interval reached 55 wins. `simulate_playoffs` now takes a per-simulation
+field and `tests/test_simulate.py` pins both the new behaviour and the old failure.
 
 Playoffs run as two eight-team conference brackets meeting in a final. Treating the field as
 one sixteen-team ladder is not a simplification but an error here, the three strongest teams
@@ -760,8 +791,8 @@ one at 40. `aging_sensitivity` sweeps the decline instead of guessing it: LeBron
 moves Philadelphia from 9th to 11th, and a 2.0 collapse to 14th. The answer does not turn on
 the assumption, which is the only reason omitting it is acceptable.
 
-**Philadelphia: +3.49, 49.2 wins (37-61), 2.1% title, 9th of 30** under health-adjusted
-minutes; +2.50 and 47.1 wins if 2025-26 availability repeats. See findings §12.
+**Philadelphia: +2.05, 46.1 wins (33-59), 3.5% title, 9th of 30** under health-adjusted
+minutes; +1.47 and 44.8 wins if 2025-26 availability repeats. See findings §12.
 
 ---
 

@@ -106,9 +106,8 @@ def chance_panel(first: int = 2015, last: int = 2024) -> pd.DataFrame:
 
         panel = panel.sort_values(keys)
         panel["PREV_GC"] = panel.groupby(["GAME_ID", "PERIOD"]).LAST_GC.shift()
-        panel["START_SC"] = (
-            panel.FIRST_SC + (panel.PREV_GC - panel.FIRST_GC)
-        ).clip(upper=float(FULL_CLOCK))
+        panel["START_SC_RAW"] = panel.FIRST_SC + (panel.PREV_GC - panel.FIRST_GC)
+        panel["START_SC"] = panel.START_SC_RAW.clip(upper=float(FULL_CLOCK))
         panel["SEASON"] = season
         frames.append(panel)
 
@@ -191,6 +190,33 @@ def exercise_gap(
         COST_IF_PREMATURE=("SURPLUS", lambda s: float(-s[s < 0].mean()) if (s < 0).any() else 0.0),
     )
     return grouped[grouped.N_SHOTS >= min_shots].reset_index()
+
+
+def start_clip_diagnostic(panel: pd.DataFrame, inbound_delay: float = 2.0) -> dict:
+    """How often the derived chance-start clock had to be clipped, and by how much.
+
+    `START_SC` is `FIRST_SC + (PREV_GC - FIRST_GC)`, clipped at 24. Most chances land on the
+    clip because the rule value plus the inbound delay genuinely exceeds 24 — a made basket
+    starts the next chance at 24 but the previous chance's last event is logged about 2s
+    earlier, so the raw figure comes out near 26. That is expected and harmless.
+
+    What the clip also hides is the failure mode: if a low-confidence chance is dropped, the
+    surviving `PREV_GC` belongs to a chance two steps back rather than the immediate
+    predecessor, and the derived start is far too high. Clipping turns a 40-second answer and a
+    26-second one into the same 24. This reports the share sitting beyond what the delay can
+    explain, which is the part that should worry anyone.
+    """
+    raw = panel.START_SC_RAW.dropna()
+    tolerance = float(FULL_CLOCK) + inbound_delay
+    return {
+        "n": int(len(raw)),
+        "clipped_pct": float(100 * (raw > FULL_CLOCK).mean()),
+        "beyond_delay_pct": float(100 * (raw > tolerance).mean()),
+        "beyond_delay_p99": float(raw[raw > tolerance].quantile(0.99))
+        if (raw > tolerance).any()
+        else float("nan"),
+        "max": float(raw.max()),
+    }
 
 
 def free_throw_bias(panel: pd.DataFrame) -> pd.DataFrame:
@@ -497,15 +523,22 @@ def team_relaxation_null(
     shots = shots.dropna(subset=["TEAM_ABBREVIATION"])
 
     # Factorise the (game, team) blocks once; each draw is then a permutation of one array
-    # plus two integer take operations, rather than a merge over 4.8M rows.
-    panel_key = pd.MultiIndex.from_arrays([panel.GAME_ID, panel.TEAM])
-    shots_key = pd.MultiIndex.from_arrays([shots.GAME_ID, shots.TEAM_ABBREVIATION])
-    # `.unique()` is load-bearing: MultiIndex.union keeps duplicates, and get_indexer
-    # requires a unique index.
-    blocks = panel_key.union(shots_key).unique()
-    panel_at = blocks.get_indexer(panel_key)
-    shots_at = blocks.get_indexer(shots_key)
-    labels = np.asarray(blocks.get_level_values(1))
+    # plus two integer take operations, rather than a merge over 4.8M rows. A single flat key
+    # rather than a MultiIndex: `MultiIndex.union` keeps duplicates and then raises on
+    # `get_indexer`, which only shows up at full scale.
+    panel_key = panel.GAME_ID.astype(str) + "|" + panel.TEAM.astype(str)
+    shots_key = shots.GAME_ID.astype(str) + "|" + shots.TEAM_ABBREVIATION.astype(str)
+
+    codes, _ = pd.factorize(pd.concat([panel_key, shots_key], ignore_index=True))
+    panel_at = codes[: len(panel)]
+    shots_at = codes[len(panel) :]
+
+    teams = pd.concat(
+        [panel.TEAM, shots.TEAM_ABBREVIATION], ignore_index=True
+    ).astype(str)
+    # factorize numbers blocks by first appearance, and groupby sorts by code, so this comes
+    # back aligned with the code values.
+    labels = teams.groupby(codes).first().to_numpy()
 
     spreads = []
     for draw in range(n_draws):
