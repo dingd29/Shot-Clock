@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping winprob ratings project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping winprob situational ratings project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -43,6 +43,9 @@ rulechange:  ## the 2018-19 rule as a difference-in-differences
 
 stopping:  ## shooting as optimal stopping: continuation value and exercise boundary
 	$(PY) -m possval.pipeline stopping --first $(FIRST) --last $(LAST)
+
+situational:  ## H4/H5 on the exploration window; WINDOW=holdout is a one-shot confirmation
+	$(PY) -m possval.pipeline situational --window $(or $(WINDOW),explore)
 
 scorecard:  ## score the pre-registered projection against results so far
 	$(PY) -m possval.pipeline scorecard --season 2026

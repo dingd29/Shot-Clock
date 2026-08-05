@@ -710,6 +710,78 @@ def cmd_ratings(first: int, last: int) -> None:
     print(f"\nwritten: {out}")
 
 
+# The pre-registered split, hard-coded rather than passed in. A window that can be chosen at
+# the command line is a window that can be chosen after seeing a result.
+SITUATIONAL_WINDOWS = {"explore": (2015, 2021), "holdout": (2022, 2023)}
+
+
+def cmd_situational(window: str, n_null_draws: int = 50) -> None:
+    """H4 and H5 from `reports/preregistration_situational.md`.
+
+    Run `--window explore` first. `--window holdout` is a one-shot confirmation and running it
+    before the hypotheses are frozen would defeat the entire protocol.
+    """
+    from possval.models.situational import (
+        band_quantile_sweep,
+        band_signal_share,
+        concentration_panel,
+        fit_concentration,
+        team_band_relaxation,
+    )
+    from possval.models.stopping import chance_panel, continuation_value
+
+    first, last = SITUATIONAL_WINDOWS[window]
+    pd.set_option("display.width", 200)
+    print(f"=== window: {window} ({first}-{str(first + 1)[-2:]} to "
+          f"{last}-{str(last + 1)[-2:]}) ===")
+
+    panel_path = PROCESSED / "chance_panel.parquet"
+    panel = pd.read_parquet(panel_path) if panel_path.exists() else chance_panel(2015, 2024)
+    panel = panel[panel.SEASON.between(first, last)]
+
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[(shots.GAME_CLOCK_EXPIRING == 0) & shots.SEASON.between(first, last)]
+    print(f"{len(panel):,} chances, {len(shots):,} shots")
+
+    values = continuation_value(panel)
+
+    print("\n=== H4a: league relaxation by band, every boundary quantile ===")
+    sweep = band_quantile_sweep(shots, values)
+    print(sweep.round(4).to_string(index=False))
+    sweep.to_csv(REPORTS / f"situational_band_league_{window}.csv", index=False)
+
+    print("\n=== H4b: per-team band ratios, and how much of the spread is real ===")
+    teams = team_band_relaxation(shots, panel)
+    teams.to_csv(REPORTS / f"situational_band_teams_{window}.csv", index=False)
+    signal = band_signal_share(shots, panel, n_draws=n_null_draws)
+    print(signal.round(4).to_string(index=False))
+    signal.to_csv(REPORTS / f"situational_band_signal_{window}.csv", index=False)
+
+    late = signal[signal.BAND == "late"].signal_share
+    early = signal[signal.BAND == "early"].signal_share
+    if len(late) and len(early):
+        held = float(late.iloc[0]) > float(early.iloc[0])
+        verdict = "as predicted" if held else "PREDICTION FAILS"
+        print(f"\nH4 prediction (late > early): {float(late.iloc[0]):.3f} vs "
+              f"{float(early.iloc[0]):.3f} — {verdict}")
+
+    print("\n=== H5: does concentrating the late clock pay? ===")
+    concentration = concentration_panel(shots, panel)
+    concentration.to_csv(REPORTS / f"situational_concentration_panel_{window}.csv", index=False)
+    print(f"{len(concentration)} team-seasons; "
+          f"HHI_LATE {concentration.HHI_LATE.min():.3f}-{concentration.HHI_LATE.max():.3f}, "
+          f"FUNNEL {concentration.FUNNEL.min():+.3f} to {concentration.FUNNEL.max():+.3f}")
+
+    fits = pd.DataFrame(
+        [
+            fit_concentration(concentration, treatment=treatment)
+            for treatment in ("HHI_LATE", "FUNNEL")
+        ]
+    )
+    print(fits.round(4).to_string(index=False))
+    fits.to_csv(REPORTS / f"situational_concentration_{window}.csv", index=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="possval.pipeline")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -739,9 +811,15 @@ def main() -> None:
         help="rating uncertainty; defaults to the year-over-year figure (3.95)",
     )
 
+    situational = sub.add_parser("situational")
+    situational.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
+
     args = parser.parse_args()
     if args.command == "project":
         cmd_project(args.sims, args.games, args.rating_sd)
+        return
+    if args.command == "situational":
+        cmd_situational(args.window)
         return
 
     ranged = {
