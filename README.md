@@ -92,10 +92,24 @@ compute it from a box score.
 A per-player version of the stopping result correlates 0.984 with mean late-clock shot quality.
 It's that quantity under a different name, so it ranks who finishes rather than who decides.
 
-Three follow-up hypotheses were [registered before
-testing](reports/preregistration_exploration.md) with an exploration and holdout split. None
-confirmed. One cleared its significance test on exploration at +0.065 and came back at +0.001 on
-held-out seasons, which is the kind of false positive the protocol exists to catch.
+Five follow-up hypotheses were registered before testing, in two batches
+([one](reports/preregistration_exploration.md), [two](reports/preregistration_situational.md)),
+each with an exploration and holdout split. Four failed or came back marginal. One cleared its
+significance test on exploration at +0.065 and came back at +0.001 on held-out seasons, which is
+the kind of false positive the protocol exists to catch.
+
+The team-by-team spread in how offenses relax doesn't survive being asked *when*. Resolved by
+band of the clock, the late-clock spread beats its permutation null on exploration and comes back
+at exactly zero on held-out seasons — teams differ less there than random relabelling of
+team-games produces. What does reproduce is that the under-relaxation itself is a late- and
+middle-clock phenomenon: above 16 seconds continuation value is nearly flat, so there is no
+standard to relax against and the ratio is not estimable at all.
+
+The one thing that confirmed is small and needed a second check to interpret. Teams that funnel
+the late clock to fewer players *relative to their own baseline* score better late — and worse
+early, in both windows, which is the pattern a general talent proxy can't produce. It's worth
+about 0.16 to 0.29 points per game. Raw late-clock concentration looks stronger and isn't: it
+predicts early-clock efficiency about as well, so most of it isn't about the late clock.
 
 The 2018-19 rule change, which cut the reset to 14 seconds after an offensive rebound, doesn't
 have a measurable effect on scoring that I can defend. The point estimate is −0.016 points per
@@ -199,6 +213,7 @@ src/possval/
     lineup_synergy      the lineup-level retest and the head-to-head
     rulechange          2018-19 as a difference-in-differences
     stopping            continuation value and the exercise boundary
+    situational         the same boundary by band of the clock; late-clock usage concentration
     winprob             does the clock help predict game outcomes?
     ratings, aging      SRS from game results; paired-change aging curves
     dpm_calibration     player impact -> observed rating, fitted
@@ -210,7 +225,7 @@ tests/        golden sequences, invariants, bounds, and estimator recovery
 ```
 
 Every stage is a `make` target: `data`, `clock`, `validate`, `backfill`, `train`, `score`,
-`lineups`, `synergy`, `stopping`, `winprob`, `project`, `scorecard`, `app`.
+`lineups`, `synergy`, `stopping`, `situational`, `winprob`, `project`, `scorecard`, `app`.
 
 ## Notes on method
 

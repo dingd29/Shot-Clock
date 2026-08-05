@@ -515,6 +515,12 @@ projection in section 12 turns on this roster's shot creation that's worth notin
 over-reading. The shrunk gap to league average is 0.033 and the measure says nothing about the
 2026-27 roster, three quarters of which is new.
 
+One caution on all of the above, from section 13. Resolving this same ratio by band of the clock and
+re-running the same permutation null on held-out seasons returns a signal share of **zero** in the
+late clock — teams differ less there than random relabelling produces. The 42% here is measured over
+ten seasons and a whole possession and stands as reported, but a reader who takes it as licence to
+rank teams on late-clock decision-making should read section 13 first.
+
 Reproduce: `reports/stopping_team_relaxation.csv`.
 
 ## 9. Shot clock and win probability
@@ -863,6 +869,122 @@ season's odd-numbered games and scoring it on the even ones, then correcting for
 ratings add. The obvious alternative, fitting on a whole season and scoring on the same season, is
 circular: the ratings have already absorbed those outcomes and the scale comes out too small. That
 route gave 7.0 here, defended by an argument that turned out to be circular too.
+
+## 13. Two more pre-registered follow-ups: where and to whom
+
+Section 8 says teams differ in how they relax. Section 7 says the league under-relaxes. Both are
+single numbers spanning a whole possession, and two obvious refinements follow — *where* in the
+possession the difference lives, and *who* the offense routes to when the clock dies.
+
+Registered first, in [`preregistration_situational.md`](preregistration_situational.md), committed
+one commit before the analysis module existed. Same protocol as section 10: explore on 2015-16 to
+2021-22, confirm once on 2022-23 to 2023-24, leave 2024-25 alone.
+
+| | Hypothesis | Predicted | Explore | Holdout | Verdict |
+|---|---|---|---|---|---|
+| H4 | Team spread is concentrated late | late > early | 0.46 > 0.23 ✓ | 0.00 < 0.42 ✗ | Failed |
+| H5a | Late-clock concentration → efficiency | positive | +0.568, p < 0.001 | +0.841, p < 0.001 | Passes, fails its placebo |
+| H5b | Funnelling above own baseline → efficiency | positive | +0.781, p = 0.032 | +1.702, p = 0.045 | Marginal, and the clean one |
+
+### The estimator changed, and that was registered in advance
+
+Section 8's ratio differences the boundary at second 23 against second 1 — two numbers out of
+twenty-three. That is why H1 in section 10 could not be evaluated on a holdout at all. H4 instead
+fits `BOUNDARY(t)` and `V(t)` by weighted least squares within each band and takes the ratio of
+slopes, which uses every second in the band and degrades gracefully when one is thin. The choice
+was made for holdout estimability *before* running anything, rather than after discovering the
+failure, and the estimator is validated by recovering a known ratio on noiseless synthetic data.
+
+### H4 failed, and the late band failed hard
+
+| Band | Explore signal share | Holdout signal share |
+|---|---|---|
+| `late` (1–7s) | 0.459 | **0.000** |
+| `middle` (8–15s) | 0.577 | 0.165 |
+| `early` (16–23s) | 0.229 | 0.418 |
+
+The ordering reversed. On the holdout the late band's observed team spread is 0.1033 against a null
+spread of 0.1305 — **teams differ less in late-clock relaxation than random relabelling of
+team-games produces.** That is a stronger null than "undetectable".
+
+This is the second time the same mechanism has caught the same failure. On exploration alone H4
+clears its permutation null, has a clean mechanism, and would have survived every other check in
+this repo. Like H3, it took held-out seasons.
+
+### What did reproduce, as description rather than a test
+
+The league-level band ratios, across five boundary quantiles in each window:
+
+| Band | `V(t)` slope, pts/sec | Ratio, explore | Ratio, holdout |
+|---|---|---|---|
+| `late` (1–7s) | 0.039–0.043 | 0.11–0.51 (0.35–0.51 excluding q = 0.02) | 0.29–0.41 |
+| `middle` (8–15s) | 0.014–0.019 | 0.36–0.94 | 0.26–0.71 |
+| `early` (16–23s) | 0.008–0.010 | 0.78–2.75 | 1.27–3.61 |
+
+The `late` band's 0.11 is the q = 0.02 fit on exploration and is the one estimate in the table that
+doesn't sit with its neighbours. The 2nd percentile of accepted shot values is the thinnest tail on
+offer, so it is where a quantile boundary is least stable; the holdout does not reproduce it (0.31 at
+the same quantile). It is left in rather than trimmed.
+
+**Section 7's under-relaxation is a late- and middle-clock phenomenon**, and the early band is not
+estimable as a ratio at all. Continuation value above 16 seconds is nearly flat — 0.008 points per
+second against 0.039 late — so the ratio there divides by something close to zero and swings from
+0.78 to 2.75 across quantiles within one window. An early-band ratio above 1 is arithmetic, not an
+offense relaxing quickly. The instability was predicted in the registration, which is why the test
+compares signal shares (where it cancels) rather than raw variances; the early band's 0.418 on the
+holdout is most likely that same arithmetic.
+
+### H5 passes its registered test and then fails the first real check
+
+Team-season panel, n = 210 exploration and 60 holdout, season fixed effects, standard errors
+clustered on team, p-values from a wild cluster bootstrap-t rather than a normal — the general form
+of the correction that put section 5's rule-change result at p = 0.119.
+
+The outcome and the control are **disjoint sets of chances by construction**: chances live at second
+7 supply the outcome, chances that ended above it supply the control. Controlling on full-season
+efficiency instead would put the outcome's own chances on both sides of the regression.
+
+| Specification | Explore | p | Holdout | p |
+|---|---|---|---|---|
+| `HHI_LATE` → late efficiency (registered) | +0.568 | < 0.001 | +0.841 | < 0.001 |
+| `FUNNEL` → late efficiency (registered) | +0.781 | 0.032 | +1.702 | 0.045 |
+| `HHI_LATE` → **early** efficiency (post hoc placebo) | +0.491 | < 0.001 | +0.274 | 0.326 |
+| `FUNNEL` → **early** efficiency (post hoc placebo) | −0.750 | 0.096 | −1.518 | 0.084 |
+
+Both registered specifications confirm under the pre-registered rule. That is the first confirmation
+across five registered hypotheses in this project.
+
+The placebo is **post hoc** and is labelled as such everywhere it appears, including the `spec`
+column of the CSV. It asks the question a confirmation of this shape has to survive: if this is a
+*late-clock* effect, concentration must not predict efficiency on the chances that ended before the
+late clock. Because those chances are already a disjoint sample, the test costs nothing — swap the
+outcome and the control.
+
+**`HHI_LATE` fails it.** On exploration it predicts early-clock efficiency at +0.0072 points per
+chance per SD against +0.0084 late: essentially the same effect where the mechanism does not apply.
+The registered test passed and the interpretation did not. Raw late-clock concentration is
+substantially a proxy for something general about the offense, and the disjoint control did not
+remove it.
+
+**`FUNNEL` — how much more concentrated a team gets when the clock dies, relative to its own
+baseline — passes it in the sharpest way available.** Positive on late-clock efficiency, negative on
+early-clock efficiency, consistent signs in both windows. A general quality proxy cannot produce
+that pattern. It is also the specification with the weaker p-values, and those two facts belong in
+the same sentence.
+
+### The size of it
+
+A team-season averages about 2,230 chances reaching the late clock. One SD of `FUNNEL` is worth
++0.0059 to +0.0105 points per late chance, or **13 to 23 points across a season — 0.16 to 0.29
+points per game.** `HHI_LATE` runs 0.23 to 0.37 points per game and the placebo says most of that
+isn't about the late clock.
+
+So: funnelling the late clock beyond your own baseline is worth something, it is worth well under
+half a point per game, and it is measured to about a factor of two. It is a real effect and not a
+lever.
+
+Reproduce: `make situational` (and `WINDOW=holdout` for the confirmation);
+`reports/situational_band_signal_*.csv`, `reports/situational_concentration_*.csv`.
 
 ---
 

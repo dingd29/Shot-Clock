@@ -772,10 +772,21 @@ def cmd_situational(window: str, n_null_draws: int = 50) -> None:
           f"HHI_LATE {concentration.HHI_LATE.min():.3f}-{concentration.HHI_LATE.max():.3f}, "
           f"FUNNEL {concentration.FUNNEL.min():+.3f} to {concentration.FUNNEL.max():+.3f}")
 
+    # The two registered specifications, then the placebo. The placebo is **post hoc** — it was
+    # written after H5 confirmed, and the protocol requires saying so wherever it appears. It
+    # asks the question a confirmation has to survive: if concentrating the late clock is a
+    # late-clock effect, concentration must *not* predict efficiency on the chances that ended
+    # before the late clock. Swapping outcome and control does exactly that.
+    specifications = [
+        ("registered", "HHI_LATE", "PPC_LATE", "PPC_EARLY"),
+        ("registered", "FUNNEL", "PPC_LATE", "PPC_EARLY"),
+        ("post hoc placebo", "HHI_LATE", "PPC_EARLY", "PPC_LATE"),
+        ("post hoc placebo", "FUNNEL", "PPC_EARLY", "PPC_LATE"),
+    ]
     fits = pd.DataFrame(
         [
-            fit_concentration(concentration, treatment=treatment)
-            for treatment in ("HHI_LATE", "FUNNEL")
+            {"spec": spec, **fit_concentration(concentration, treatment=t, outcome=o, control=c)}
+            for spec, t, o, c in specifications
         ]
     )
     print(fits.round(4).to_string(index=False))
