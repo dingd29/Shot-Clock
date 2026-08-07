@@ -1230,6 +1230,112 @@ rather than quietly applied.
 
 Reproduce: `make endgame` (and `WINDOW=holdout`); `reports/endgame_*.csv`.
 
+## 17. The possession valuation curve, and who deviates from it
+
+Everything above produced pieces of a valuation. This assembles them, validates the result out of
+sample — which none of the pieces had been — and then asks the question the whole project was
+pointed at: do teams differ, and are they making mistakes?
+
+### The curve
+
+`V(t, start type)` — expected points for the remainder of the possession, given `t` seconds of
+shot clock and how the possession began. Possession-level throughout, with the rebound option of
+section 14 priced on both sides. Three start groups, because they behave differently and have the
+volume to support separate curves: half-court, live-ball turnover, and second chance.
+
+Fitted on 2015-16 → 2021-22 and scored on 2022-23 → 2023-24:
+
+| | Mean absolute error |
+|---|---|
+| Raw | 0.0403 pts |
+| After one league-wide level shift | **0.0093 pts** |
+
+The raw error is almost entirely a single number — the bias is 0.0402 against a mean absolute
+error of 0.0403, so nearly every cell misses in the same direction by the same amount. **The
+shape transfers; the level does not, and should not.** The league scores more in 2022-24 than in
+2015-21 for reasons that have nothing to do with the shot clock. A decision rule uses the shape.
+
+`V_ball(S)` from section 16 is deliberately *not* folded in. It is net points including what the
+opponent scores, so merging it would put offence and defence in one number. It composes on top.
+
+### Three questions that look alike
+
+Only the third is a claim that anybody is doing anything wrong, and this is where the two earlier
+attempts went wrong by measuring only a version of it and reading the null as "teams are the same".
+
+**1. Where a team sits on the curve — style.** Large, and never in doubt:
+
+| | Mean shot-clock second | Late-shot share |
+|---|---|---|
+| Dallas, Utah, Cleveland | 11.13 – 11.24 | 0.268 – 0.280 |
+| Milwaukee, New Orleans, OKC, Golden State | 12.14 – 12.19 | 0.203 – 0.217 |
+
+A full second of average shot clock separates the extremes, and late-shot share runs 20% to 28%.
+Teams do play differently. That was never the disputed part.
+
+**2. Whether a team's curve differs — capability.** Team curves, re-centred on their own level so
+only decay is compared, differ most in the late clock (SD 0.017 at 2 seconds, 0.006 at 14). A
+team whose star creates late genuinely has more to wait for.
+
+**3. Whether a team sits below its own curve — decision quality.** This is the one that had
+failed twice, and the estimator was the reason.
+
+### Premature share, and why it works where the ratio did not
+
+The fraction of a team's shots taken below what continuing was worth **to that team**. A
+proportion rather than a quotient of two fitted slopes — over ~44,000 shots per team its standard
+error is near 0.0013 against an observed spread of 0.0126, a ten-to-one margin the old estimator
+never had.
+
+Registered in [`preregistration_deviation.md`](preregistration_deviation.md) for the **holdout
+only**, because exploration had already been seen when it was written, and it says so.
+
+| | Explore | Holdout |
+|---|---|---|
+| Range | 0.058 (ATL) – 0.105 (DEN) | 0.026 (MEM) – 0.089 (BOS) |
+| Observed SD | 0.01263 | 0.01514 |
+| Permutation null SD | 0.00542 | 0.00686 |
+| **Signal share** | **0.816** | **0.795** |
+
+Against 42% for the pooled relaxation ratio over ten seasons, and **zero** for the band-resolved
+version out of sample.
+
+**And it persists.** Spearman ρ = **+0.398** across 30 franchises between windows seven seasons
+apart, one-sided p = 0.015. Golden State and Denver stay high; Atlanta, Dallas, Orlando and the
+Lakers stay low. **This is the first team-level result in this project to survive a holdout.**
+
+### The check that matters
+
+`V(t)` is estimated on chances that *declined* to shoot, so a team that shoots early leaves a
+worse residual and should get a downward-biased curve. If that drove the measure it would track
+shot timing. It does not: correlation with mean shot-clock second is **−0.048**, with late-shot
+share **+0.026**.
+
+**The measure is orthogonal to style.** It is not pace under another name — questions 1 and 3
+above are separately identified, which is exactly why they had to be measured apart.
+
+### What it does not settle
+
+Premature share correlates **+0.709** with the gap between a team's curve level and its mean shot
+value. That is arithmetic, not a mechanism — the measure is built from that gap. Two readings
+survive and this data does not separate them:
+
+- **Decision quality.** Denver's continuation value is high because Jokić generates good late
+  looks, so a shot that is fine elsewhere genuinely wastes a Denver possession.
+- **Unrealised capability.** The curve is estimated on chances that declined to shoot, and that
+  selection flatters teams whose late offence is good.
+
+Both are reported; neither is claimed.
+
+### And it is small
+
+The mean shortfall on a premature shot is 0.104 points. At ~85 attempts per team-game, the spread
+between the most and least premature franchises is **0.48 points per game** — about a point and a
+half of margin across a season. Real, replicated, orthogonal to style, and not something to
+reorganise an offence around.
+
+Reproduce: `make value` (and `WINDOW=holdout`); `reports/value_*.csv`.
+
 ---
 
 ## Caveats

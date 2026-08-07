@@ -865,6 +865,88 @@ def cmd_twoforone(window: str) -> None:
         print(f"  {key}: {value:,.4f}" if isinstance(value, float) else f"  {key}: {value:,}")
 
 
+def cmd_value(window: str) -> None:
+    """The possession valuation curve, its held-out calibration, and the team decomposition.
+
+    H7 is registered in `reports/preregistration_deviation.md` for the holdout only —
+    exploration had already been examined when it was written, and it says so.
+    """
+    from scipy import stats
+
+    from possval.models.rebound import possession_panel
+    from possval.models.value import (
+        calibration,
+        calibration_summary,
+        possession_curve,
+        premature_null,
+        premature_share,
+        shot_value,
+        team_curves,
+        team_shot_timing,
+    )
+
+    first, last = SITUATIONAL_WINDOWS[window]
+    pd.set_option("display.width", 200)
+    print(f"=== window: {window} ({first}-{str(first + 1)[-2:]} to "
+          f"{last}-{str(last + 1)[-2:]}) ===")
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[shots.GAME_CLOCK_EXPIRING == 0]
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+
+    window_panel = panel[panel.SEASON.between(first, last)]
+    chained = possession_panel(window_panel)
+    chained = chained[~chained.PERIOD_EXPIRED]
+    second_chance = float(chained[chained.START_TYPE == "off_rebound"].PTS_POSS.mean())
+
+    curve = possession_curve(window_panel)
+    curve.to_csv(REPORTS / f"value_curve_{window}.csv", index=False)
+    print("\n=== V(t) by start group ===")
+    print(curve.pivot(index="SECOND", columns="GROUP", values="V").round(3).to_string())
+
+    if window == "explore":
+        held = panel[panel.SEASON.between(*SITUATIONAL_WINDOWS["holdout"])]
+        table = calibration(window_panel, held)
+        table.to_csv(REPORTS / "value_calibration.csv", index=False)
+        print("\n=== held-out calibration: fit on explore, score on holdout ===")
+        for label, shift in (("raw", False), ("after one league level shift", True)):
+            summary = calibration_summary(table, level_shift=shift)
+            print(f"  {label}: mean |error| {summary['mean_abs_error']:.4f} pts, "
+                  f"bias {summary['bias']:+.4f}, shift {summary['level_shift']:+.4f}")
+        print("  the shape transfers; the level does not, and should not")
+
+    valued = shot_value(shots[shots.SEASON.between(first, last)], outcomes, second_chance)
+    curves = team_curves(chained, min_possessions=5_000)
+
+    print("\n=== 1. where teams sit on the curve (style) ===")
+    timing = team_shot_timing(valued, min_shots=2_000)
+    timing.to_csv(REPORTS / f"value_team_timing_{window}.csv", index=False)
+    print(pd.concat([timing.head(4), timing.tail(4)]).round(3).to_string(index=False))
+
+    print("\n=== 2. deviation from a team's OWN curve (decision quality) ===")
+    observed = premature_share(valued, curves, min_shots=2_000)
+    observed.to_csv(REPORTS / f"value_premature_{window}.csv", index=False)
+    print(pd.concat([observed.head(4), observed.tail(4)]).round(4).to_string(index=False))
+
+    null = premature_null(valued, chained, n_draws=50, min_possessions=5_000)
+    variance = observed.PREMATURE.var(ddof=1)
+    signal = max(variance - null["null_mean"] ** 2, 0.0) / variance
+    print(f"observed SD {np.sqrt(variance):.5f} vs permutation null {null['null_mean']:.5f} "
+          f"(p95 {null['null_p95']:.5f})  ->  signal share {signal:.3f}")
+
+    other = "holdout" if window == "explore" else "explore"
+    path = REPORTS / f"value_premature_{other}.csv"
+    if path.exists():
+        previous = pd.read_csv(path).set_index("TEAM_ABBREVIATION").PREMATURE
+        current = observed.set_index("TEAM_ABBREVIATION").PREMATURE
+        shared = current.index.intersection(previous.index)
+        rho, p_value = stats.spearmanr(current[shared], previous[shared])
+        print("\n=== H7b: does the ranking persist across windows? ===")
+        print(f"  {len(shared)} franchises | Spearman rho {rho:+.3f}, "
+              f"one-sided p {p_value / 2:.4f}")
+
+
 def cmd_endgame(window: str) -> None:
     """Is there a sawtooth in end-of-period possession value for a 2-for-1 to exploit?
 
@@ -1037,7 +1119,7 @@ def main() -> None:
         help="rating uncertainty; defaults to the year-over-year figure (3.95)",
     )
 
-    for name in ("situational", "twoforone", "endgame"):
+    for name in ("situational", "twoforone", "endgame", "value"):
         p = sub.add_parser(name)
         p.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
 
@@ -1045,11 +1127,12 @@ def main() -> None:
     if args.command == "project":
         cmd_project(args.sims, args.games, args.rating_sd)
         return
-    if args.command in ("situational", "twoforone", "endgame"):
+    if args.command in ("situational", "twoforone", "endgame", "value"):
         {
             "situational": cmd_situational,
             "twoforone": cmd_twoforone,
             "endgame": cmd_endgame,
+            "value": cmd_value,
         }[args.command](args.window)
         return
 

@@ -94,10 +94,11 @@ compute it from a box score.
 A per-player version of the stopping result correlates 0.984 with mean late-clock shot quality.
 It's that quantity under a different name, so it ranks who finishes rather than who decides.
 
-Seven follow-up hypotheses were registered before testing, in three batches
+Nine follow-up hypotheses were registered before testing, in four batches
 ([one](reports/preregistration_exploration.md), [two](reports/preregistration_situational.md),
-[three](reports/preregistration_twoforone.md)), each with an exploration and holdout split. Five
-failed, came back marginal, or landed on a precise zero. One cleared its
+[three](reports/preregistration_twoforone.md),
+[four](reports/preregistration_deviation.md)), each with an exploration and holdout split. Five
+failed, came back marginal, or landed on a precise zero; two confirmed. One cleared its
 significance test on exploration at +0.065 and came back at +0.001 on held-out seasons, which is
 the kind of false positive the protocol exists to catch.
 
@@ -180,6 +181,43 @@ The methodological note is the one I'd keep. The observational version of this q
 points against how long the possession took — says hurrying is worth +0.19 to +0.41. The
 quasi-experimental version says +0.01. Same data, same outcome variable, a factor of ten to fifty
 apart, because possessions that end in five seconds ended there when a layup appeared.
+
+## The possession valuation curve
+
+Everything above produces pieces of a valuation. Assembled: **V(shot clock, start type)**, the
+expected points left in a possession, priced at possession level with the rebound option counted
+on both sides. Fitted on 2015-16 to 2021-22 and scored on held-out seasons, it misses by 0.0403
+points — and the bias is 0.0402, meaning almost the entire error is one number. Allow a single
+league-wide level shift and it misses by **0.0093**. The shape transfers across eras; the level
+doesn't, and shouldn't, because the league just scores more now.
+
+Then the question the project was pointed at: do teams deviate from it?
+
+Three things that look alike and aren't. **Where a team sits** on the curve is style — a full
+second of average shot clock separates Dallas from Golden State, late-shot share runs 20% to 28%.
+**Whether its curve differs** is capability — a team whose star creates late genuinely has more
+to wait for. **Whether it sits below its own curve** is the only one that says anyone is doing
+anything wrong.
+
+That third question had failed twice here, and the estimator was why. Measured as a *proportion* —
+what share of your shots come in below what waiting was worth to you — rather than a ratio of
+fitted slopes, the standard error drops to 0.0013 against a spread of 0.0126.
+
+**Signal share 0.816, and 0.795 on held-out seasons**, against zero for the previous attempt. The
+ranking persists across seven seasons of roster turnover (ρ = +0.40, p = 0.015): Golden State and
+Denver high, Atlanta, Dallas, Orlando and the Lakers low. It's the first team-level result here to
+survive a holdout.
+
+It's also orthogonal to style — correlation with shot timing is **−0.048** — so it isn't pace
+under another name, and the obvious selection story doesn't explain it.
+
+What it doesn't settle: whether high premature share is bad decisions or unrealised ceiling.
+Denver's bar is high *because* Jokić generates good late looks, so a shot that's fine elsewhere
+wastes a Denver possession — that reads as a mistake. But the curve is estimated on possessions
+that declined to shoot, which flatters teams with good late offence. Both readings survive.
+
+And it's small: 0.104 points per premature shot, **0.48 points per game** between the extreme
+franchises.
 
 ## The efficiency curve
 
@@ -274,6 +312,7 @@ src/possval/
     rebound             P(retain | shot); possession chaining; the boundary re-priced
     twoforone           end-of-period possession trades, as a discontinuity
     endgame             the value of holding the ball late in a period; is there a sawtooth?
+    value               the assembled curve, its calibration, and per-team deviation
     situational         the same boundary by band of the clock; late-clock usage concentration
     winprob             does the clock help predict game outcomes?
     ratings, aging      SRS from game results; paired-change aging curves
@@ -287,8 +326,7 @@ tests/        golden sequences, invariants, bounds, and estimator recovery
 
 Every stage is a `make` target: `data`, `clock`, `validate`, `backfill`, `train`, `score`,
 `lineups`, `synergy`, `stopping`, `rebound`, `twoforone`, `endgame`, `situational`,
-`winprob`,
-`project`, `scorecard`, `app`.
+`value`, `winprob`, `project`, `scorecard`, `app`.
 
 ## Notes on method
 
