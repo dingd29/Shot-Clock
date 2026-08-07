@@ -23,6 +23,7 @@ import numpy as np
 import pandas as pd
 
 from possval.models.rebound import possession_panel
+from possval.models.twoforone import period_sides
 
 REGULATION_PERIODS = (1, 2, 3, 4)
 # The range where end-of-period decisions are live. Below 6 seconds a possession is a single
@@ -35,7 +36,7 @@ def possession_level(panel: pd.DataFrame) -> pd.DataFrame:
 
     Possessions rather than chances, because the whole question is about *handing the ball to
     the opponent*, and an offensive rebound does not do that. Working at chance level makes
-    consecutive rows alternate only 84.5% of the time, which quietly breaks every alternating
+    consecutive rows alternate only 79.2% of the time, which quietly breaks every alternating
     argument built on top.
     """
     chained = possession_panel(panel[panel.PERIOD.isin(REGULATION_PERIODS)])
@@ -57,10 +58,7 @@ def possession_level(panel: pd.DataFrame) -> pd.DataFrame:
         .sort_values(keys)
     )
 
-    side = poss.groupby(["GAME_ID", "PERIOD"], sort=False).TEAM.transform(
-        lambda s: (s != s.iloc[0]).astype(int)
-    )
-    poss["SIDE"] = side
+    poss["SIDE"] = period_sides(poss, ["GAME_ID", "PERIOD"])
     for value in (0, 1):
         points = poss.PTS.where(poss.SIDE == value, 0.0)
         block = points.groupby([poss.GAME_ID, poss.PERIOD], sort=False)
@@ -68,10 +66,14 @@ def possession_level(panel: pd.DataFrame) -> pd.DataFrame:
     own = np.where(poss.SIDE == 0, poss.REST_0, poss.REST_1)
     opponent = np.where(poss.SIDE == 0, poss.REST_1, poss.REST_0)
 
-    poss["NET_FROM_START"] = own - opponent
+    # A period containing any possession whose team is unknown cannot have its points split
+    # between two sides, so the whole period is dropped rather than half-attributed. It is 1.8%
+    # of periods and keeping them was what made the handover accounting disagree.
+    broken = poss.SIDE.isna().groupby([poss.GAME_ID, poss.PERIOD], sort=False).transform("any")
+    poss["NET_FROM_START"] = np.where(broken, np.nan, own - opponent)
     poss["NET_AFTER"] = poss.NET_FROM_START - poss.PTS
     poss["DURATION"] = poss.START_GC - poss.END_GC
-    return poss.drop(columns=["REST_0", "REST_1"])
+    return poss.drop(columns=["REST_0", "REST_1"]).dropna(subset=["NET_FROM_START"])
 
 
 def ball_value(
@@ -166,8 +168,8 @@ def mechanical_benchmark(
 
     Two identifiable reasons, both fatal:
 
-    - It assumes possession alternates. At chance level that holds 84.5% of the time; the model
-      has no offensive rebounds.
+    - It assumes possession alternates. At chance level that holds 79.2% of the time; the model
+      has no offensive rebounds, no defensive fouls and no kicked balls.
     - It truncates: a possession that would outlast the period scores zero. That badly
       understates value at low `S`, exactly where the buzzer matters most.
 

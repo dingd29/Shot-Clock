@@ -311,12 +311,31 @@ def possession_panel(panel: pd.DataFrame) -> pd.DataFrame:
     outcome for a continuation value: it is what the offense actually gets by not stopping.
     """
     ordered = panel.sort_values(["GAME_ID", "PERIOD", "CHANCE_ID"]).copy()
-    # Any start type other than an offensive rebound means the defense had the ball in between,
-    # so it opens a new possession.
-    opens = (ordered.START_TYPE != "off_rebound").astype(int)
-    ordered["POSSESSION_ID"] = opens.groupby(
-        [ordered.GAME_ID, ordered.PERIOD], sort=False
-    ).cumsum()
+
+    # A possession ends when the ball changes hands, so read that directly off the offensive
+    # team rather than trying to classify start types. Classifying them was wrong: an earlier
+    # version treated everything but `off_rebound` as a new possession, which silently split
+    # 102,330 `after_def_foul` chances (the offense keeps the ball 99.7% of the time) and 3,057
+    # `after_kicked_ball` chances (95.5%). It found 10.5% of chances to be continuations where
+    # the truth is 20.8%, and it broke the accounting identity that ending a possession at `S`
+    # is worth exactly minus the value of starting one there.
+    team = ordered.OFF_TEAM_ID if "OFF_TEAM_ID" in ordered else ordered.TEAM
+    previous = team.groupby([ordered.GAME_ID, ordered.PERIOD], sort=False).shift()
+    opens = np.where(
+        previous.isna(),  # first chance of a period always opens one
+        True,
+        np.where(
+            team.notna(),
+            team.ne(previous),
+            # 0.03% of chances carry no offensive team; fall back to the start type there.
+            ordered.START_TYPE.ne("off_rebound"),
+        ),
+    ).astype(int)
+    ordered["POSSESSION_ID"] = (
+        pd.Series(opens, index=ordered.index)
+        .groupby([ordered.GAME_ID, ordered.PERIOD], sort=False)
+        .cumsum()
+    )
 
     grouped = ordered.groupby(["GAME_ID", "PERIOD", "POSSESSION_ID"], sort=False).PTS_FG
     # Reverse cumulative sum, vectorised: total minus the exclusive running sum. A per-group

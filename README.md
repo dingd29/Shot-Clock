@@ -68,7 +68,7 @@ outcome.
 
 Continuation value falls from 0.81 points at 23 seconds to 0.36 at 1 second. The standard
 offenses actually accept falls by only about 37 to 54% of that, whichever quantile you use to
-define the threshold — and **26 to 44%** once a missed shot's rebound option is priced, which it
+define the threshold — and **23 to 43%** once a missed shot's rebound option is priced, which it
 originally wasn't (see below). It holds in all ten seasons and in competitive games alone, so it
 isn't a garbage-time artifact. Read it as an upper bound on the shortfall rather than a point
 estimate:
@@ -135,13 +135,14 @@ harmless if the rebound rate were flat. It isn't: a missed shot in the restricte
 **23.2% at 0-3 seconds on the shot clock against 14% mid-clock.** The correction is largest
 exactly where the result is anchored.
 
-Pricing it on both sides moves the relaxation ratio from 0.37-0.54 to **0.26-0.44**. The finding
+Pricing it on both sides moves the relaxation ratio from 0.37-0.54 to **0.23-0.43**. The finding
 was understated.
 
-A related surprise. A second chance looks more valuable than a fresh possession (0.845 to 0.771)
-and isn't. That gap is start clock, not scrambled defence. Before 2018-19 an offensive rebound
-reset to a full 24 exactly like a defensive one, so that era is a clean test with nothing to
-adjust for, and the advantage there is **+0.001 points**. Zero.
+A second chance is also worth more than a fresh possession, but far less than the raw numbers
+suggest. Pooled, it looks like 0.845 against 0.771 — mostly start clock, since second chances
+begin at 15.4 seconds and fresh ones at 23.9. Before 2018-19 an offensive rebound reset to a full
+24 exactly like a defensive one, so that era is a clean test with nothing to adjust for: the
+scrambled defence is worth **+0.060 points** (SE 0.005), about 6% of a possession.
 
 ## The 2-for-1
 
@@ -152,17 +153,18 @@ seconds left, 9.2 at 38, back to 10.7 at 45. Offenses hurry precisely when hurry
 trip, and stop hurrying when it doesn't. That's a 3.7-second swing and it replicates on held-out
 seasons.
 
-Net points to the buzzer move by +0.01, then +0.04 held out, neither distinguishable from zero;
-the effect is bounded to roughly -0.06 to +0.17 points per opportunity. The reason is in the
-ledger: shooting early hands back **0.06 to 0.07 points** of continuation value, and the extra
+Net points to the buzzer move by +0.008, then +0.030 held out, neither distinguishable from zero;
+the effect is bounded to roughly -0.09 to +0.16 points per opportunity. The reason is in the
+ledger: shooting early hands back **0.062 to 0.073 points** of continuation value, and the extra
 possession is worth about the same. A fair trade, with both sides measured — and the cost side
 needs a shot clock, which is why it hasn't been priced before.
 
 Chasing *why* it's zero turned up the better result. The whole premise of end-of-period clock
 management is a **sawtooth** in possession value — good and bad moments to hand the ball over. A
-dynamic program over alternating possessions predicts one worth 0.44 points, which is the picture
+dynamic program over alternating possessions predicts one worth 0.49 points, which is the picture
 anyone reasoning about a 2-for-1 has in their head. That model correlates **-0.03** with what
-actually happened. Measured directly, the sawtooth is **0.02 to 0.04 points**.
+actually happened. Measured directly, the sawtooth is real and about a twelfth of that: **0.035
+to 0.041 points**, and it replicates on held-out seasons.
 
 It fails because possessions aren't concentrated in length: mean 12.8 seconds, and no single
 duration carries more than a 5.7% probability. Two possessions from the buzzer the phase is
@@ -170,12 +172,12 @@ already unknowable. Same reason the "you need 24 seconds so they can't run out t
 wrong — the chance of getting the ball back climbs smoothly through 24 with no step, because the
 opponent's possession is a distribution centred near 13 seconds, not a block.
 
-So teams are playing hard against a 0.44-point sawtooth that measures 0.03 — and they're still
+So teams are playing hard against a 0.49-point sawtooth that measures 0.04 — and they're still
 not wrong to, because it's nearly free. A tactic universally believed to be worth half a point is
 worth a twentieth of one, and survives on being cheap rather than valuable.
 
 The methodological note is the one I'd keep. The observational version of this question — net
-points against how long the possession took — says hurrying is worth +0.20 to +0.43. The
+points against how long the possession took — says hurrying is worth +0.19 to +0.41. The
 quasi-experimental version says +0.01. Same data, same outcome variable, a factor of ten to fifty
 apart, because possessions that end in five seconds ended there when a layup appeared.
 

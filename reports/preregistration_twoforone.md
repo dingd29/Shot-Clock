@@ -107,8 +107,12 @@ at the end of the first quarter has consequences in the second that this outcome
 | | Hypothesis | Predicted | Explore | Holdout | Verdict |
 |---|---|---|---|---|---|
 | **H6a** | Teams shoot faster when a 2-for-1 is available | lower clock used | −3.70s | −3.60s | **Confirmed, emphatically** |
-| **H6b** | And it is worth net points | two-sided | +0.009 (t = 0.24) | +0.044 (t = 0.68) | **Precise null** |
+| **H6b** | And it is worth net points | two-sided | +0.008 (t = 0.22) | +0.030 (t = 0.47) | **Precise null** |
 | **H6c** | Cost of the early shot | descriptive | 0.062 pts | 0.073 pts | measured |
+
+*Numbers corrected 6 August 2026 after two accounting bugs were found by the identity check in
+finding 16 — see "Corrections" at the end. H6a and H6c are unchanged; H6b moved from +0.009 and
++0.044 to +0.008 and +0.030, and the verdict is unchanged.*
 
 **Teams run the 2-for-1, unmistakably. It is worth approximately nothing.**
 
@@ -144,10 +148,10 @@ there. That is recorded here rather than quietly swapped for the estimator that 
 
 Net points to the end of the period, jump at the registered threshold, trend-adjusted:
 
-| | Estimate | Std error | t |
-|---|---|---|---|
-| Exploration | +0.0088 | 0.0362 | 0.24 |
-| Holdout | +0.0439 | 0.0646 | 0.68 |
+| | Estimate | Std error | t | 95% interval |
+|---|---|---|---|---|
+| Exploration | +0.0081 | 0.0361 | 0.22 | [−0.063, +0.079] |
+| Holdout | +0.0302 | 0.0636 | 0.47 | [−0.094, +0.155] |
 
 **The registered decision rule was sign stability, two-sided. The sign held. That does not make
 this a confirmation, and reporting it as one would be exploiting a hole in my own protocol.**
@@ -157,7 +161,7 @@ a true value near zero the sign holds or flips at random. The rule should have r
 significance as well. It did not, so the loophole is named here and not used.
 
 What the numbers do support is stronger than a shrug: this is a **precise** null, not an
-indeterminate one. Pooling the two windows the effect is bounded to roughly **−0.06 to +0.17
+indeterminate one. Pooling the two windows the effect is bounded to roughly **−0.09 to +0.16
 points per opportunity**. About five such possessions occur per game across both teams, so even
 the top of that interval is well under a point of scoring per game.
 
@@ -169,7 +173,7 @@ The mechanism, and the part that needs a shot clock:
 |---|---|---|
 | Shot-clock second the chance ended, above threshold | 14.24 | 13.87 |
 | Below threshold | 10.96 | 10.40 |
-| **Forgone continuation value** | **0.062** | **0.073** |
+| **Forgone continuation value** | **0.0621** | **0.0726** |
 
 Teams running a 2-for-1 stop about 3.5 seconds earlier on the shot clock and hand back **0.06 to
 0.07 points** of continuation value to do it. Since the all-in net effect is +0.01 to +0.04, the
@@ -189,6 +193,24 @@ now measured, and the cost side has not been measurable before because it needs 
    the registered threshold; the profile is presented as the better evidence, and it was
    registered too ("the full curve of clock used against `PREV_GC` in one-second bins").
 3. **The H6b decision rule was too weak** and is described above rather than reinterpreted.
+
+## Corrections
+
+Made 6 August 2026, after the results above were first written and pushed. Both were found by
+the handover identity in finding 16, which is arithmetic rather than a hypothesis and so fails
+loudly when the accounting is wrong.
+
+1. **Possession chaining classified start types** and split possessions at defensive fouls and
+   kicked balls, where the offense in fact keeps the ball. Chaining now reads the offensive team
+   directly.
+2. **Period side labels collapsed** whenever a period's first row had a missing team, inverting
+   the net-points accounting for 613 periods. Sides now anchor on the first non-null team, and
+   periods with an unidentifiable team are dropped.
+
+Effect on this registration: H6a is untouched (clock used does not depend on either bug). H6c
+moved in the fourth decimal. H6b moved from +0.0088/+0.0439 to +0.0081/+0.0302, both still
+indistinguishable from zero, and the verdict — a precise null — is unchanged. The tables above
+carry the corrected numbers.
 
 ## What this cannot do
 

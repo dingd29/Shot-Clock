@@ -1015,8 +1015,8 @@ Pricing the option on both sides — a shot is worth `XPTS + P(retain) × V(seco
 
 | | Published | Re-priced |
 |---|---|---|
-| Value drop, 23s → 1s | 0.448 | 0.386 |
-| Relaxation ratio | 0.366 – 0.543 | **0.258 – 0.443** |
+| Value drop, 23s → 1s | 0.448 | 0.384 |
+| Relaxation ratio | 0.366 – 0.543 | **0.234 – 0.428** |
 
 **Finding 7 was understated.** Offenses relax their standard even less, relative to the value
 they are giving up, than the published number says.
@@ -1032,19 +1032,41 @@ Reproduce: `make rebound`; `reports/rebound_*.csv`.
 
 ### What a second chance is worth
 
-The raw numbers say an offensive-rebound chance (0.845) beats a fresh possession (0.771). That
-gap is composition: second chances start at 15.4 seconds and fresh ones at 23.9.
+*This subsection was corrected on 6 August 2026. An earlier version reported the premium as
+**zero**, and that was a bug rather than a finding — see the note at the end.*
 
-Held at the same start clock it vanishes. **Before 2018-19 an offensive rebound reset to 24
-exactly as a defensive one did**, so that era needs no adjustment and is the clean test:
-**+0.0011 points**, on 80,086 against 246,187 chances. The scrambled-defence premium is zero.
+The raw pooled numbers are composition: second chances start at 15.4 seconds and fresh
+possessions at 23.9, so any pooled gap mixes a scrambled defence with a clock difference running
+the other way. The comparison has to hold start clock fixed.
 
-Within the post-rule era the value of a second chance is flat from 14 to 18 seconds (1.006,
-1.003, 1.013, 1.007, 1.001) and falls only above 19, where the sample becomes rebounds off very
-early shots. Neither slope is causal — start clock is set by when the rebound arrived, which is
-set by what shot preceded it — so this says what second chances with `s` seconds are worth, not
-what one more second would be worth to a given one. Nothing here is claimed from a pre/post
-comparison, for the reason section 5 was withdrawn.
+**Before 2018-19 an offensive rebound reset to 24 exactly as a defensive one did**, so that era
+needs no adjustment at all and is the clean test:
+
+| Pre-2018, both starting at a full 24 | n | Points to end of possession |
+|---|---|---|
+| After an offensive rebound | 80,086 | 0.9997 |
+| After a defensive rebound | 246,187 | 0.9401 |
+| **Advantage** | | **+0.0596** (SE 0.0047, t = 12.7) |
+
+**A second chance is worth about 0.06 points more than a fresh possession at the same clock**,
+95% interval [+0.050, +0.069]. The scrambled defence is worth something — roughly 6% of a
+possession, which is small but not nothing and is far too precise to be noise.
+
+Within the post-rule era the value of a second chance is flat from 14 to 18 seconds (1.089,
+1.088, 1.098, 1.109, 1.099) and eases only slightly above 19 (1.063, 1.046, 1.051, 1.043), where
+the sample becomes rebounds off very early shots. Neither slope is causal — start clock is set by
+when the rebound arrived, which is set by what shot preceded it — so this says what second
+chances with `s` seconds are worth, not what one more second would be worth to a given one.
+Nothing here is claimed from a pre/post comparison, for the reason section 5 was withdrawn.
+
+**What was wrong before.** Possessions were being chained by classifying chance start types,
+treating everything except `off_rebound` as a new possession. That split **146,124** chances
+following a defensive foul or a kicked ball, where the offense in fact keeps the ball 99.7% and
+95.5% of the time. Truncating possessions there removed points that belonged to them — and it
+removed more from offensive-rebound possessions, which draw more defensive fouls precisely
+because the defence is scrambled. The truncation therefore erased the effect it was being used to
+measure. Possessions are now chained by whether the offensive team changed, which needs no list
+of start types and cannot go stale. See section 16 for how the error was caught.
 
 ## 15. The 2-for-1: teams do it, and it is close to free
 
@@ -1067,15 +1089,15 @@ against the 14.6, 13.3, 10.7, **9.2**, 10.0, 10.7 above. Two disjoint sets of se
 between them.
 
 **It is worth nothing measurable.** Net points to the end of the period, trend-adjusted, jumps
-+0.009 (t = 0.24) on exploration and +0.044 (t = 0.68) held out. Pooled, the effect is bounded to
-about **−0.06 to +0.17 points** per opportunity, on roughly five opportunities a game across both
++0.008 (t = 0.22) on exploration and +0.030 (t = 0.47) held out. Pooled, the effect is bounded to
+about **−0.09 to +0.16 points** per opportunity, on roughly five opportunities a game across both
 teams.
 
 **And the ledger balances.** Teams running a 2-for-1 stop about 3.5 seconds earlier on the shot
-clock and give up **0.06 to 0.07 points** of continuation value. With an all-in net near zero,
-the extra possession must be worth about that same 0.07 to 0.11. The 2-for-1 is a fair trade —
-offenses are neither being fooled nor finding free points. The cost side of that ledger has not
-been measurable before, because it needs a per-shot clock.
+clock and give up **0.062 to 0.073 points** of continuation value. With an all-in net near zero,
+the extra possession must be worth about that same amount. The 2-for-1 is a fair trade — offenses
+are neither being fooled nor finding free points. The cost side of that ledger has not been
+measurable before, because it needs a per-shot clock.
 
 Two honest notes on the design. The registered estimator was a regression discontinuity, and
 **the behaviour turns out to be smooth rather than sharp** — teams start hurrying gradually from
@@ -1106,41 +1128,42 @@ the possession took:
 
 | Ball gained with | Finished by 6s | Finished in 11–16s | Gap |
 |---|---|---|---|
-| 28–32s left | 0.602 | 0.403 | **+0.199** |
-| 32–36s left | 0.672 | 0.345 | **+0.327** |
-| 36–40s left | 0.713 | 0.283 | **+0.430** |
+| 28–32s left | 0.578 | 0.385 | **+0.193** |
+| 32–36s left | 0.642 | 0.314 | **+0.328** |
+| 36–40s left | 0.664 | 0.250 | **+0.414** |
 
 Read as policy advice this says teams leave a third of a point on the table every time they fail
 to hurry. It is the same trap that makes the raw efficiency-versus-clock curve uninterpretable:
 **possessions that end in five seconds ended there because a transition layup appeared**, not
 because anyone chose to go fast. The quasi-experimental estimate of the same thing — where
-treatment is *when the ball was gained*, which the opponent decides — is **+0.009 and +0.044**.
+treatment is *when the ball was gained*, which the opponent decides — is **+0.008 and +0.030**.
 The observational number overstates by a factor of ten to fifty.
 
 **The mechanical answer is also wrong, and this one is more interesting.** A dynamic program over
 alternating possessions, with duration and scoring taken from mid-period play, reproduces the
-textbook picture exactly: a peak at S = 21 (you get the last shot), a trough near S = 6, a
-**0.44-point** swing. It is the picture anybody reasoning about a 2-for-1 has in their head.
+textbook picture exactly: a peak at S = 22 (you get the last shot), a trough near S = 6, a
+**0.49-point** swing. It is the picture anybody reasoning about a 2-for-1 has in their head.
 
 Scored against what actually happened it correlates **−0.03** with observed outcomes, at a mean
 absolute error of **0.19 points** — worse than predicting a constant. Two identifiable reasons,
-both fatal: it assumes possession alternates, which at chance level holds only **84.5%** of the
-time because offensive rebounds exist; and it truncates, scoring a possession that outlasts the
-period at zero, which guts the value of exactly the situations the buzzer defines. The model is
-kept in the codebase as a documented failure rather than deleted.
+both fatal: it assumes possession alternates, which at chance level holds only **79.2%** of the
+time because offensive rebounds, defensive fouls and kicked balls all keep the ball; and it
+truncates, scoring a possession that outlasts the period at zero, which guts the value of exactly
+the situations the buzzer defines. The model is kept in the codebase as a documented failure
+rather than deleted.
 
-**Measured directly, the sawtooth is almost not there.**
+**Measured directly, the sawtooth is real and roughly a twelfth of that.**
 
 | | Explore | Holdout |
 |---|---|---|
-| `V_ball(S)` range over S = 6–45 | 0.335 – 0.584 | 0.334 – 0.637 |
-| Per-bin standard error | 0.035 | 0.064 |
-| Structure beyond a smooth trend | χ² = 88.7/37, p < 0.0001 | χ² = 48.2/37, p = 0.10 |
-| **Amplitude of that structure** | **0.040 pts** | **0.018 pts** |
+| `V_ball(S)` range over S = 6–45 | 0.328 – 0.572 | 0.366 – 0.673 |
+| Per-bin standard error | 0.037 | 0.069 |
+| Structure beyond a smooth trend | χ² = 87.3/37, p < 0.0001 | χ² = 55.0/37, p = 0.029 |
+| **Amplitude of that structure** | **0.041 pts** | **0.035 pts** |
 
-There is *some* real structure on the exploration window, and it does not reach significance on
-the holdout. Either way the amplitude is **0.02 to 0.04 points against a mechanically predicted
-0.44** — an order of magnitude and then some.
+Structure beyond a smooth trend is present in both windows and the amplitudes agree closely. So
+there *is* a sawtooth. It is **0.035 to 0.041 points against a mechanically predicted 0.49** — an
+order of magnitude and then some.
 
 **That is the answer to section 15.** The 2-for-1 is worth nothing measurable because there is no
 trough to land in.
@@ -1176,14 +1199,34 @@ The defensible statement is not "teams are wrong". It is that **a tactic univers
 be worth about half a point is worth about a twentieth of one, and it survives on being cheap
 rather than on being valuable.**
 
-### One accounting caveat
+### The accounting check, and the two bugs it caught
 
-Ending a possession at `S` should be worth exactly `−V_ball(S)`. Measured, the two agree in shape
-(r = 0.74 both windows) with a consistent **+0.11 to +0.13 level offset**. The likely cause is
-chain integrity: the chance panel drops chances whose start clock could not be ordered, so a
-successor's `PREV_GC` occasionally points two steps back rather than one. A constant offset does
-not affect the flatness result, which is about variation rather than level, but it is an
-unexplained disagreement and is reported as one.
+Ending a possession at `S` hands the ball to the opponent at `S`, so it must be worth exactly
+`−V_ball(S)`. That identity is not a hypothesis — it is arithmetic — which makes it a good
+detector. On the first run it failed: shape agreed at r = 0.74 but carried a consistent
+**+0.11 to +0.13 level offset**. Chasing it found two independent defects, both of which had
+already reached published numbers.
+
+**Possessions were being chained by classifying start types.** Everything except `off_rebound`
+was treated as a new possession, which split 102,330 chances after a defensive foul (the offense
+keeps the ball **99.7%** of the time) and 3,057 after a kicked ball (**95.5%**). The rule found
+10.5% of chances to be continuations where the truth is **20.8%**. Possessions are now chained by
+whether the offensive team changed, which needs no list and cannot go stale when the
+reconstruction gains a start type. This moved section 14's re-priced relaxation ratio and
+**reversed** its second-chance premium from zero to +0.06.
+
+**Whole periods were being assigned to one side.** Labelling teams with `s != s.iloc[0]` looks
+harmless until the first row's team is missing, at which point `NaN != NaN` is True, *every* row
+compares unequal to the reference, and the period's entire scoring accumulates to a single team
+with the net inverted. It hit 613 periods and 25,889 possession pairs. Sides are now anchored on
+the first **non-null** team, and periods still containing an unidentifiable team — 1.8% — are
+dropped rather than half-attributed.
+
+After both fixes the identity is exact: the row-level check holds for **100%** of linked pairs
+with a maximum error of 0, and the binned version gives **r = 0.9992** with a bias of **+0.003**.
+
+Every number in sections 14 to 16 is post-fix. The corrections are recorded in each section
+rather than quietly applied.
 
 Reproduce: `make endgame` (and `WINDOW=holdout`); `reports/endgame_*.csv`.
 

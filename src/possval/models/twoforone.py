@@ -27,6 +27,30 @@ THRESHOLD_SWEEP = tuple(float(t) for t in range(28, 37))
 REGULATION_PERIODS = (1, 2, 3, 4)
 
 
+def period_sides(frame: pd.DataFrame, keys: list[str], team: str = "TEAM") -> pd.Series:
+    """Label each row 0 or 1 by which of a period's two teams owns it.
+
+    The obvious version — `s != s.iloc[0]` — has a failure mode that destroys whole periods.
+    When the first row's team is missing, `NaN != NaN` is True, so *every* row compares unequal
+    to the reference and the entire period collapses onto one side. Its points then all
+    accumulate to a single team and the net-points accounting comes out inverted. That hit 613
+    periods and 25,889 possession pairs, and it was the residual bias left in the handover
+    identity after the possession-boundary fix.
+
+    Anchoring on the first **non-null** team removes the whole-period failure. Rows whose own
+    team is unknown are returned as NaN rather than guessed at, so callers can drop them
+    instead of silently attributing their points to whichever side sorts first.
+    """
+
+    def label(s: pd.Series) -> pd.Series:
+        known = s.dropna()
+        if known.empty:
+            return pd.Series(np.nan, index=s.index)
+        return s.ne(known.iloc[0]).astype(float).where(s.notna())
+
+    return frame.groupby(keys, sort=False)[team].transform(label)
+
+
 def net_points_to_period_end(panel: pd.DataFrame) -> pd.DataFrame:
     """Points the team in possession scores from here to the buzzer, minus the opponent's.
 
@@ -38,8 +62,7 @@ def net_points_to_period_end(panel: pd.DataFrame) -> pd.DataFrame:
 
     # Each period has exactly two teams. Accumulate each side's points backwards from the
     # buzzer, then read off whichever side owns the chance.
-    codes = frame.groupby(keys, sort=False).TEAM.transform(lambda s: (s != s.iloc[0]).astype(int))
-    frame["SIDE"] = codes
+    frame["SIDE"] = period_sides(frame, keys)
     for side in (0, 1):
         points = frame.PTS_FG.where(frame.SIDE == side, 0.0)
         grouped = points.groupby([frame.GAME_ID, frame.PERIOD], sort=False)
@@ -48,9 +71,9 @@ def net_points_to_period_end(panel: pd.DataFrame) -> pd.DataFrame:
 
     own = np.where(frame.SIDE == 0, frame.REST_0, frame.REST_1)
     opponent = np.where(frame.SIDE == 0, frame.REST_1, frame.REST_0)
-    frame["PTS_REST_OWN"] = own
-    frame["PTS_REST_OPP"] = opponent
-    frame["NET_REST"] = own - opponent
+    frame["PTS_REST_OWN"] = np.where(frame.SIDE.isna(), np.nan, own)
+    frame["PTS_REST_OPP"] = np.where(frame.SIDE.isna(), np.nan, opponent)
+    frame["NET_REST"] = frame.PTS_REST_OWN - frame.PTS_REST_OPP
     return frame.drop(columns=["REST_0", "REST_1"])
 
 
@@ -70,7 +93,10 @@ def window(panel: pd.DataFrame, bounds: tuple[float, float] = WINDOW) -> pd.Data
     frame["CLOCK_USED"] = frame.PREV_GC - frame.LAST_GC
     # A negative elapsed time is an ordering artefact in the feed, 0.28% of chances overall.
     # Dropped rather than clipped: a chance whose events cannot be ordered has no duration.
-    return frame[frame.CLOCK_USED >= 0]
+    # `NET_REST` is null where a period contains a chance with no identifiable offensive team,
+    # so its points cannot be split between two sides; those periods are dropped rather than
+    # half-attributed.
+    return frame[(frame.CLOCK_USED >= 0) & frame.NET_REST.notna()]
 
 
 def _clustered_covariance(

@@ -40,25 +40,26 @@ def test_clock_bands_cover_every_second_exactly_once():
 
 
 def _chances(rows) -> pd.DataFrame:
-    """(START_TYPE, PTS_FG) in order within one game-period."""
+    """(START_TYPE, OFF_TEAM_ID, PTS_FG) in order within one game-period."""
     return pd.DataFrame(
         {
             "GAME_ID": "G1",
             "PERIOD": 1,
             "CHANCE_ID": range(len(rows)),
             "START_TYPE": [r[0] for r in rows],
-            "PTS_FG": [float(r[1]) for r in rows],
+            "OFF_TEAM_ID": [r[1] for r in rows],
+            "PTS_FG": [float(r[2]) for r in rows],
         }
     )
 
 
-def test_an_offensive_rebound_continues_a_possession_and_a_defensive_one_ends_it():
+def test_a_possession_ends_when_the_ball_changes_hands():
     panel = _chances(
         [
-            ("def_rebound", 0),      # miss, then...
-            ("off_rebound", 2),      # ...own rebound and a score. One possession, 2 points.
-            ("after_made_fg", 3),    # the other team scores; new possession here
-            ("def_rebound", 0),
+            ("def_rebound", 10, 0),      # miss, then...
+            ("off_rebound", 10, 2),      # ...own rebound and a score. One possession, 2 points.
+            ("after_made_fg", 20, 3),    # the other team scores; new possession here
+            ("def_rebound", 10, 0),
         ]
     )
     out = possession_panel(panel)
@@ -66,22 +67,46 @@ def test_an_offensive_rebound_continues_a_possession_and_a_defensive_one_ends_it
     assert list(out.CHANCES_IN_POSSESSION) == [2, 2, 1, 1]
 
 
+def test_a_defensive_foul_does_not_end_a_possession():
+    """The bug this rule replaced.
+
+    Classifying start types treated everything but `off_rebound` as a new possession, which
+    split 102,330 `after_def_foul` chances where the offense keeps the ball 99.7% of the time.
+    Reading the offensive team directly needs no such list and cannot go stale when the
+    reconstruction gains a start type.
+    """
+    panel = _chances(
+        [
+            ("def_rebound", 10, 0),
+            ("after_def_foul", 10, 2),      # non-shooting foul: same team, clock resets
+            ("after_kicked_ball", 10, 0),   # also the same team
+            ("after_made_fg", 20, 2),
+        ]
+    )
+    out = possession_panel(panel)
+    assert list(out.POSSESSION_ID) == [1, 1, 1, 2]
+    assert list(out.PTS_POSS) == [2.0, 2.0, 0.0, 2.0]
+
+
 def test_points_run_forward_to_the_end_of_the_possession():
     """`PTS_POSS` is what declining to stop is actually worth, so it looks forward only."""
-    panel = _chances([("def_rebound", 0), ("off_rebound", 0), ("off_rebound", 3)])
+    panel = _chances(
+        [("def_rebound", 10, 0), ("off_rebound", 10, 0), ("off_rebound", 10, 3)]
+    )
     out = possession_panel(panel)
     # Every chance in this possession leads to the eventual 3; the last one contains only itself.
     assert list(out.PTS_POSS) == [3.0, 3.0, 3.0]
 
-    panel = _chances([("def_rebound", 2), ("after_made_fg", 3)])
+    panel = _chances([("def_rebound", 10, 2), ("after_made_fg", 20, 3)])
     out = possession_panel(panel)
     assert list(out.PTS_POSS) == [2.0, 3.0]  # separate possessions, no leakage between them
 
 
 def test_possession_points_never_fall_below_chance_points():
     rng = np.random.default_rng(0)
+    teams = rng.choice([10, 20], 500)
     starts = rng.choice(["def_rebound", "off_rebound", "after_made_fg"], 500)
-    panel = _chances(list(zip(starts, rng.choice([0, 2, 3], 500), strict=True)))
+    panel = _chances(list(zip(starts, teams, rng.choice([0, 2, 3], 500), strict=True)))
     out = possession_panel(panel)
     assert (out.PTS_POSS >= out.PTS_FG).all()
     # Total points are conserved: chaining redistributes credit, it does not create any.
@@ -90,12 +115,21 @@ def test_possession_points_never_fall_below_chance_points():
     )
 
 
+def test_an_unknown_offensive_team_falls_back_to_the_start_type():
+    panel = _chances([("def_rebound", 10, 0), ("off_rebound", np.nan, 2)])
+    out = possession_panel(panel)
+    assert list(out.POSSESSION_ID) == [1, 1]
+
+
 def test_chaining_does_not_run_across_periods():
     panel = pd.concat(
-        [_chances([("def_rebound", 2)]), _chances([("off_rebound", 3)]).assign(PERIOD=2)]
+        [
+            _chances([("def_rebound", 10, 2)]),
+            _chances([("off_rebound", 10, 3)]).assign(PERIOD=2),
+        ]
     )
     out = possession_panel(panel)
-    # An off_rebound opening a period has no predecessor to attach to, so it stands alone.
+    # The same team opening the next period is still a new possession, not a continuation.
     assert list(out.PTS_POSS) == [2.0, 3.0]
 
 
