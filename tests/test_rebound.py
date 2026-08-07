@@ -20,7 +20,9 @@ from possval.models.rebound import (
     published_comparison,
     reprice_shots,
     retention_lookup,
+    second_chance_by_clock,
     second_chance_value,
+    start_type_advantage,
 )
 
 
@@ -175,6 +177,58 @@ def test_full_value_adds_the_rebound_option_and_never_subtracts():
     assert priced.RETAIN.iloc[0] == pytest.approx(0.30)
     assert priced.FULL_VALUE.iloc[0] == pytest.approx(1.0 + 0.30 * 1.0)
     assert (priced.FULL_VALUE >= priced.XPTS).all()
+
+
+def _era_panel(era_season: int, off_start: float, off_pts, def_pts) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "SEASON": era_season,
+            "START_TYPE": ["off_rebound"] * len(off_pts) + ["def_rebound"] * len(def_pts),
+            "START_SC": [off_start] * len(off_pts) + [24.0] * len(def_pts),
+            "PTS_POSS": list(off_pts) + list(def_pts),
+        }
+    )
+
+
+def test_the_advantage_is_only_reported_where_both_start_types_exist():
+    """The rule makes the two start types nearly disjoint in start clock after 2018-19.
+
+    A comparison at a clock value only one of them ever reaches is not a comparison, so those
+    rows must not appear at all rather than appear with a one-sided count.
+    """
+    panel = _era_panel(2016, off_start=24.0, off_pts=[1.0] * 600, def_pts=[1.0] * 600)
+    lonely = _era_panel(2020, off_start=14.0, off_pts=[2.0] * 600, def_pts=[])
+    out = start_type_advantage(pd.concat([panel, lonely], ignore_index=True))
+    assert list(out.S) == [24]
+    assert out.ERA.iloc[0] == "pre-2018"
+    assert out.advantage.iloc[0] == pytest.approx(0.0)
+
+
+def test_the_advantage_is_measured_within_era_and_within_start_clock():
+    panel = pd.concat(
+        [
+            _era_panel(2016, 24.0, [1.0] * 600, [0.8] * 600),   # pre: +0.2
+            _era_panel(2020, 24.0, [1.0] * 600, [1.0] * 600),   # post: 0.0
+        ],
+        ignore_index=True,
+    )
+    out = start_type_advantage(panel).set_index("ERA")
+    assert out.loc["pre-2018", "advantage"] == pytest.approx(0.2)
+    assert out.loc["post-2018", "advantage"] == pytest.approx(0.0)
+
+
+def test_the_fourteen_second_floor_is_flagged():
+    panel = pd.concat(
+        [
+            _era_panel(2020, 14.0, [1.0] * 2000, []),
+            _era_panel(2020, 17.0, [0.9] * 2000, []),
+        ],
+        ignore_index=True,
+    )
+    out = second_chance_by_clock(panel).set_index("S")
+    assert bool(out.loc[14, "FLOOR_BOUND"]) is True
+    assert bool(out.loc[17, "FLOOR_BOUND"]) is False
+    assert out.loc[14, "VALUE"] == pytest.approx(1.0)
 
 
 def test_second_chance_value_separates_rebound_chances_from_fresh_ones():

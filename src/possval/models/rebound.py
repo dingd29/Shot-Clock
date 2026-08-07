@@ -37,6 +37,7 @@ import pandas as pd
 from possval.paths import PROCESSED
 
 MISSED_FG, REBOUND = 2, 4
+FULL_CLOCK_SECONDS = 24
 
 # Backcourt attempts are buzzer heaves. They are recovered 98% of the time because the period
 # ends and the feed logs a bookkeeping team rebound, which is not a basketball event and would
@@ -235,6 +236,65 @@ def lookup_stability(table: pd.DataFrame, holdout_seasons: tuple[int, ...] = (20
         "max_abs_error_pp": float(100 * difference.max()),
         "correlation": float(np.corrcoef(fitted.loc[shared], actual.loc[shared])[0, 1]),
     }
+
+
+RULE_SEASON = 2018
+SHORT_RESET = 14
+
+
+def start_type_advantage(panel: pd.DataFrame, min_chances: int = 500) -> pd.DataFrame:
+    """Is a second chance worth more than a fresh possession *at the same start clock*?
+
+    The raw comparison says yes and the raw comparison is composition. Offensive-rebound
+    chances average a 15.4-second start against 23.9 for a fresh possession, so any pooled gap
+    mixes the scrambled-defense story with a clock difference running the other way.
+
+    The two start types barely overlap in start clock — which is what the rule guarantees — so
+    the only window where both are well populated is a full 24. **Before 2018-19 that window is
+    the whole sample**, because an offensive rebound then reset to 24 exactly as a defensive one
+    did. That era is therefore the clean test, and it needs no adjustment at all.
+    """
+    frame = panel.copy()
+    frame["S"] = frame.START_SC.round().clip(0, FULL_CLOCK_SECONDS).astype(int)
+    frame["ERA"] = np.where(frame.SEASON >= RULE_SEASON, "post-2018", "pre-2018")
+    both = frame[frame.START_TYPE.isin(["off_rebound", "def_rebound"])]
+    grouped = both.groupby(["ERA", "S", "START_TYPE"], observed=True).PTS_POSS.agg(
+        ["size", "mean"]
+    )
+    wide = grouped.unstack("START_TYPE")
+    wide.columns = [f"{a}_{b}" for a, b in wide.columns]
+    wide = wide.dropna()
+    wide = wide[
+        (wide.size_off_rebound >= min_chances) & (wide.size_def_rebound >= min_chances)
+    ]
+    wide["advantage"] = wide.mean_off_rebound - wide.mean_def_rebound
+    return wide.reset_index()
+
+
+def second_chance_by_clock(
+    panel: pd.DataFrame, era: str = "post-2018", min_chances: int = 1_000
+) -> pd.DataFrame:
+    """What a second chance is worth as a function of the clock it is given.
+
+    The 14-second floor binds on about 70% of post-2018 offensive rebounds, which piles them on
+    a single start value and leaves the 15-23 range populated only by rebounds that arrived
+    early enough to keep more time.
+
+    **This curve is not a causal schedule of what a second of reset is worth.** Start clock is
+    decided by when the rebound happened, which is decided by what kind of shot preceded it, so
+    moving along the curve changes the population as well as the clock. It answers "what are
+    second chances with `s` seconds worth", not "what would this second chance be worth with one
+    more second".
+    """
+    frame = panel.copy()
+    frame["S"] = frame.START_SC.round().clip(0, FULL_CLOCK_SECONDS).astype(int)
+    frame = frame[frame.SEASON >= RULE_SEASON] if era == "post-2018" else frame[
+        frame.SEASON < RULE_SEASON
+    ]
+    rebounds = frame[frame.START_TYPE == "off_rebound"]
+    table = rebounds.groupby("S").PTS_POSS.agg(N="size", VALUE="mean")
+    table["FLOOR_BOUND"] = table.index == SHORT_RESET
+    return table[table.N >= min_chances].reset_index()
 
 
 def possession_panel(panel: pd.DataFrame) -> pd.DataFrame:

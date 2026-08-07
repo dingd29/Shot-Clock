@@ -725,8 +725,10 @@ def cmd_rebound(first: int, last: int) -> None:
         rebound_rates,
         reprice_shots,
         retention_lookup,
+        second_chance_by_clock,
         second_chance_value,
         shot_outcomes,
+        start_type_advantage,
     )
     from possval.models.stopping import continuation_value, exercise_boundary, relaxation
 
@@ -766,6 +768,17 @@ def cmd_rebound(first: int, last: int) -> None:
     print(f"fresh possession:   {values['v_fresh']:.4f} pts from a mean start of "
           f"{values['mean_start_sc_fresh']:.1f}s")
     print(f"off-rebound chance including its own further rebounds: {second_chance:.4f}")
+
+    print("\n=== is a second chance worth more than a fresh possession? ===")
+    print("only at the same start clock; the raw gap is composition, not advantage")
+    advantage = start_type_advantage(panel[~panel.PERIOD_EXPIRED])
+    print(advantage.round(4).to_string(index=False))
+    advantage.to_csv(REPORTS / "rebound_start_type_advantage.csv", index=False)
+
+    print("\n=== value of a second chance by the clock it gets (post-2018) ===")
+    by_clock = second_chance_by_clock(panel[~panel.PERIOD_EXPIRED])
+    print(by_clock.round(4).to_string(index=False))
+    by_clock.to_csv(REPORTS / "rebound_second_chance_by_clock.csv", index=False)
 
     shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
     shots = shots[shots.GAME_CLOCK_EXPIRING == 0]
