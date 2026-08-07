@@ -251,6 +251,7 @@ def exercise_boundary(
     values: pd.DataFrame,
     quantile: float = 0.05,
     min_shots: int = 200,
+    value_column: str = "XPTS",
 ) -> pd.DataFrame:
     """The implied shoot-or-hold boundary against the optimal one.
 
@@ -262,12 +263,18 @@ def exercise_boundary(
     continuing was worth. It measures what teams accepted, not what they refused; a declined
     shot leaves no record, so a positive gap is equally consistent with nothing better being
     on offer.
+
+    `value_column` defaults to `XPTS`, the expected points of the shot itself. Passing
+    `FULL_VALUE` from `rebound.reprice_shots` instead prices the rebound option a shot carries,
+    which must be paired with a `values` frame built on `PTS_POSS` so that both sides of the
+    comparison count second chances. Mixing the two — a possession-level `V(t)` against a
+    chance-level shot value, or the reverse — compares two different quantities.
     """
-    scored = shots.dropna(subset=["XPTS", "SHOT_CLOCK"]).copy()
+    scored = shots.dropna(subset=[value_column, "SHOT_CLOCK"]).copy()
     scored["SECOND"] = scored.SHOT_CLOCK.round().clip(0, FULL_CLOCK).astype(int)
     scored = scored[scored.SECOND != RESET_INSTANT]
 
-    accepted = scored.groupby("SECOND").XPTS.agg(
+    accepted = scored.groupby("SECOND")[value_column].agg(
         BOUNDARY=lambda x: float(x.quantile(quantile)), N_SHOTS="size"
     )
     joined = accepted.join(values.set_index("SECOND").V_CONT, how="inner")
@@ -286,6 +293,7 @@ def relaxation(
     shots: pd.DataFrame,
     values: pd.DataFrame,
     quantiles: tuple[float, ...] = (0.02, 0.05, 0.10, 0.20, 0.25),
+    value_column: str = "XPTS",
 ) -> pd.DataFrame:
     """Do offenses relax their standard as fast as continuation value collapses?
 
@@ -296,7 +304,9 @@ def relaxation(
     """
     rows = []
     for quantile in quantiles:
-        boundary = exercise_boundary(shots, values, quantile=quantile).set_index("SECOND")
+        boundary = exercise_boundary(
+            shots, values, quantile=quantile, value_column=value_column
+        ).set_index("SECOND")
         late, early = LATE_SECONDS, EARLY_SECONDS
         # The ratio is anchored on specific seconds, and a thin subsample can fail to populate
         # them — a two-season slice split thirty ways leaves some teams with too few shots at

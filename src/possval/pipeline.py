@@ -710,6 +710,92 @@ def cmd_ratings(first: int, last: int) -> None:
     print(f"\nwritten: {out}")
 
 
+def cmd_rebound(first: int, last: int) -> None:
+    """Conditional rebound rates, and what pricing the rebound option does to finding 7.
+
+    `stopping.py` compares a shot's `XPTS` against `V(t)`. An offensive rebound starts a new
+    chance, so the points it goes on to produce sit in neither side of that comparison. This
+    prices the option on both sides and reports how far the headline moves.
+    """
+    from possval.models.rebound import (
+        LOOKUP_KEYS,
+        lookup_stability,
+        possession_panel,
+        published_comparison,
+        rebound_rates,
+        reprice_shots,
+        retention_lookup,
+        second_chance_value,
+        shot_outcomes,
+    )
+    from possval.models.stopping import continuation_value, exercise_boundary, relaxation
+
+    pd.set_option("display.width", 200)
+    outcomes_path = PROCESSED / "shot_outcomes.parquet"
+    if outcomes_path.exists():
+        outcomes = pd.read_parquet(outcomes_path)
+    else:
+        outcomes = shot_outcomes(first, last)
+        outcomes.to_parquet(outcomes_path, index=False, compression="zstd")
+    print(f"attempts: {len(outcomes):,} | resolved: {outcomes.RESOLVED.mean():.2%}")
+
+    print("\n=== the two rates, and how they compare to published ORB% ===")
+    print(published_comparison(outcomes).round(4).to_string(index=False))
+    print("these are different quantities; see the docstring for why neither is wrong")
+
+    for keys in (["SHOT_ZONE_BASIC"], ["CLOCK_BAND"]):
+        table = rebound_rates(outcomes, keys)
+        print(f"\n=== rebound rates by {', '.join(keys)} ===")
+        print(table.round(4).to_string(index=False))
+        table.to_csv(REPORTS / f"rebound_by_{'_'.join(keys).lower()}.csv", index=False)
+
+    cells = rebound_rates(outcomes, LOOKUP_KEYS)
+    cells.to_csv(REPORTS / "rebound_lookup.csv", index=False)
+    stability = lookup_stability(outcomes)
+    print(f"\nlookup stability (fit through 2022-23, scored on 2023-24 and 2024-25): "
+          f"{stability['n_cells']} cells, mean |error| {stability['mean_abs_error_pp']:.2f}pp, "
+          f"max {stability['max_abs_error_pp']:.2f}pp, r = {stability['correlation']:.3f}")
+
+    panel = possession_panel(pd.read_parquet(PROCESSED / "chance_panel.parquet"))
+    values = second_chance_value(panel)
+    live = panel[(panel.START_TYPE == "off_rebound") & ~panel.PERIOD_EXPIRED]
+    second_chance = float(live.PTS_POSS.mean())
+    print("\n=== what a second chance is worth ===")
+    print(f"off-rebound chance: {values['v_off_rebound']:.4f} pts from a mean start of "
+          f"{values['mean_start_sc_off_rebound']:.1f}s")
+    print(f"fresh possession:   {values['v_fresh']:.4f} pts from a mean start of "
+          f"{values['mean_start_sc_fresh']:.1f}s")
+    print(f"off-rebound chance including its own further rebounds: {second_chance:.4f}")
+
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[shots.GAME_CLOCK_EXPIRING == 0]
+    priced = reprice_shots(shots, retention_lookup(outcomes), second_chance)
+
+    chance_level = continuation_value(panel, outcome="PTS_FG")
+    possession_level = continuation_value(panel, outcome="PTS_POSS")
+    published = relaxation(priced, chance_level, value_column="XPTS")
+    repriced = relaxation(priced, possession_level, value_column="FULL_VALUE")
+    comparison = pd.DataFrame(
+        {
+            "quantile": published["quantile"].to_numpy(),
+            "ratio_published": published.relaxation_ratio.to_numpy(),
+            "ratio_repriced": repriced.relaxation_ratio.to_numpy(),
+            "value_drop_published": published.value_drop.to_numpy(),
+            "value_drop_repriced": repriced.value_drop.to_numpy(),
+        }
+    )
+    print("\n=== finding 7's relaxation ratio, with the rebound option priced ===")
+    print(comparison.round(4).to_string(index=False))
+    print(f"published: {published.relaxation_ratio.min():.3f}-"
+          f"{published.relaxation_ratio.max():.3f}  ->  "
+          f"re-priced: {repriced.relaxation_ratio.min():.3f}-"
+          f"{repriced.relaxation_ratio.max():.3f}")
+    comparison.to_csv(REPORTS / "rebound_repriced_relaxation.csv", index=False)
+
+    boundary = exercise_boundary(priced, possession_level, value_column="FULL_VALUE")
+    boundary.to_csv(REPORTS / "rebound_repriced_boundary.csv", index=False)
+
+
 # The pre-registered split, hard-coded rather than passed in. A window that can be chosen at
 # the command line is a window that can be chosen after seeing a result.
 SITUATIONAL_WINDOWS = {"explore": (2015, 2021), "holdout": (2022, 2023)}
@@ -800,7 +886,7 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--season", type=int, default=2024, help="season start year")
     for name in ("backfill", "train", "score", "lineups", "lineup-test", "synergy",
-                 "rulechange", "ablate", "stopping", "winprob"):
+                 "rulechange", "ablate", "stopping", "winprob", "rebound"):
         p = sub.add_parser(name)
         p.add_argument("--first", type=int, default=2015)
         p.add_argument("--last", type=int, default=2024)
@@ -843,6 +929,7 @@ def main() -> None:
         "rulechange": cmd_rulechange,
         "ablate": cmd_ablate,
         "stopping": cmd_stopping,
+        "rebound": cmd_rebound,
         "winprob": cmd_winprob,
         "ratings": cmd_ratings,
     }
