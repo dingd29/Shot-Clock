@@ -865,6 +865,71 @@ def cmd_twoforone(window: str) -> None:
         print(f"  {key}: {value:,.4f}" if isinstance(value, float) else f"  {key}: {value:,}")
 
 
+def cmd_endgame(window: str) -> None:
+    """Is there a sawtooth in end-of-period possession value for a 2-for-1 to exploit?
+
+    Exploratory and **post hoc** relative to `preregistration_twoforone.md`, which registered
+    H6a-c and nothing here. Labelled as such wherever it is reported.
+    """
+    from scipy import stats
+
+    from possval.models.endgame import (
+        ball_value,
+        flatness,
+        handover_behaviour,
+        handover_identity,
+        mechanical_benchmark,
+        possession_level,
+        selection_bias,
+    )
+    from possval.models.twoforone import window as build_window
+
+    first, last = SITUATIONAL_WINDOWS[window]
+    pd.set_option("display.width", 200)
+    print(f"=== window: {window} ({first}-{str(first + 1)[-2:]} to "
+          f"{last}-{str(last + 1)[-2:]}) — POST HOC, not pre-registered ===")
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    panel = panel[panel.SEASON.between(first, last)]
+    poss = possession_level(panel)
+    print(f"{len(poss):,} possessions")
+
+    values = ball_value(poss)
+    values.to_csv(REPORTS / f"endgame_ball_value_{window}.csv", index=False)
+    print("\nV_ball(S), net points to the buzzer for the team holding the ball:")
+    print(f"  range {values.V_BALL.min():.3f}-{values.V_BALL.max():.3f}, "
+          f"mean {values.V_BALL.mean():.3f}, per-bin SE {values.SE.mean():.4f}")
+
+    identity = handover_identity(poss, values)
+    print(f"accounting check (ending at S should be worth -V_ball(S)): "
+          f"r={identity['correlation']:.3f}, bias={identity['bias']:+.3f}")
+
+    shape = flatness(values)
+    p_value = 1 - stats.chi2.cdf(shape["chi_square"], shape["dof"])
+    print(f"\nstructure beyond a smooth trend: chi2={shape['chi_square']:.1f} on "
+          f"{shape['dof']} dof, p={p_value:.4f}")
+    print(f"  amplitude {shape['structure_amplitude']:.4f} pts against a noise floor of "
+          f"{shape['noise_floor']:.4f}")
+
+    mechanical = mechanical_benchmark(poss).set_index("S").V_MECHANICAL.loc[6:45]
+    print(f"  the alternating-possession model predicts "
+          f"{mechanical.max() - mechanical.min():.3f} pts of sawtooth "
+          f"(peak S={mechanical.idxmax()}, trough S={mechanical.idxmin()}) — it does not "
+          f"survive validation; see its docstring")
+
+    behaviour = handover_behaviour(poss, values)
+    behaviour.to_csv(REPORTS / f"endgame_handover_{window}.csv", index=False)
+
+    print("\n=== the observational answer, which is wrong ===")
+    rows = []
+    for band in ((28, 32), (32, 36), (36, 40)):
+        rows.append(selection_bias(build_window(panel), band))
+    table = pd.DataFrame(rows)
+    print(table.round(3).to_string(index=False))
+    table.to_csv(REPORTS / f"endgame_selection_bias_{window}.csv", index=False)
+    print("set against the quasi-experimental estimate in twoforone: +0.009 / +0.044")
+
+
 def cmd_situational(window: str, n_null_draws: int = 50) -> None:
     """H4 and H5 from `reports/preregistration_situational.md`.
 
@@ -972,7 +1037,7 @@ def main() -> None:
         help="rating uncertainty; defaults to the year-over-year figure (3.95)",
     )
 
-    for name in ("situational", "twoforone"):
+    for name in ("situational", "twoforone", "endgame"):
         p = sub.add_parser(name)
         p.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
 
@@ -980,8 +1045,12 @@ def main() -> None:
     if args.command == "project":
         cmd_project(args.sims, args.games, args.rating_sd)
         return
-    if args.command in ("situational", "twoforone"):
-        {"situational": cmd_situational, "twoforone": cmd_twoforone}[args.command](args.window)
+    if args.command in ("situational", "twoforone", "endgame"):
+        {
+            "situational": cmd_situational,
+            "twoforone": cmd_twoforone,
+            "endgame": cmd_endgame,
+        }[args.command](args.window)
         return
 
     ranged = {

@@ -158,6 +158,27 @@ ledger: shooting early hands back **0.06 to 0.07 points** of continuation value,
 possession is worth about the same. A fair trade, with both sides measured — and the cost side
 needs a shot clock, which is why it hasn't been priced before.
 
+Chasing *why* it's zero turned up the better result. The whole premise of end-of-period clock
+management is a **sawtooth** in possession value — good and bad moments to hand the ball over. A
+dynamic program over alternating possessions predicts one worth 0.44 points, which is the picture
+anyone reasoning about a 2-for-1 has in their head. That model correlates **-0.03** with what
+actually happened. Measured directly, the sawtooth is **0.02 to 0.04 points**.
+
+It fails because possessions aren't concentrated in length: mean 12.8 seconds, and no single
+duration carries more than a 5.7% probability. Two possessions from the buzzer the phase is
+already unknowable. Same reason the "you need 24 seconds so they can't run out the clock" rule is
+wrong — the chance of getting the ball back climbs smoothly through 24 with no step, because the
+opponent's possession is a distribution centred near 13 seconds, not a block.
+
+So teams are playing hard against a 0.44-point sawtooth that measures 0.03 — and they're still
+not wrong to, because it's nearly free. A tactic universally believed to be worth half a point is
+worth a twentieth of one, and survives on being cheap rather than valuable.
+
+The methodological note is the one I'd keep. The observational version of this question — net
+points against how long the possession took — says hurrying is worth +0.20 to +0.43. The
+quasi-experimental version says +0.01. Same data, same outcome variable, a factor of ten to fifty
+apart, because possessions that end in five seconds ended there when a layup appeared.
+
 ## The efficiency curve
 
 - The `4-0` bucket reports 0.933 points per attempt for a region that actually runs 0.989 down
@@ -250,6 +271,7 @@ src/possval/
     stopping            continuation value and the exercise boundary
     rebound             P(retain | shot); possession chaining; the boundary re-priced
     twoforone           end-of-period possession trades, as a discontinuity
+    endgame             the value of holding the ball late in a period; is there a sawtooth?
     situational         the same boundary by band of the clock; late-clock usage concentration
     winprob             does the clock help predict game outcomes?
     ratings, aging      SRS from game results; paired-change aging curves
@@ -262,7 +284,8 @@ tests/        golden sequences, invariants, bounds, and estimator recovery
 ```
 
 Every stage is a `make` target: `data`, `clock`, `validate`, `backfill`, `train`, `score`,
-`lineups`, `synergy`, `stopping`, `rebound`, `twoforone`, `situational`, `winprob`,
+`lineups`, `synergy`, `stopping`, `rebound`, `twoforone`, `endgame`, `situational`,
+`winprob`,
 `project`, `scorecard`, `app`.
 
 ## Notes on method

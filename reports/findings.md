@@ -1087,6 +1087,106 @@ registration rather than used.
 
 Reproduce: `make twoforone` (and `WINDOW=holdout`); `reports/twoforone_*.csv`.
 
+## 16. Why the 2-for-1 is worth nothing, and whether teams are wrong to run it
+
+**Post hoc.** [`preregistration_twoforone.md`](preregistration_twoforone.md) registered H6a–c and
+nothing in this section. It is descriptive and structural, and it is labelled exploratory
+wherever it appears.
+
+Section 15 left an unanswered question. Teams hurry hard, the ledger balances, and the net effect
+is zero. *Why* zero? The premise of all end-of-period clock management is that possession value
+has a **sawtooth** in the game clock — good and bad moments to give the ball away, depending on
+whether the opponent can fit a clean trip before the buzzer. A 2-for-1 is an attempt to land the
+handover in a trough. So: how big is the sawtooth?
+
+### Three answers, and only the third is any good
+
+**The observational answer is enormous and wrong.** Mean net points to the buzzer, by how long
+the possession took:
+
+| Ball gained with | Finished by 6s | Finished in 11–16s | Gap |
+|---|---|---|---|
+| 28–32s left | 0.602 | 0.403 | **+0.199** |
+| 32–36s left | 0.672 | 0.345 | **+0.327** |
+| 36–40s left | 0.713 | 0.283 | **+0.430** |
+
+Read as policy advice this says teams leave a third of a point on the table every time they fail
+to hurry. It is the same trap that makes the raw efficiency-versus-clock curve uninterpretable:
+**possessions that end in five seconds ended there because a transition layup appeared**, not
+because anyone chose to go fast. The quasi-experimental estimate of the same thing — where
+treatment is *when the ball was gained*, which the opponent decides — is **+0.009 and +0.044**.
+The observational number overstates by a factor of ten to fifty.
+
+**The mechanical answer is also wrong, and this one is more interesting.** A dynamic program over
+alternating possessions, with duration and scoring taken from mid-period play, reproduces the
+textbook picture exactly: a peak at S = 21 (you get the last shot), a trough near S = 6, a
+**0.44-point** swing. It is the picture anybody reasoning about a 2-for-1 has in their head.
+
+Scored against what actually happened it correlates **−0.03** with observed outcomes, at a mean
+absolute error of **0.19 points** — worse than predicting a constant. Two identifiable reasons,
+both fatal: it assumes possession alternates, which at chance level holds only **84.5%** of the
+time because offensive rebounds exist; and it truncates, scoring a possession that outlasts the
+period at zero, which guts the value of exactly the situations the buzzer defines. The model is
+kept in the codebase as a documented failure rather than deleted.
+
+**Measured directly, the sawtooth is almost not there.**
+
+| | Explore | Holdout |
+|---|---|---|
+| `V_ball(S)` range over S = 6–45 | 0.335 – 0.584 | 0.334 – 0.637 |
+| Per-bin standard error | 0.035 | 0.064 |
+| Structure beyond a smooth trend | χ² = 88.7/37, p < 0.0001 | χ² = 48.2/37, p = 0.10 |
+| **Amplitude of that structure** | **0.040 pts** | **0.018 pts** |
+
+There is *some* real structure on the exploration window, and it does not reach significance on
+the holdout. Either way the amplitude is **0.02 to 0.04 points against a mechanically predicted
+0.44** — an order of magnitude and then some.
+
+**That is the answer to section 15.** The 2-for-1 is worth nothing measurable because there is no
+trough to land in.
+
+### Why the folk theory fails
+
+The sawtooth needs possession lengths to be **concentrated**. They are not: mean duration is 12.8
+seconds and **no single duration carries more than a 5.7% probability**. Two possessions from the
+buzzer, the phase of the alternating sequence is already unknowable. Dispersion smears the
+sawtooth flat.
+
+This is also why the "you need 24 seconds so they can't run out the clock" rule of thumb is wrong.
+Measured, the chance of getting the ball back rises smoothly — 0.84 at 23 seconds left, 0.88 at
+24, 0.95 at 27 — with no step at 24 at all, because the opponent's possession is a distribution
+centred near 13 seconds, not a 24-second block.
+
+### So are teams acting on the information?
+
+**They are acting, decisively.** The behavioural signal in section 15 is one of the strongest in
+this repo and replicates to a tenth of a second.
+
+**The information does not support the intensity.** They are playing against a 0.44-point
+sawtooth that measures 0.03.
+
+**And they are not wrong to do it.** This is the part that would be easy to get triumphantly
+backwards. Because the ledger balances — 0.06 to 0.07 points of forgone continuation value
+against an extra possession worth about the same — hurrying is close to **free**. A free option
+with a small, uncertain, possibly-positive payoff is worth taking. There are also reasons this
+measurement cannot see: an extra possession raises scoring variance, which is worth something to
+a trailing team, and nothing here prices that.
+
+The defensible statement is not "teams are wrong". It is that **a tactic universally believed to
+be worth about half a point is worth about a twentieth of one, and it survives on being cheap
+rather than on being valuable.**
+
+### One accounting caveat
+
+Ending a possession at `S` should be worth exactly `−V_ball(S)`. Measured, the two agree in shape
+(r = 0.74 both windows) with a consistent **+0.11 to +0.13 level offset**. The likely cause is
+chain integrity: the chance panel drops chances whose start clock could not be ordered, so a
+successor's `PREV_GC` occasionally points two steps back rather than one. A constant offset does
+not affect the flatness result, which is about variation rather than level, but it is an
+unexplained disagreement and is reported as one.
+
+Reproduce: `make endgame` (and `WINDOW=holdout`); `reports/endgame_*.csv`.
+
 ---
 
 ## Caveats
