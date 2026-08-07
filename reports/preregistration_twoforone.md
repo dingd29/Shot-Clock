@@ -100,4 +100,98 @@ at the end of the first quarter has consequences in the second that this outcome
 
 # Results
 
-*Not yet run. Filled in one pass against the protocol above.*
+**Run 6 August 2026.** Exploration first, code committed unchanged, then the holdout once.
+
+## Scoreboard
+
+| | Hypothesis | Predicted | Explore | Holdout | Verdict |
+|---|---|---|---|---|---|
+| **H6a** | Teams shoot faster when a 2-for-1 is available | lower clock used | −3.70s | −3.60s | **Confirmed, emphatically** |
+| **H6b** | And it is worth net points | two-sided | +0.009 (t = 0.24) | +0.044 (t = 0.68) | **Precise null** |
+| **H6c** | Cost of the early shot | descriptive | 0.062 pts | 0.073 pts | measured |
+
+**Teams run the 2-for-1, unmistakably. It is worth approximately nothing.**
+
+## H6a, confirmed, and it is not subtle
+
+Mean clock used, against when the offense gained the ball (exploration window):
+
+| Ball gained at | 26s | 30s | 34s | 38s | 42s | 45s |
+|---|---|---|---|---|---|---|
+| Clock used | 14.6 | 13.3 | 10.7 | **9.2** | 10.0 | 10.7 |
+
+That is the 2-for-1 in one row. Offenses burn 14.6 seconds when there is no second trip to be
+had, speed up to 9.2 as the window opens, and **slow down again past 40 seconds** when they no
+longer need to hurry to get the ball back. The raw difference across the registered threshold is
+**−3.70 seconds** on exploration and **−3.60** on the holdout, on ~8,300 and ~2,500 games.
+
+### The registered estimator was the wrong one, and the profile says so
+
+The local linear fit at the threshold gives −0.59s (t = −3.9) on exploration and −0.52s
+(t = −1.8) on the holdout — same sign, so H6a passes as registered, but far weaker than the raw
+comparison. The threshold sweep explains why. On the holdout the local estimates run −0.28,
++0.27, +0.20, −0.33, −0.52, −1.28, −1.28, −0.82, −0.47 across thresholds 28 to 36, flipping sign
+twice.
+
+**The behaviour is smooth, not a discontinuity.** Teams treat the end of a period as a
+continuum and start hurrying gradually from about 34 seconds, so there is no sharp jump at 32
+for a regression discontinuity to find. The design was registered on the assumption of a knife
+edge and the assumption was wrong. The evidence for H6a is the profile and the raw difference,
+both overwhelming; the local estimate is noisy because it is looking for a corner that is not
+there. That is recorded here rather than quietly swapped for the estimator that worked.
+
+## H6b, a precise null, and my decision rule was not good enough
+
+Net points to the end of the period, jump at the registered threshold, trend-adjusted:
+
+| | Estimate | Std error | t |
+|---|---|---|---|
+| Exploration | +0.0088 | 0.0362 | 0.24 |
+| Holdout | +0.0439 | 0.0646 | 0.68 |
+
+**The registered decision rule was sign stability, two-sided. The sign held. That does not make
+this a confirmation, and reporting it as one would be exploiting a hole in my own protocol.**
+
+A sign-stability rule cannot distinguish "no effect" from "an effect too small to see", and with
+a true value near zero the sign holds or flips at random. The rule should have required
+significance as well. It did not, so the loophole is named here and not used.
+
+What the numbers do support is stronger than a shrug: this is a **precise** null, not an
+indeterminate one. Pooling the two windows the effect is bounded to roughly **−0.06 to +0.17
+points per opportunity**. About five such possessions occur per game across both teams, so even
+the top of that interval is well under a point of scoring per game.
+
+## H6c, where the points went
+
+The mechanism, and the part that needs a shot clock:
+
+| | Explore | Holdout |
+|---|---|---|
+| Shot-clock second the chance ended, above threshold | 14.24 | 13.87 |
+| Below threshold | 10.96 | 10.40 |
+| **Forgone continuation value** | **0.062** | **0.073** |
+
+Teams running a 2-for-1 stop about 3.5 seconds earlier on the shot clock and hand back **0.06 to
+0.07 points** of continuation value to do it. Since the all-in net effect is +0.01 to +0.04, the
+extra possession must be worth roughly 0.07 to 0.11 — **almost exactly what the degraded shot
+costs.**
+
+That is the answer, and it is a satisfying one: the 2-for-1 is close to a fair trade. Offenses
+are not being fooled, and they are not finding free points either. Both sides of the ledger are
+now measured, and the cost side has not been measurable before because it needs a per-shot clock.
+
+## Deviations from the protocol
+
+1. **None in what was run.** Both hypotheses, both estimators, the full 28–36 sweep and the
+   descriptive cost were run on both windows and all are reported.
+2. **One design error is recorded rather than corrected**: the regression discontinuity assumes
+   a sharp threshold and the behaviour is gradual. The registered estimator is still reported at
+   the registered threshold; the profile is presented as the better evidence, and it was
+   registered too ("the full curve of clock used against `PREV_GC` in one-second bins").
+3. **The H6b decision rule was too weak** and is described above rather than reinterpreted.
+
+## What this cannot do
+
+`PREV_GC` is quasi-random, not random, and the reduced form compares feasibility rather than the
+decision. Net points to the buzzer also ignores everything after it: a possession given up at
+the end of the first quarter has second-quarter consequences this outcome cannot see.

@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational ratings project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational twoforone ratings project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -46,6 +46,9 @@ stopping:  ## shooting as optimal stopping: continuation value and exercise boun
 
 rebound:  ## conditional rebound rates; re-price finding 7 with the rebound option
 	$(PY) -m possval.pipeline rebound --first $(FIRST) --last $(LAST)
+
+twoforone:  ## does the 2-for-1 pay? WINDOW=holdout is a one-shot confirmation
+	$(PY) -m possval.pipeline twoforone --window $(or $(WINDOW),explore)
 
 situational:  ## H4/H5 on the exploration window; WINDOW=holdout is a one-shot confirmation
 	$(PY) -m possval.pipeline situational --window $(or $(WINDOW),explore)

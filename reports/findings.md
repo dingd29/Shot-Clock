@@ -986,6 +986,107 @@ lever.
 Reproduce: `make situational` (and `WINDOW=holdout` for the confirmation);
 `reports/situational_band_signal_*.csv`, `reports/situational_concentration_*.csv`.
 
+## 14. What a miss is worth, and what finding 7 was missing
+
+Everything in section 7 compares a shot's `XPTS` against `V(t)`. Both sides omit the same thing:
+an offensive rebound ends a *chance* but not a *possession*, so the points a team goes on to
+score after rebounding its own miss were credited to a different row and counted on neither side.
+
+That would be harmless if the rebound probability were constant. It is not.
+
+| | Conditional on a miss | Unconditional retention |
+|---|---|---|
+| Restricted Area | **40.1%** | 14.0% |
+| In The Paint (non-RA) | 32.6% | **18.6%** |
+| Right Corner 3 | 24.8% | 15.1% |
+| Above the Break 3 | 23.3% | 15.0% |
+| Mid-Range | **22.1%** | **13.0%** |
+
+The two columns rank shots differently and both are needed. Rim misses come back most often, but
+rim shots mostly go in, so a rim attempt is the *least* likely to leave you holding the ball. The
+second column is what valuation needs.
+
+**The correction concentrates exactly where finding 7 is anchored.** Retention runs **23.2% at
+0–3 seconds** on the shot clock against about 14% mid-clock, because late shots miss more *and*
+come back more when they do.
+
+Pricing the option on both sides — a shot is worth `XPTS + P(retain) × V(second chance)`, and
+`V(t)` is rebuilt on points to the end of the *possession* rather than the chance:
+
+| | Published | Re-priced |
+|---|---|---|
+| Value drop, 23s → 1s | 0.448 | 0.386 |
+| Relaxation ratio | 0.366 – 0.543 | **0.258 – 0.443** |
+
+**Finding 7 was understated.** Offenses relax their standard even less, relative to the value
+they are giving up, than the published number says.
+
+Two validation notes. The rebound side is read from which description column an event was logged
+in rather than from a team-id join, which keeps the 15.6% of rebounds credited to a team rather
+than a player — a ball knocked out off the defence is a retained possession, and a team-id join
+drops exactly those. And the player-rebound rate off missed field goals comes to 25.5% against a
+published league figure near 24%; **a 1.6pp gap remains and is not explained here.** It is small
+next to the 17pp spread across zones the valuation rests on, but it is a level disagreement.
+
+Reproduce: `make rebound`; `reports/rebound_*.csv`.
+
+### What a second chance is worth
+
+The raw numbers say an offensive-rebound chance (0.845) beats a fresh possession (0.771). That
+gap is composition: second chances start at 15.4 seconds and fresh ones at 23.9.
+
+Held at the same start clock it vanishes. **Before 2018-19 an offensive rebound reset to 24
+exactly as a defensive one did**, so that era needs no adjustment and is the clean test:
+**+0.0011 points**, on 80,086 against 246,187 chances. The scrambled-defence premium is zero.
+
+Within the post-rule era the value of a second chance is flat from 14 to 18 seconds (1.006,
+1.003, 1.013, 1.007, 1.001) and falls only above 19, where the sample becomes rebounds off very
+early shots. Neither slope is causal — start clock is set by when the rebound arrived, which is
+set by what shot preceded it — so this says what second chances with `s` seconds are worth, not
+what one more second would be worth to a given one. Nothing here is claimed from a pre/post
+comparison, for the reason section 5 was withdrawn.
+
+## 15. The 2-for-1: teams do it, and it is close to free
+
+Registered in [`preregistration_twoforone.md`](preregistration_twoforone.md) before the module
+existed. Unit is a possession, n = 101,130, and treatment is not chosen by the team: when you
+gain the ball at the end of a period is set by the opponent's previous possession.
+
+**They do it, and it is obvious.** Mean game seconds used, by when the ball was gained:
+
+| Ball gained at | 26s | 30s | 34s | 38s | 42s | 45s |
+|---|---|---|---|---|---|---|
+| Clock used | 14.6 | 13.3 | 10.7 | **9.2** | 10.0 | 10.7 |
+
+Offenses burn 14.6 seconds with no second trip available, speed up to 9.2 as the window opens,
+and slow down again past 40 seconds when they no longer need to hurry. The difference across the
+registered threshold is −3.70 seconds on exploration and −3.60 on the holdout.
+
+The held-out seasons trace the same curve almost exactly — 14.1, 13.8, 10.9, **9.1**, 10.0, 10.8
+against the 14.6, 13.3, 10.7, **9.2**, 10.0, 10.7 above. Two disjoint sets of seasons, no fitting
+between them.
+
+**It is worth nothing measurable.** Net points to the end of the period, trend-adjusted, jumps
++0.009 (t = 0.24) on exploration and +0.044 (t = 0.68) held out. Pooled, the effect is bounded to
+about **−0.06 to +0.17 points** per opportunity, on roughly five opportunities a game across both
+teams.
+
+**And the ledger balances.** Teams running a 2-for-1 stop about 3.5 seconds earlier on the shot
+clock and give up **0.06 to 0.07 points** of continuation value. With an all-in net near zero,
+the extra possession must be worth about that same 0.07 to 0.11. The 2-for-1 is a fair trade —
+offenses are neither being fooled nor finding free points. The cost side of that ledger has not
+been measurable before, because it needs a per-shot clock.
+
+Two honest notes on the design. The registered estimator was a regression discontinuity, and
+**the behaviour turns out to be smooth rather than sharp** — teams start hurrying gradually from
+about 34 seconds, so there is no corner at 32 for an RD to find, and the local estimates wander
+across the threshold sweep while the raw comparison and the profile are overwhelming. And the
+registered decision rule for the value test was sign stability alone; the sign did hold, but two
+insignificant estimates are not a confirmation, and that hole in the protocol is named in the
+registration rather than used.
+
+Reproduce: `make twoforone` (and `WINDOW=holdout`); `reports/twoforone_*.csv`.
+
 ---
 
 ## Caveats

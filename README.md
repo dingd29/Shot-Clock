@@ -68,8 +68,10 @@ outcome.
 
 Continuation value falls from 0.81 points at 23 seconds to 0.36 at 1 second. The standard
 offenses actually accept falls by only about 37 to 54% of that, whichever quantile you use to
-define the threshold. It holds in all ten seasons and in competitive games alone, so it isn't a
-garbage-time artifact. Read it as an upper bound on the shortfall rather than a point estimate:
+define the threshold — and **26 to 44%** once a missed shot's rebound option is priced, which it
+originally wasn't (see below). It holds in all ten seasons and in competitive games alone, so it
+isn't a garbage-time artifact. Read it as an upper bound on the shortfall rather than a point
+estimate:
 continuation value is estimated on the chances that declined to shoot, a group that worsens as
 the clock falls, and that biases the ratio down. See the caveats in the findings.
 
@@ -92,9 +94,10 @@ compute it from a box score.
 A per-player version of the stopping result correlates 0.984 with mean late-clock shot quality.
 It's that quantity under a different name, so it ranks who finishes rather than who decides.
 
-Five follow-up hypotheses were registered before testing, in two batches
-([one](reports/preregistration_exploration.md), [two](reports/preregistration_situational.md)),
-each with an exploration and holdout split. Four failed or came back marginal. One cleared its
+Seven follow-up hypotheses were registered before testing, in three batches
+([one](reports/preregistration_exploration.md), [two](reports/preregistration_situational.md),
+[three](reports/preregistration_twoforone.md)), each with an exploration and holdout split. Five
+failed, came back marginal, or landed on a precise zero. One cleared its
 significance test on exploration at +0.065 and came back at +0.001 on held-out seasons, which is
 the kind of false positive the protocol exists to catch.
 
@@ -122,6 +125,38 @@ Two things made this worth keeping anyway. The NBA changed its play-by-play time
 contaminated. And the change lands almost entirely on offensive rebounds (+14pp) rather than
 defensive ones (+0.7pp), which are the treated and control arms, so dropping the bad season
 doesn't rescue the design either.
+
+## What a miss is worth
+
+An offensive rebound ends a *chance* but not a *possession*, so the points a team scores after
+rebounding its own miss sat on neither side of the shoot-or-hold comparison above. That would be
+harmless if the rebound rate were flat. It isn't: a missed shot in the restricted area comes back
+40.1% of the time against 22.1% from mid-range, and — the part that matters — retention runs
+**23.2% at 0-3 seconds on the shot clock against 14% mid-clock.** The correction is largest
+exactly where the result is anchored.
+
+Pricing it on both sides moves the relaxation ratio from 0.37-0.54 to **0.26-0.44**. The finding
+was understated.
+
+A related surprise. A second chance looks more valuable than a fresh possession (0.845 to 0.771)
+and isn't. That gap is start clock, not scrambled defence. Before 2018-19 an offensive rebound
+reset to a full 24 exactly like a defensive one, so that era is a clean test with nothing to
+adjust for, and the advantage there is **+0.001 points**. Zero.
+
+## The 2-for-1
+
+Teams do it, and it is worth about nothing.
+
+Mean seconds burned, by when the offense gained the ball at the end of a quarter: 14.6 at 26
+seconds left, 9.2 at 38, back to 10.7 at 45. Offenses hurry precisely when hurrying buys a second
+trip, and stop hurrying when it doesn't. That's a 3.7-second swing and it replicates on held-out
+seasons.
+
+Net points to the buzzer move by +0.01, then +0.04 held out, neither distinguishable from zero;
+the effect is bounded to roughly -0.06 to +0.17 points per opportunity. The reason is in the
+ledger: shooting early hands back **0.06 to 0.07 points** of continuation value, and the extra
+possession is worth about the same. A fair trade, with both sides measured — and the cost side
+needs a shot clock, which is why it hasn't been priced before.
 
 ## The efficiency curve
 
@@ -213,6 +248,8 @@ src/possval/
     lineup_synergy      the lineup-level retest and the head-to-head
     rulechange          2018-19 as a difference-in-differences
     stopping            continuation value and the exercise boundary
+    rebound             P(retain | shot); possession chaining; the boundary re-priced
+    twoforone           end-of-period possession trades, as a discontinuity
     situational         the same boundary by band of the clock; late-clock usage concentration
     winprob             does the clock help predict game outcomes?
     ratings, aging      SRS from game results; paired-change aging curves
@@ -225,7 +262,8 @@ tests/        golden sequences, invariants, bounds, and estimator recovery
 ```
 
 Every stage is a `make` target: `data`, `clock`, `validate`, `backfill`, `train`, `score`,
-`lineups`, `synergy`, `stopping`, `situational`, `winprob`, `project`, `scorecard`, `app`.
+`lineups`, `synergy`, `stopping`, `rebound`, `twoforone`, `situational`, `winprob`,
+`project`, `scorecard`, `app`.
 
 ## Notes on method
 

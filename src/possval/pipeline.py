@@ -814,6 +814,57 @@ def cmd_rebound(first: int, last: int) -> None:
 SITUATIONAL_WINDOWS = {"explore": (2015, 2021), "holdout": (2022, 2023)}
 
 
+def cmd_twoforone(window: str) -> None:
+    """H6 from `reports/preregistration_twoforone.md`.
+
+    Run `--window explore` first. `--window holdout` is a one-shot confirmation.
+    """
+    from possval.models.rebound import possession_panel
+    from possval.models.stopping import chance_panel, continuation_value
+    from possval.models.twoforone import (
+        FEASIBLE_FROM,
+        cost_of_shooting_early,
+        discontinuity,
+        profile,
+        threshold_sweep,
+    )
+    from possval.models.twoforone import window as build_window
+
+    first, last = SITUATIONAL_WINDOWS[window]
+    pd.set_option("display.width", 200)
+    print(f"=== window: {window} ({first}-{str(first + 1)[-2:]} to "
+          f"{last}-{str(last + 1)[-2:]}) ===")
+
+    panel_path = PROCESSED / "chance_panel.parquet"
+    panel = pd.read_parquet(panel_path) if panel_path.exists() else chance_panel(2015, 2024)
+    panel = panel[panel.SEASON.between(first, last)]
+    built = build_window(panel)
+    print(f"{len(built):,} end-of-period chances in the 24-45s window, "
+          f"{built.GAME_ID.nunique():,} games")
+
+    print("\n=== the picture: clock used and net points against when the ball was gained ===")
+    shape = profile(built)
+    print(shape.round(3).to_string(index=False))
+    shape.to_csv(REPORTS / f"twoforone_profile_{window}.csv", index=False)
+
+    print(f"\n=== H6a and H6b at the registered threshold ({FEASIBLE_FROM:.0f}s) ===")
+    main = discontinuity(built)
+    print(main.round(4).to_string(index=False))
+    main.to_csv(REPORTS / f"twoforone_discontinuity_{window}.csv", index=False)
+
+    print("\n=== registered sensitivity: every threshold from 28 to 36 ===")
+    sweep = threshold_sweep(built)
+    local = sweep[sweep.estimator == "local linear"]
+    print(local.pivot(index="threshold", columns="outcome",
+                     values=["difference", "t"]).round(4).to_string())
+    sweep.to_csv(REPORTS / f"twoforone_sweep_{window}.csv", index=False)
+
+    print("\n=== H6c, descriptive: what the early shot gives up ===")
+    values = continuation_value(possession_panel(panel), outcome="PTS_POSS")
+    for key, value in cost_of_shooting_early(built, values).items():
+        print(f"  {key}: {value:,.4f}" if isinstance(value, float) else f"  {key}: {value:,}")
+
+
 def cmd_situational(window: str, n_null_draws: int = 50) -> None:
     """H4 and H5 from `reports/preregistration_situational.md`.
 
@@ -921,15 +972,16 @@ def main() -> None:
         help="rating uncertainty; defaults to the year-over-year figure (3.95)",
     )
 
-    situational = sub.add_parser("situational")
-    situational.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
+    for name in ("situational", "twoforone"):
+        p = sub.add_parser(name)
+        p.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
 
     args = parser.parse_args()
     if args.command == "project":
         cmd_project(args.sims, args.games, args.rating_sd)
         return
-    if args.command == "situational":
-        cmd_situational(args.window)
+    if args.command in ("situational", "twoforone"):
+        {"situational": cmd_situational, "twoforone": cmd_twoforone}[args.command](args.window)
         return
 
     ranged = {
