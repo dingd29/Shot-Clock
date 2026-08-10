@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A reconstructed NBA shot clock reveals that the 2-for-1 is a fair trade, not free points.">
+  <title>Possession Value — NBA shot-clock research</title>
+  <style>
+    :root {
+      --ink: #111318; --muted: #616772; --paper: #f5f1e8; --card: #fffdf8;
+      --line: #d9d3c7; --red: #e23d2f; --blue: #2457d6; --green: #28785e;
+      --amber: #b16b12; --shadow: 0 18px 50px rgba(35, 31, 24, .08);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; color: var(--ink); background: var(--paper); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.55; }
+    a { color: inherit; }
+    .wrap { width: min(1120px, calc(100% - 36px)); margin: auto; }
+    nav { position: sticky; top: 0; z-index: 20; border-bottom: 1px solid rgba(17,19,24,.1); background: rgba(245,241,232,.93); backdrop-filter: blur(12px); }
+    nav .wrap { min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+    .brand { font-weight: 850; letter-spacing: -.03em; text-decoration: none; }
+    .navlinks { display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px; color: var(--muted); }
+    .navlinks a { text-decoration: none; }
+    header { padding: 92px 0 70px; border-bottom: 1px solid var(--line); }
+    .eyebrow { margin: 0 0 18px; color: var(--red); font-size: 13px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { max-width: 900px; margin: 0; font: 850 clamp(48px, 8vw, 92px)/.94 Georgia, "Times New Roman", serif; letter-spacing: -.055em; }
+    .dek { max-width: 760px; margin: 30px 0 0; font-size: clamp(19px, 2.4vw, 27px); line-height: 1.35; color: #343943; }
+    .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 54px; border: 1px solid var(--line); background: var(--line); }
+    .metric { padding: 25px; background: var(--card); }
+    .metric strong { display: block; font: 800 clamp(30px, 5vw, 49px)/1 Georgia, serif; letter-spacing: -.04em; }
+    .metric span { display: block; margin-top: 8px; color: var(--muted); font-size: 14px; }
+    section { padding: 78px 0; border-bottom: 1px solid var(--line); }
+    .section-grid { display: grid; grid-template-columns: minmax(230px, .72fr) minmax(0, 1.6fr); gap: 64px; align-items: start; }
+    h2 { margin: 0; font: 800 clamp(34px, 5vw, 58px)/1 Georgia, serif; letter-spacing: -.04em; }
+    h3 { margin: 0 0 10px; font-size: 18px; letter-spacing: -.02em; }
+    .lede { margin: 18px 0 0; color: var(--muted); font-size: 17px; }
+    .panel { padding: 28px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); }
+    .chart-head { display: flex; justify-content: space-between; gap: 20px; align-items: baseline; margin-bottom: 16px; }
+    .chart-head span { color: var(--muted); font-size: 13px; text-align: right; }
+    canvas { width: 100%; height: 340px; display: block; }
+    .caption { margin: 15px 0 0; color: var(--muted); font-size: 13px; }
+    .equation { display: grid; grid-template-columns: 1fr auto 1fr; gap: 18px; align-items: center; margin-top: 24px; }
+    .equation .side { min-height: 160px; padding: 24px; border: 1px solid var(--line); background: var(--card); }
+    .equation .side strong { display: block; margin-bottom: 7px; font: 800 38px/1 Georgia, serif; }
+    .equals { color: var(--muted); font-size: 28px; }
+    .pipeline { display: grid; gap: 12px; counter-reset: pipe; }
+    .pipe { display: grid; grid-template-columns: 46px 1fr; gap: 16px; align-items: start; padding: 18px 20px; border: 1px solid var(--line); background: var(--card); }
+    .pipe::before { counter-increment: pipe; content: counter(pipe); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: white; font-weight: 800; }
+    .pipe p { margin: 4px 0 0; color: var(--muted); }
+    .gate-list { display: grid; gap: 12px; }
+    .gate { display: grid; grid-template-columns: 96px 1fr; gap: 18px; padding: 20px; border: 1px solid var(--line); background: var(--card); }
+    .status { width: fit-content; height: fit-content; padding: 5px 9px; border-radius: 2px; font-size: 12px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+    .pass { color: var(--green); background: #e1f1e9; }
+    .fail { color: #a32921; background: #f9dfdc; }
+    .open { color: var(--amber); background: #f7ead4; }
+    .gate p { margin: 4px 0 0; color: var(--muted); }
+    .truth { margin-top: 22px; padding: 23px 25px; border-left: 5px solid var(--red); background: #fff6f2; font-size: 18px; }
+    .findings { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .finding { padding: 22px; border: 1px solid var(--line); background: var(--card); }
+    .finding b { display: block; margin-bottom: 8px; font-size: 20px; }
+    .finding p { margin: 0; color: var(--muted); }
+    footer { padding: 55px 0 70px; }
+    .footer-grid { display: flex; justify-content: space-between; align-items: end; gap: 24px; }
+    .button { display: inline-block; padding: 12px 16px; border: 1px solid var(--ink); background: var(--ink); color: white; font-weight: 750; text-decoration: none; }
+    .small { color: var(--muted); font-size: 13px; }
+    @media (max-width: 760px) {
+      header { padding-top: 65px; } .navlinks { display: none; }
+      .hero-grid, .findings { grid-template-columns: 1fr; }
+      .section-grid { grid-template-columns: 1fr; gap: 30px; }
+      .equation { grid-template-columns: 1fr; } .equals { transform: rotate(90deg); text-align: center; }
+      .gate { grid-template-columns: 1fr; } .footer-grid { display: block; } .button { margin-top: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="wrap"><a class="brand" href="#top">POSSESSION VALUE</a><div class="navlinks"><a href="#finding">Finding</a><a href="#machine">Machinery</a><a href="#teams">Teams</a><a href="#ledger">Research ledger</a></div></div>
+  </nav>
+  <header id="top">
+    <div class="wrap">
+      <p class="eyebrow">Ten NBA seasons · 2,018,360 shots</p>
+      <h1>The 2-for-1 is a fair trade, not free points.</h1>
+      <p class="dek">Teams unmistakably hurry to manufacture the extra possession. A reconstructed shot clock shows that they pay for it with almost exactly the same amount of shot quality.</p>
+      <div class="hero-grid" aria-label="Headline results">
+        <div class="metric"><strong>−3.60s</strong><span>change in time used when the extra trip is feasible</span></div>
+        <div class="metric"><strong>0.073</strong><span>points of continuation value surrendered in holdout</span></div>
+        <div class="metric"><strong>+0.030</strong><span>net points gained, SE 0.064—indistinguishable from zero</span></div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="finding">
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">The behavior</p><h2>Watch teams hurry—then relax.</h2><p class="lede">The line shows how long the offense uses after gaining the ball near the end of a quarter. The response is gradual, not a knife-edge discontinuity.</p></div>
+        <div class="panel">
+          <div class="chart-head"><h3>Time used by game clock at possession start</h3><span>2022-23 to 2023-24 holdout</span></div>
+          <canvas id="clockChart" role="img" aria-label="Line chart showing teams use less time as the 2-for-1 window opens, reaching a low around 40 seconds, then rising again."></canvas>
+          <p class="caption">At 24–31 seconds there is usually no extra trip to create. From roughly 34 seconds, offenses hurry; beyond 40 seconds they can relax because enough time remains anyway.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">The mechanism</p><h2>Two sides of the same ledger.</h2><p class="lede">The extra possession is valuable. So is the current action a team abandons early. The project measures both.</p></div>
+        <div>
+          <div class="equation">
+            <div class="side"><strong>+ one trip</strong>More probability of getting the ball back before the buzzer.</div>
+            <div class="equals">≈</div>
+            <div class="side"><strong>− 0.073 pts</strong>Continuation value sacrificed by ending the first chance early.</div>
+          </div>
+          <div class="truth">Actual possession lengths vary. That variance blurs who gets the last handover and shrinks the empirical end-period sawtooth to 0.035–0.041 points—about one-twelfth of the rigid textbook benchmark.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="machine">
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">What was built</p><h2>A measurement system, not one model.</h2><p class="lede">Every layer has an audit trail, generated tables, tests, and explicit failure modes.</p></div>
+        <div class="pipeline">
+          <div class="pipe"><div><h3>Reconstruct the clock</h3><p>A deterministic event-state machine applies 24- and 14-second resets, handles live and dead rebounds, repairs feed timestamps, and leaves uncertain clocks missing.</p></div></div>
+          <div class="pipe"><div><h3>Validate independently</h3><p>96.0% of shots receive a usable clock. Against NBA's untouched player-by-bucket splits, FGA per game reaches R² 0.973.</p></div></div>
+          <div class="pipe"><div><h3>Chain full possessions</h3><p>Offensive rebounds remain inside the same possession, allowing the model to price retained-ball and second-chance value.</p></div></div>
+          <div class="pipe"><div><h3>Estimate continuation value</h3><p>A historical curve estimates what an offense still has available at every reconstructed second, with chronological splits and team-game nulls.</p></div></div>
+          <div class="pipe"><div><h3>Stress-test claims</h3><p>Preregistrations, held-out seasons, foul exercises, public tracking, robustness variants, null results, and withdrawn claims stay visible.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="teams">
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">The ambitious extension</p><h2>Team profiles are real. The coaching verdict is not ready.</h2><p class="lede">The measure asks how often a taken action falls below that team's own historical continuation curve. It separates timing style, offensive capability, outcome, and deviation.</p></div>
+        <div>
+          <div class="findings">
+            <div class="finding"><b>0.795 signal share</b><p>Held-out team variation beyond a team-game permutation null.</p></div>
+            <div class="finding"><b>ρ +0.398</b><p>Franchise-rank persistence between development and holdout windows.</p></div>
+            <div class="finding"><b>Houston persists</b><p>Second after foul repricing and robust across registered clock, season, context, and shot-family variants.</p></div>
+            <div class="finding"><b>Orlando changes meaning</b><p>Its original profile is largely explained by shot and possession context—exactly why basketball nuance matters.</p></div>
+          </div>
+          <div class="truth"><strong>Honest interpretation:</strong> the model can flag possessions where continuing looked historically valuable. It cannot observe the passed-up action, so it cannot yet say that waiting would have caused a better result.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="ledger">
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">Registered validation</p><h2>I tried to break the team story.</h2><p class="lede">All four gates were frozen before their corresponding results were opened. One failure blocks the prescriptive headline.</p></div>
+        <div class="gate-list">
+          <div class="gate"><span class="status pass">Passed</span><div><h3>Fouls and all-points accounting</h3><p>Repriced rank ρ +0.946; signal share 0.865; Houston remained second; foul pricing explained 32.3% of its excess.</p></div></div>
+          <div class="gate"><span class="status fail">Failed</span><div><h3>Closest-defender coverage</h3><p>The valid 64,135-shot subset was supportive, but defensible release-frame coverage was 78.55% versus a frozen 80% requirement. No threshold was tuned after seeing the result.</p></div></div>
+          <div class="gate"><span class="status pass">Passed</span><div><h3>New season and specifications</h3><p>2024-25 signal share 0.639; year-to-year rank ρ +0.574; Houston stayed robust across registered variants.</p></div></div>
+          <div class="gate"><span class="status open">Open</span><div><h3>Blinded film review</h3><p>A 200-possession sample and closed key are frozen. Two coders and 40 overlapping judgments remain before “should” is licensed.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap section-grid">
+        <div><p class="eyebrow">Other findings</p><h2>Nulls are part of the product.</h2></div>
+        <div class="findings">
+          <div class="finding"><b>Shot clock barely improves live win probability</b><p>Only 0.050% log-loss improvement across 5.35 million game states.</p></div>
+          <div class="finding"><b>The 2018 reset changed duration, not proven scoring</b><p>The chance-shortening result holds; the scoring claim was withdrawn after inference and feed audits.</p></div>
+          <div class="finding"><b>“Momentum” is tiny</b><p>A score versus an empty trip moves the next first-shot timing by only 0.30 seconds after context adjustment.</p></div>
+          <div class="finding"><b>Team profiles do not forecast near-term offense</b><p>The prospective next-20-game test is null after controlling current offense, shot value, and timing.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap footer-grid">
+      <div><strong>Possession Value</strong><div class="small">Open methods, visible corrections, held-out claims.</div></div>
+      <a class="button" href="https://github.com/dingd29/possession-value">Read the code and full results →</a>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      const data = [[24,14.282],[25,14.820],[26,14.132],[27,14.702],[28,13.806],[29,13.820],[30,13.828],[31,13.013],[32,13.016],[33,11.721],[34,10.877],[35,10.399],[36,9.440],[37,9.433],[38,9.055],[39,9.360],[40,9.029],[41,9.923],[42,9.972],[43,10.405],[44,10.354],[45,10.763]];
+      const canvas = document.getElementById('clockChart');
+      const ctx = canvas.getContext('2d');
+      function draw() {
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvas.clientWidth, h = canvas.clientHeight;
+        canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr); ctx.setTransform(dpr,0,0,dpr,0,0);
+        const m={l:48,r:18,t:24,b:42}, pw=w-m.l-m.r, ph=h-m.t-m.b;
+        const x=v=>m.l+(v-24)/21*pw, y=v=>m.t+(16-v)/8*ph;
+        ctx.clearRect(0,0,w,h); ctx.font='12px system-ui'; ctx.fillStyle='#616772'; ctx.strokeStyle='#d9d3c7'; ctx.lineWidth=1;
+        [8,10,12,14,16].forEach(v=>{ctx.beginPath();ctx.moveTo(m.l,y(v));ctx.lineTo(w-m.r,y(v));ctx.stroke();ctx.fillText(v+'s',8,y(v)+4);});
+        [24,28,32,36,40,45].forEach(v=>{ctx.fillText(v+'s',x(v)-9,h-14);});
+        ctx.fillStyle='rgba(36,87,214,.08)'; ctx.fillRect(x(32),m.t,x(40)-x(32),ph);
+        ctx.fillStyle='#2457d6'; ctx.font='700 12px system-ui'; ctx.fillText('2-for-1 urgency',x(32)+8,m.t+18);
+        ctx.beginPath(); data.forEach(([a,b],i)=>i?ctx.lineTo(x(a),y(b)):ctx.moveTo(x(a),y(b))); ctx.strokeStyle='#e23d2f';ctx.lineWidth=4;ctx.lineJoin='round';ctx.stroke();
+        data.forEach(([a,b])=>{ctx.beginPath();ctx.arc(x(a),y(b),3,0,Math.PI*2);ctx.fillStyle='#e23d2f';ctx.fill();});
+        ctx.fillStyle='#111318';ctx.font='700 12px system-ui';ctx.fillText('Game clock when offense gains ball',Math.max(m.l,w/2-105),h-1);
+      }
+      new ResizeObserver(draw).observe(canvas); draw();
+    })();
+  </script>
+</body>
+</html>

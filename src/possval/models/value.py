@@ -65,6 +65,7 @@ def possession_curve(
     min_chances: int = MIN_CHANCES,
     by_start: bool = True,
     drop_period_expiry: bool = True,
+    points_column: str = "PTS_FG",
 ) -> pd.DataFrame:
     """`V(t)`: expected points from declining to shoot with `t` seconds of shot clock left.
 
@@ -77,7 +78,7 @@ def possession_curve(
     did not end at `t` are those where the offence declined and played on, so their mean outcome
     is what continuing was worth.
     """
-    chained = possession_panel(panel)
+    chained = possession_panel(panel, points_column=points_column)
     if drop_period_expiry and "PERIOD_EXPIRED" in chained.columns:
         chained = chained[~chained.PERIOD_EXPIRED]
     chained = chained.assign(GROUP=start_group(chained.START_TYPE))
@@ -108,7 +109,10 @@ def possession_curve(
 
 
 def calibration(
-    train: pd.DataFrame, test: pd.DataFrame, min_chances: int = MIN_CHANCES
+    train: pd.DataFrame,
+    test: pd.DataFrame,
+    min_chances: int = MIN_CHANCES,
+    points_column: str = "PTS_FG",
 ) -> pd.DataFrame:
     """Fit the curve on one set of seasons, score it on another.
 
@@ -116,9 +120,13 @@ def calibration(
     The check is whether those predictions match what actually happened. A valuation that has
     only ever been evaluated on the data that produced it is a description, not a model.
     """
-    fitted = possession_curve(train, min_chances=min_chances).set_index(["GROUP", "SECOND"]).V
+    fitted = possession_curve(
+        train,
+        min_chances=min_chances,
+        points_column=points_column,
+    ).set_index(["GROUP", "SECOND"]).V
 
-    chained = possession_panel(test)
+    chained = possession_panel(test, points_column=points_column)
     if "PERIOD_EXPIRED" in chained.columns:
         chained = chained[~chained.PERIOD_EXPIRED]
     chained = chained.assign(GROUP=start_group(chained.START_TYPE))

@@ -17,6 +17,7 @@ from possval.models.prospective import (
     fixed_effect_regression,
     game_blocks,
 )
+from possval.models.rebound import possession_panel
 from possval.models.team_profiles import (
     add_basketball_context,
     player_diagnostics,
@@ -301,6 +302,20 @@ def test_team_efficiency_counts_one_possession_after_multiple_chances():
     out = team_offensive_efficiency(chained).iloc[0]
     assert out.N_POSS == 2
     assert out.PPP == pytest.approx(1.5)
+
+
+def test_possession_panel_can_chain_all_points_without_changing_default_unit():
+    panel = _panel(
+        [
+            ("off_rebound", "A", 14, 5, 0.0),
+            ("after_def_foul", "A", 14, 4, 2.0),
+        ]
+    )
+    panel["PTS_ALL"] = [1.0, 3.0]
+    field_goals = possession_panel(panel)
+    all_points = possession_panel(panel, points_column="PTS_ALL")
+    assert field_goals.PTS_POSS.iloc[0] == pytest.approx(2.0)
+    assert all_points.PTS_POSS.iloc[0] == pytest.approx(4.0)
 
 
 def test_team_diagnostics_flags_only_poor_offense_with_high_exposure():

@@ -297,7 +297,10 @@ def second_chance_by_clock(
     return table[table.N >= min_chances].reset_index()
 
 
-def possession_panel(panel: pd.DataFrame) -> pd.DataFrame:
+def possession_panel(
+    panel: pd.DataFrame,
+    points_column: str = "PTS_FG",
+) -> pd.DataFrame:
     """Chain chances into possessions and add points from each chance to the possession's end.
 
     A "chance" is one shot-clock interval; a "possession" runs until the defense gets the ball.
@@ -309,7 +312,12 @@ def possession_panel(panel: pd.DataFrame) -> pd.DataFrame:
 
     `PTS_POSS` is points from this chance to the end of its possession, which is the correct
     outcome for a continuation value: it is what the offense actually gets by not stopping.
+    The default keeps the historical field-goal-only unit. Passing `PTS_ALL` is the explicit
+    all-points specification used to audit shooting-foul accounting; callers must never change
+    units implicitly.
     """
+    if points_column not in panel:
+        raise KeyError(f"panel has no points column {points_column!r}")
     ordered = panel.sort_values(["GAME_ID", "PERIOD", "CHANCE_ID"]).copy()
 
     # A possession ends when the ball changes hands, so read that directly off the offensive
@@ -337,10 +345,12 @@ def possession_panel(panel: pd.DataFrame) -> pd.DataFrame:
         .cumsum()
     )
 
-    grouped = ordered.groupby(["GAME_ID", "PERIOD", "POSSESSION_ID"], sort=False).PTS_FG
+    grouped = ordered.groupby(["GAME_ID", "PERIOD", "POSSESSION_ID"], sort=False)[points_column]
     # Reverse cumulative sum, vectorised: total minus the exclusive running sum. A per-group
     # lambda over 600k groups is minutes; this is seconds.
-    ordered["PTS_POSS"] = grouped.transform("sum") - grouped.cumsum() + ordered.PTS_FG
+    ordered["PTS_POSS"] = (
+        grouped.transform("sum") - grouped.cumsum() + ordered[points_column]
+    )
     ordered["CHANCES_IN_POSSESSION"] = grouped.transform("size")
     return ordered
 

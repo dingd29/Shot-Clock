@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational twoforone endgame value prospective mechanisms ratings project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational twoforone endgame value prospective mechanisms team-validation team-temporal-validation team-review-sample defender-extract defender-validation ratings project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -55,6 +55,21 @@ prospective:  ## exploratory: does premature share predict the next 20 games?
 
 mechanisms:  ## explain team profiles through context, roster, game state, and sequencing
 	$(PY) -m possval.pipeline mechanisms
+
+team-validation:  ## preregistered foul/accounting validation for team profiles
+	$(PY) -m possval.pipeline team-validation
+
+team-temporal-validation:  ## new-season and specification stability for team profiles
+	$(PY) -m possval.pipeline team-temporal-validation
+
+defender-extract:  ## derive release-frame defender distance from external SportVU archives
+	$(PY) -m possval.pipeline defender-extract --source "$(SPORTVU_DIR)" --output "$(SPORTVU_OUTPUT)"
+
+defender-validation:  ## Gate 2 on a derived SportVU defender-distance table
+	$(PY) -m possval.pipeline defender-validation --tracking "$(SPORTVU_TRACKING)"
+
+team-review-sample:  ## private, blinded 200-possession worksheet for Gate 4
+	$(PY) -m possval.pipeline team-review-sample
 
 endgame:  ## post hoc: is there a sawtooth in end-of-period possession value?
 	$(PY) -m possval.pipeline endgame --window $(or $(WINDOW),explore)

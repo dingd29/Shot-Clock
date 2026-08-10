@@ -34,6 +34,7 @@ validation live in [METHODOLOGY.md](METHODOLOGY.md).
 | End-period handover value | Held out | The empirical sawtooth is 0.035-0.041 points, about one-twelfth of the rigid alternating-possession model. |
 | Possession-value calibration | Held out | Raw error is 0.0403 points and almost entirely a league-level shift; after one shift, mean absolute error is 0.0093. |
 | Team below-curve share | Held out | Signal share is 0.795 and cross-window franchise persistence is ρ = +0.398 (one-sided p = 0.015). |
+| Team validation sprint | Mixed; prescriptive gate failed | Foul accounting and temporal stability passed. Defender adjustment was supportive on valid shots, but tracking coverage was 78.55% versus the frozen 80% requirement; film coding is unresolved. |
 | Prospective team prediction | Null | No robust next-20-game signal beyond current efficiency, shot value, and timing (p = 0.378). |
 | Team mechanism anatomy | Exploratory | Non-RA paint shots generate 67.4% of exposure. Orlando is mostly context mix; Houston remains unusually high within context. |
 | Close-fourth pressure | Exploratory | Houston reaches 0.0162 exposure/shot versus 0.0055 league-wide with essentially league-normal timing. |
@@ -136,6 +137,11 @@ is why: real possession durations are distributed broadly around 13 seconds, so 
 handover moments blur within two trips. The large sawtooth implied by a fixed-duration model is not
 present in the data.
 
+This is the project's public headline because the design and estimator were frozen before the
+2022-24 holdout was opened. Teams hurry by 3.60 seconds, forgo 0.0726 points of continuation
+value, and show a local net estimate of +0.030 points (SE 0.064). The result is not “never take a
+2-for-1”; it is that the observed NBA strategy is close to a fair exchange rather than free value.
+
 Artifacts:
 
 - `reports/twoforone_profile_{explore,holdout}.csv`
@@ -157,6 +163,15 @@ Orlando's result is largely its attempt mix, while Houston remains high after ma
 clock phase, and possession origin. Neither result proves that waiting would have produced a better
 shot on a specific possession.
 
+A registered validation sprint then challenged the profile with shooting-foul exercises, all-points
+continuation, a genuinely new 2024-25 season, specification changes, public SportVU defender
+tracking, and a frozen film-review protocol. Accounting and temporal gates passed. On 64,135 valid
+tracking shots, defender distance materially improved shot valuation while preserving 107.4% of
+positive exposure and team ranks at rho +0.979. However, valid release-frame coverage was 78.55%,
+below the frozen 80% requirement, and human film coding remains incomplete. Under the registered
+decision rule, “these teams should wait longer” therefore fails as a headline. The descriptive
+profile remains credible and useful for choosing possessions to review.
+
 Artifacts:
 
 - `reports/value_team_diagnostics_{explore,holdout}.csv`
@@ -169,6 +184,9 @@ Artifacts:
 - `reports/value_player_diagnostics_{explore,holdout}.csv`
 - `reports/value_prospective_specifications.csv`
 - `reports/value_prospective_robustness.csv`
+- `reports/preregistration_team_validation.md`
+- `reports/team_validation_gate{1,2,3}_*.csv`
+- `reports/team_validation_review_protocol.md`
 
 ## 8. Mechanism probes
 
@@ -209,7 +227,7 @@ For a five-minute review:
 
 1. [README.md](README.md)
 2. This result index
-3. The **Team profiles** and **Decision Atlas** dashboard tabs
+3. The [shareable dashboard](docs/index.html)
 
 For a technical review:
 

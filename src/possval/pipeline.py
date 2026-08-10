@@ -1102,6 +1102,755 @@ def cmd_mechanisms() -> None:
     print("\nExploratory mechanism search; none of these tables is a causal coaching grade.")
 
 
+def cmd_team_validation(n_null_draws: int = 50) -> None:
+    """Gate 1: put shots, shooting fouls, and continuation in consistent point units."""
+    from possval.models.foul_value import (
+        foul_repriced_actions,
+        historical_foul_premium,
+        shooting_foul_events,
+    )
+    from possval.models.rebound import possession_panel
+    from possval.models.team_profiles import (
+        score_against_team_curve,
+        team_context_decomposition,
+    )
+    from possval.models.team_validation import (
+        accounting_comparisons,
+        foul_counts,
+        location_exposure_bounds,
+        team_accounting_profile,
+    )
+    from possval.models.value import (
+        calibration,
+        calibration_summary,
+        premature_null,
+        shot_value,
+        team_curves,
+    )
+
+    ensure_dirs()
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots_all = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots_all[shots_all.GAME_CLOCK_EXPIRING.eq(0)]
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+
+    foul_frames = []
+    for season in sorted(panel.SEASON.unique()):
+        path = PROCESSED / f"pbp_clock_{season}.parquet"
+        if path.exists():
+            foul_frames.append(shooting_foul_events(pd.read_parquet(path)))
+    fouls = pd.concat(foul_frames, ignore_index=True)
+    counts = foul_counts(fouls, shots_all)
+    counts.to_csv(REPORTS / "team_validation_foul_counts.csv", index=False)
+
+    holdout = panel[panel.SEASON.between(2022, 2023)]
+    fg_chained = possession_panel(holdout, points_column="PTS_FG")
+    all_chained = possession_panel(holdout, points_column="PTS_ALL")
+    fg_chained = fg_chained[~fg_chained.PERIOD_EXPIRED]
+    all_chained = all_chained[~all_chained.PERIOD_EXPIRED]
+    fg_second_chance = float(
+        fg_chained[fg_chained.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+    )
+    all_second_chance = float(
+        all_chained[all_chained.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+    )
+    fg_curves = team_curves(fg_chained, min_possessions=5_000)
+    all_curves = team_curves(all_chained, min_possessions=5_000)
+    held_shots = shots[shots.SEASON.between(2022, 2023)]
+    fg_valued = shot_value(held_shots, outcomes, fg_second_chance)
+    all_valued = shot_value(held_shots, outcomes, all_second_chance)
+
+    foul_only = fouls[~fouls.AND_ONE].copy()
+    # Match the period-expiry exclusion applied to official FGA.  Missing reconstructed shot
+    # clocks are reported in the count table but cannot enter a clock-conditioned comparison.
+    held_foul_only = foul_only[
+        foul_only.SEASON.between(2022, 2023)
+        & foul_only.SHOT_CLOCK.notna()
+        & foul_only.GAME_CLOCK.ge(3)
+    ].copy()
+    action_denominator = pd.concat(
+        [shots_all[["PLAYER_ID", "SEASON"]], foul_only[["PLAYER_ID", "SEASON"]]],
+        ignore_index=True,
+    )
+    premiums = historical_foul_premium(
+        action_denominator,
+        fouls,
+        train_through=2021,
+        prior_strength=200,
+    )
+    fga_with_premium = all_valued.copy()
+    player_premium = premiums.set_index("PLAYER_ID").FOUL_PREMIUM
+    league_premium = float(premiums.LEAGUE_FOUL_PREMIUM.iloc[0])
+    fga_with_premium["FOUL_PREMIUM"] = (
+        fga_with_premium.PLAYER_ID.map(player_premium).fillna(league_premium)
+    )
+    fga_with_premium["SHOT_VALUE"] += fga_with_premium.FOUL_PREMIUM
+    repriced = foul_repriced_actions(all_valued, held_foul_only, premiums)
+
+    specifications = pd.concat(
+        [
+            team_accounting_profile("A: FG-only baseline", fg_valued, fg_curves),
+            team_accounting_profile("B: all-points curve only", fg_valued, all_curves),
+            team_accounting_profile("C: + all-points rebound option", all_valued, all_curves),
+            team_accounting_profile(
+                "D: + historical foul premium", fga_with_premium, all_curves
+            ),
+            team_accounting_profile("E: + foul-only exercises", repriced, all_curves),
+        ],
+        ignore_index=True,
+    )
+    comparisons = accounting_comparisons(specifications)
+    specifications.to_csv(
+        REPORTS / "team_validation_accounting_specifications.csv", index=False
+    )
+    comparisons.to_csv(REPORTS / "team_validation_accounting_comparisons.csv", index=False)
+
+    calibration_rows = []
+    train = panel[panel.SEASON.between(2015, 2021)]
+    test = panel[panel.SEASON.between(2022, 2023)]
+    for label, points in (("field-goal points", "PTS_FG"), ("all points", "PTS_ALL")):
+        table = calibration(train, test, points_column=points)
+        table.insert(0, "POINTS_UNIT", label)
+        table.to_csv(
+            REPORTS / f"team_validation_calibration_{points.lower()}.csv", index=False
+        )
+        for shifted in (False, True):
+            calibration_rows.append(
+                {
+                    "POINTS_UNIT": label,
+                    "LEVEL_SHIFTED": shifted,
+                    **calibration_summary(table, level_shift=shifted),
+                }
+            )
+    pd.DataFrame(calibration_rows).to_csv(
+        REPORTS / "team_validation_calibration_summary.csv", index=False
+    )
+
+    scored_baseline = score_against_team_curve(fg_valued, fg_curves)
+    scored_repriced = score_against_team_curve(repriced, all_curves)
+    bounds = pd.concat(
+        [
+            location_exposure_bounds(scored_baseline).assign(
+                SPECIFICATION="A: FG-only baseline"
+            ),
+            location_exposure_bounds(scored_repriced).assign(
+                SPECIFICATION="E: + foul-only exercises"
+            ),
+        ],
+        ignore_index=True,
+    )
+    bounds.to_csv(REPORTS / "team_validation_location_bounds.csv", index=False)
+    context, context_cells = team_context_decomposition(scored_repriced)
+    context.to_csv(REPORTS / "team_validation_context_summary.csv", index=False)
+    context_cells.to_csv(REPORTS / "team_validation_context_cells.csv", index=False)
+
+    final_profile = specifications[
+        specifications.SPECIFICATION.eq("E: + foul-only exercises")
+    ]
+    variance = float(final_profile.PREMATURE.var(ddof=1))
+    null = premature_null(
+        repriced,
+        all_chained,
+        n_draws=n_null_draws,
+        min_possessions=5_000,
+    )
+    signal_share = max(variance - null["null_mean"] ** 2, 0.0) / variance
+    rank_row = comparisons[
+        comparisons.SPECIFICATION.eq("E: + foul-only exercises")
+        & comparisons.METRIC.eq("EXPOSURE_PER_ACTION")
+    ].iloc[0]
+    baseline_profile = specifications[
+        specifications.SPECIFICATION.eq("A: FG-only baseline")
+    ]
+    baseline_excess = float(
+        baseline_profile.set_index("TEAM_ABBREVIATION").loc["HOU", "EXPOSURE_PER_ACTION"]
+        - baseline_profile.EXPOSURE_PER_ACTION.mean()
+    )
+    repriced_excess = float(
+        final_profile.set_index("TEAM_ABBREVIATION").loc["HOU", "EXPOSURE_PER_ACTION"]
+        - final_profile.EXPOSURE_PER_ACTION.mean()
+    )
+    correction_fraction = abs(repriced_excess - baseline_excess) / abs(baseline_excess)
+    hou_context_rank = int(
+        context.set_index("TEAM_ABBREVIATION").loc["HOU", "WITHIN_CONTEXT_RANK"]
+    )
+    paint = bounds[
+        bounds.SPECIFICATION.eq("E: + foul-only exercises")
+        & bounds.SHOT_FAMILY.eq("paint (non-RA)")
+    ].iloc[0]
+    summary = pd.DataFrame(
+        [
+            {
+                "CONDITION": "baseline vs all-points exposure rank rho >= 0.60",
+                "ESTIMATE": rank_row.SPEARMAN_RHO,
+                "THRESHOLD": 0.60,
+                "STATUS": "PASS" if rank_row.SPEARMAN_RHO >= 0.60 else "FAIL",
+            },
+            {
+                "CONDITION": "all-points signal share >= 0.50",
+                "ESTIMATE": signal_share,
+                "THRESHOLD": 0.50,
+                "STATUS": "PASS" if signal_share >= 0.50 else "FAIL",
+            },
+            {
+                "CONDITION": "Houston context-adjusted rank <= 10",
+                "ESTIMATE": hou_context_rank,
+                "THRESHOLD": 10,
+                "STATUS": "PASS" if hou_context_rank <= 10 else "FAIL",
+            },
+            {
+                "CONDITION": "foul repricing explains <= 0.50 of Houston excess",
+                "ESTIMATE": correction_fraction,
+                "THRESHOLD": 0.50,
+                "STATUS": "PASS" if correction_fraction <= 0.50 else "FAIL",
+            },
+            {
+                "CONDITION": "non-RA paint conclusion bounded for missing locations",
+                "ESTIMATE": paint.SHARE_LOWER,
+                "THRESHOLD": np.nan,
+                "STATUS": (
+                    "PASS"
+                    if np.isclose(paint.SHARE_LOWER, paint.SHARE_UPPER)
+                    else "NARROWED"
+                ),
+            },
+        ]
+    )
+    summary["NULL_SD_MEAN"] = null["null_mean"]
+    summary["NULL_SD_P95"] = null["null_p95"]
+    summary["NON_RA_SHARE_UPPER"] = paint.SHARE_UPPER
+    summary.to_csv(REPORTS / "team_validation_gate1_summary.csv", index=False)
+
+    print("=== Gate 1: foul and points accounting ===")
+    print(summary.round(4).to_string(index=False))
+    print("\n=== aligned exposure-rank comparisons ===")
+    print(
+        comparisons[comparisons.METRIC.eq("EXPOSURE_PER_ACTION")]
+        .round(4)
+        .to_string(index=False)
+    )
+    print("\n=== repriced leaders ===")
+    print(
+        final_profile[
+            ["TEAM_ABBREVIATION", "N_ACTIONS", "PREMATURE", "EXPOSURE_PER_ACTION", "EXPOSURE_RANK"]
+        ].head(10).round(4).to_string(index=False)
+    )
+
+
+def cmd_defender_extract(source: str, output: str) -> None:
+    """Build a compact release-frame table from an external raw SportVU checkout."""
+    from pathlib import Path
+
+    from possval.models.defender import extract_all
+
+    if not source or not output:
+        raise SystemExit("--source and --output are required")
+    output_path = Path(output)
+    checkpoints = output_path / "games"
+    table = extract_all(Path(source), checkpoints)
+    combined = output_path / "sportvu_defender_distance.csv.gz"
+    table.to_csv(combined, index=False, compression="gzip")
+    print(f"wrote {len(table):,} release-frame rows to {combined}")
+
+
+def cmd_team_temporal_validation(n_null_draws: int = 50) -> None:
+    """Gate 3: one-season-ahead replication plus registered specification checks."""
+    from possval.models.foul_value import (
+        foul_repriced_actions,
+        historical_foul_premium,
+        shooting_foul_events,
+    )
+    from possval.models.rebound import possession_panel
+    from possval.models.team_profiles import add_basketball_context, score_against_team_curve
+    from possval.models.team_validation import (
+        aligned_rank_correlation,
+        team_accounting_profile,
+        team_game_bootstrap,
+        temporal_team_game_null,
+    )
+    from possval.models.value import shot_value, team_curves
+
+    ensure_dirs()
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots_all = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots_all[shots_all.GAME_CLOCK_EXPIRING.eq(0)]
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+    fouls = pd.concat(
+        [
+            shooting_foul_events(
+                pd.read_parquet(PROCESSED / f"pbp_clock_{season}.parquet")
+            )
+            for season in range(2015, 2025)
+        ],
+        ignore_index=True,
+    )
+    foul_only = fouls[~fouls.AND_ONE].copy()
+    action_denominator = pd.concat(
+        [shots_all[["PLAYER_ID", "SEASON"]], foul_only[["PLAYER_ID", "SEASON"]]],
+        ignore_index=True,
+    )
+
+    def forward_profile(score_season: int, train_seasons: list[int]):
+        training = panel[panel.SEASON.isin(train_seasons)]
+        chained = possession_panel(training, points_column="PTS_ALL")
+        chained = chained[~chained.PERIOD_EXPIRED]
+        curves = team_curves(chained, min_possessions=5_000)
+        second_chance = float(
+            chained[chained.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+        )
+        official = shot_value(
+            shots[shots.SEASON.eq(score_season)],
+            outcomes[outcomes.SEASON.isin(train_seasons)],
+            second_chance,
+        )
+        premiums = historical_foul_premium(
+            action_denominator,
+            fouls,
+            train_through=max(train_seasons),
+            prior_strength=200,
+        )
+        foul = foul_only[
+            foul_only.SEASON.eq(score_season)
+            & foul_only.SHOT_CLOCK.notna()
+            & foul_only.GAME_CLOCK.ge(3)
+        ]
+        valued = foul_repriced_actions(official, foul, premiums)
+        profile = team_accounting_profile(
+            f"score {score_season}; train {min(train_seasons)}-{max(train_seasons)}",
+            valued,
+            curves,
+        )
+        return profile, valued, curves, chained
+
+    profile_2023, _, _, _ = forward_profile(2023, [2022])
+    profile_2024, valued_2024, curves_2024, train_chain = forward_profile(
+        2024, [2022, 2023]
+    )
+    profiles = pd.concat([profile_2023, profile_2024], ignore_index=True)
+    profiles.to_csv(REPORTS / "team_validation_temporal_profiles.csv", index=False)
+    temporal_rank = aligned_rank_correlation(
+        profile_2023,
+        profile_2024,
+        "EXPOSURE_PER_ACTION",
+    )
+    observed_sd = float(profile_2024.PREMATURE.std(ddof=1))
+    null = temporal_team_game_null(
+        valued_2024,
+        train_chain,
+        n_draws=n_null_draws,
+        min_possessions=5_000,
+        min_shots=5_000,
+    )
+    signal_share = max(observed_sd**2 - null["null_mean"] ** 2, 0.0) / observed_sd**2
+
+    # Registered 2022-24 specification grid, using the foul-consistent Gate-1 estimator.
+    held = panel[panel.SEASON.between(2022, 2023)]
+    held_chain = possession_panel(held, points_column="PTS_ALL")
+    held_chain = held_chain[~held_chain.PERIOD_EXPIRED]
+    held_curves = team_curves(held_chain, min_possessions=5_000)
+    second_chance = float(
+        held_chain[held_chain.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+    )
+    held_official = shot_value(
+        shots[shots.SEASON.between(2022, 2023)],
+        outcomes[outcomes.SEASON.between(2022, 2023)],
+        second_chance,
+    )
+    held_premiums = historical_foul_premium(
+        action_denominator,
+        fouls,
+        train_through=2021,
+        prior_strength=200,
+    )
+    held_foul = foul_only[
+        foul_only.SEASON.between(2022, 2023)
+        & foul_only.SHOT_CLOCK.notna()
+        & foul_only.GAME_CLOCK.ge(3)
+    ]
+    held_valued = foul_repriced_actions(held_official, held_foul, held_premiums)
+    reference = team_accounting_profile("reference", held_valued, held_curves)
+    robustness = [reference]
+    for threshold in (3_000, 5_000, 8_000):
+        curves = team_curves(held_chain, min_possessions=threshold)
+        robustness.append(
+            team_accounting_profile(
+                f"minimum {threshold} team possessions", held_valued, curves
+            )
+        )
+    for rule, operation in (
+        ("floor", np.floor),
+        ("nearest", np.rint),
+        ("ceiling", np.ceil),
+    ):
+        valued = held_valued.copy()
+        valued["SECOND"] = operation(valued.SHOT_CLOCK).clip(0, 24).astype(int)
+        robustness.append(team_accounting_profile(f"clock {rule}", valued, held_curves))
+    for cutoff in (2, 3, 5, 8):
+        valued = held_valued[held_valued.PERIOD_SECONDS_REMAINING.ge(cutoff)]
+        robustness.append(
+            team_accounting_profile(f"exclude period clock < {cutoff}s", valued, held_curves)
+        )
+    contextual = add_basketball_context(held_valued)
+    for family in ("rim", "paint (non-RA)", "mid-range", "three"):
+        robustness.append(
+            team_accounting_profile(
+                f"remove {family}",
+                contextual[~contextual.SHOT_FAMILY.eq(family)],
+                held_curves,
+            )
+        )
+    for curve_season, shot_season in ((2022, 2023), (2023, 2022)):
+        chain = possession_panel(
+            panel[panel.SEASON.eq(curve_season)], points_column="PTS_ALL"
+        )
+        chain = chain[~chain.PERIOD_EXPIRED]
+        curves = team_curves(chain, min_possessions=3_000)
+        robustness.append(
+            team_accounting_profile(
+                f"curve {curve_season}; actions {shot_season}",
+                held_valued[held_valued.SEASON.eq(shot_season)],
+                curves,
+            )
+        )
+
+    # Negative control: preserve team, season, broad clock phase, and shot family while
+    # destroying the exact pairing between a shot's value and its second/reference value.
+    control = contextual.copy()
+    control["CLOCK_PHASE_CONTROL"] = pd.cut(
+        control.SECOND,
+        [-1, 7, 15, 24],
+        labels=["late", "middle", "early"],
+        include_lowest=True,
+    )
+    rng = np.random.default_rng(0)
+    strata = ["TEAM_ABBREVIATION", "SEASON", "CLOCK_PHASE_CONTROL", "SHOT_FAMILY"]
+    control["SHOT_VALUE"] = control.groupby(strata, observed=True).SHOT_VALUE.transform(
+        lambda values: rng.permutation(values.to_numpy())
+    )
+    robustness.append(team_accounting_profile("negative control", control, held_curves))
+
+    robustness_table = pd.concat(robustness, ignore_index=True)
+    robustness_table.to_csv(
+        REPORTS / "team_validation_specification_profiles.csv", index=False
+    )
+    comparison_rows = []
+    for name, current in robustness_table.groupby("SPECIFICATION", sort=False):
+        correlation = aligned_rank_correlation(reference, current, "EXPOSURE_PER_ACTION")
+        indexed = current.set_index("TEAM_ABBREVIATION")
+        comparison_rows.append(
+            {
+                "SPECIFICATION": name,
+                **correlation,
+                "TEAM_SD": current.PREMATURE.std(ddof=1),
+                "HOU_RANK": (
+                    indexed.loc["HOU", "EXPOSURE_RANK"]
+                    if "HOU" in indexed.index
+                    else np.nan
+                ),
+                "ORL_RANK": (
+                    indexed.loc["ORL", "EXPOSURE_RANK"]
+                    if "ORL" in indexed.index
+                    else np.nan
+                ),
+            }
+        )
+    comparisons = pd.DataFrame(comparison_rows)
+    comparisons.to_csv(
+        REPORTS / "team_validation_specification_comparisons.csv", index=False
+    )
+
+    scored_held = score_against_team_curve(held_valued, held_curves)
+    intervals = team_game_bootstrap(scored_held, n_draws=1_000, seed=0)
+    median = float(reference.EXPOSURE_PER_ACTION.median())
+    intervals["LEAGUE_MEDIAN_EXPOSURE"] = median
+    intervals["INTERVAL_ABOVE_MEDIAN"] = intervals.EXPOSURE_LOW > median
+    intervals.to_csv(REPORTS / "team_validation_team_game_bootstrap.csv", index=False)
+
+    temporal_summary = pd.DataFrame(
+        [
+            {
+                "CONDITION": "2024-25 signal share >= 0.50",
+                "ESTIMATE": signal_share,
+                "THRESHOLD": 0.50,
+                "STATUS": "PASS" if signal_share >= 0.50 else "FAIL",
+            },
+            {
+                "CONDITION": "2023-24 to 2024-25 exposure-rank rho >= 0.30",
+                "ESTIMATE": temporal_rank["SPEARMAN_RHO"],
+                "THRESHOLD": 0.30,
+                "STATUS": "PASS" if temporal_rank["SPEARMAN_RHO"] >= 0.30 else "FAIL",
+            },
+        ]
+    )
+    temporal_summary["OBSERVED_SD"] = observed_sd
+    temporal_summary["NULL_SD_MEAN"] = null["null_mean"]
+    temporal_summary["NULL_SD_P95"] = null["null_p95"]
+    temporal_summary.to_csv(
+        REPORTS / "team_validation_gate3_temporal_summary.csv", index=False
+    )
+    print("=== Gate 3 temporal replication ===")
+    print(temporal_summary.round(4).to_string(index=False))
+    print("\n=== specification comparisons ===")
+    print(comparisons.round(4).to_string(index=False))
+    print("\n=== candidate bootstrap intervals ===")
+    print(
+        intervals[intervals.TEAM_ABBREVIATION.isin(["HOU", "ORL"])]
+        .round(4)
+        .to_string(index=False)
+    )
+
+
+def cmd_defender_validation(tracking_path: str) -> None:
+    """Gate 2: does closest-defender distance absorb the below-curve exposure signal?"""
+    from possval.models.defender import (
+        crossfit_defender_value,
+        join_tracking_shots,
+        open_shot_case_control,
+        paired_game_bootstrap_improvement,
+    )
+    from possval.models.rebound import possession_panel
+    from possval.models.team_profiles import score_against_team_curve
+    from possval.models.team_validation import (
+        aligned_rank_correlation,
+        team_accounting_profile,
+    )
+    from possval.models.value import shot_value, team_curves
+
+    if not tracking_path:
+        raise SystemExit("--tracking is required")
+    ensure_dirs()
+    tracking = pd.read_csv(tracking_path, dtype={"GAME_ID": str})
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots[shots.SEASON.eq(2015) & shots.GAME_CLOCK_EXPIRING.eq(0)]
+    joined, match_metrics = join_tracking_shots(shots, tracking)
+    basket_left = np.hypot(joined.SHOOTER_X - 5.25, joined.SHOOTER_Y - 25.0)
+    basket_right = np.hypot(joined.SHOOTER_X - 88.75, joined.SHOOTER_Y - 25.0)
+    joined["TRACKING_SHOT_DISTANCE"] = np.minimum(basket_left, basket_right)
+    joined["SHOT_DISTANCE_ERROR"] = joined.TRACKING_SHOT_DISTANCE - joined.SHOT_DISTANCE
+    joined["ABS_SHOT_DISTANCE_ERROR"] = joined.SHOT_DISTANCE_ERROR.abs()
+    pd.DataFrame([match_metrics]).to_csv(
+        REPORTS / "team_validation_defender_match_summary.csv", index=False
+    )
+    release_quality = joined.groupby("TRACKING_MATCHED", dropna=False).agg(
+        N=("GAME_ID", "size"),
+        MEDIAN_RELEASE_BEFORE_EVENT=("RELEASE_BEFORE_EVENT_SECONDS", "median"),
+        P95_RELEASE_BEFORE_EVENT=(
+            "RELEASE_BEFORE_EVENT_SECONDS", lambda value: value.quantile(0.95)
+        ),
+        MEDIAN_BALL_SHOOTER_DISTANCE=("BALL_SHOOTER_DISTANCE", "median"),
+        MEDIAN_DEFENDERS=("N_DEFENDERS", "median"),
+        FALLBACK_SHARE=("RELEASE_FALLBACK", "mean"),
+        MEDIAN_ABS_SHOT_DISTANCE_ERROR=("ABS_SHOT_DISTANCE_ERROR", "median"),
+        P95_ABS_SHOT_DISTANCE_ERROR=(
+            "ABS_SHOT_DISTANCE_ERROR", lambda value: value.quantile(0.95)
+        ),
+    ).reset_index()
+    release_quality.to_csv(
+        REPORTS / "team_validation_defender_release_quality.csv", index=False
+    )
+    matched = joined[joined.TRACKING_MATCHED.eq(True)].copy()
+    crossfit, model_metrics = crossfit_defender_value(matched, n_splits=5, seed=0)
+    improvement = paired_game_bootstrap_improvement(crossfit, n_draws=2_000, seed=0)
+    model_metrics.to_csv(REPORTS / "team_validation_defender_model_metrics.csv", index=False)
+    improvement.to_csv(
+        REPORTS / "team_validation_defender_model_improvement.csv", index=False
+    )
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    chained = possession_panel(panel[panel.SEASON.eq(2015)], points_column="PTS_FG")
+    chained = chained[~chained.PERIOD_EXPIRED]
+    curves = team_curves(chained, min_possessions=5_000)
+    second_chance = float(
+        chained[chained.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+    )
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+    outcomes = outcomes[outcomes.SEASON.eq(2015)]
+    original_valued = shot_value(crossfit, outcomes, second_chance)
+    baseline_input = crossfit.copy()
+    baseline_input["XPTS"] = baseline_input.P_BASELINE * (2 + baseline_input.IS_3)
+    baseline_valued = shot_value(baseline_input, outcomes, second_chance)
+    aware_input = crossfit.copy()
+    aware_input["XPTS"] = aware_input.DEFENDER_XPTS
+    aware_valued = shot_value(aware_input, outcomes, second_chance)
+    scored_original = score_against_team_curve(original_valued, curves)
+    scored_baseline = score_against_team_curve(baseline_valued, curves)
+    scored_aware = score_against_team_curve(aware_valued, curves)
+    original_profile = team_accounting_profile("published xPTS", original_valued, curves)
+    baseline_profile = team_accounting_profile(
+        "cross-fitted baseline xPTS", baseline_valued, curves
+    )
+    aware_profile = team_accounting_profile("defender-aware xPTS", aware_valued, curves)
+    profiles = pd.concat(
+        [original_profile, baseline_profile, aware_profile], ignore_index=True
+    )
+    profiles.to_csv(REPORTS / "team_validation_defender_team_profiles.csv", index=False)
+    rank = aligned_rank_correlation(
+        baseline_profile, aware_profile, "EXPOSURE_PER_ACTION"
+    )
+    published_rank = aligned_rank_correlation(
+        original_profile, aware_profile, "EXPOSURE_PER_ACTION"
+    )
+
+    baseline_total = float(scored_baseline.EXPOSURE.sum())
+    aware_total = float(scored_aware.EXPOSURE.sum())
+    exposure_retained = aware_total / baseline_total
+    paint_baseline = scored_baseline.SHOT_ZONE_BASIC.eq("In The Paint (Non-RA)")
+    paint_aware = scored_aware.SHOT_ZONE_BASIC.eq("In The Paint (Non-RA)")
+    paint_retained = (
+        scored_aware.loc[paint_aware, "EXPOSURE"].sum()
+        / scored_baseline.loc[paint_baseline, "EXPOSURE"].sum()
+    )
+    context = pd.DataFrame(
+        [
+            {
+                "CONTEXT": "all matched shots",
+                "BASELINE_EXPOSURE": baseline_total,
+                "DEFENDER_AWARE_EXPOSURE": aware_total,
+                "EXPOSURE_RETAINED": exposure_retained,
+            },
+            {
+                "CONTEXT": "published xPTS sensitivity",
+                "BASELINE_EXPOSURE": scored_original.EXPOSURE.sum(),
+                "DEFENDER_AWARE_EXPOSURE": aware_total,
+                "EXPOSURE_RETAINED": aware_total / scored_original.EXPOSURE.sum(),
+            },
+            {
+                "CONTEXT": "paint (non-RA)",
+                "BASELINE_EXPOSURE": scored_baseline.loc[paint_baseline, "EXPOSURE"].sum(),
+                "DEFENDER_AWARE_EXPOSURE": scored_aware.loc[paint_aware, "EXPOSURE"].sum(),
+                "EXPOSURE_RETAINED": paint_retained,
+            },
+        ]
+    )
+    context.to_csv(REPORTS / "team_validation_defender_context.csv", index=False)
+    open_control = open_shot_case_control(scored_baseline, scored_aware, seed=0)
+    open_control.to_csv(
+        REPORTS / "team_validation_defender_open_controls.csv", index=False
+    )
+
+    logloss = improvement[improvement.METRIC.eq("LOG_LOSS")].iloc[0]
+    materially_improves = logloss.IMPROVEMENT >= 0.0005 and logloss.LOW > 0
+    open_wide_differences = []
+    for _, frame in open_control.groupby("DEFENDER_BAND", observed=True):
+        rates = frame.set_index("BASELINE_CASE").AWARE_BELOW
+        if True in rates.index and False in rates.index:
+            open_wide_differences.append(float(rates.loc[True] - rates.loc[False]))
+    open_survives = bool(open_wide_differences) and min(open_wide_differences) > 0
+    summary = pd.DataFrame(
+        [
+            {
+                "CONDITION": "unique tracking match rate >= 0.80",
+                "ESTIMATE": match_metrics["TRACKING_MATCH_RATE"],
+                "THRESHOLD": 0.80,
+                "STATUS": "PASS" if match_metrics["TRACKING_MATCH_RATE"] >= 0.80 else "FAIL",
+            },
+            {
+                "CONDITION": "defender log-loss gain >= 0.0005 with CI above zero",
+                "ESTIMATE": logloss.IMPROVEMENT,
+                "THRESHOLD": 0.0005,
+                "STATUS": "PASS" if materially_improves else "UNINFORMATIVE",
+            },
+            {
+                "CONDITION": "positive exposure retained >= 0.50",
+                "ESTIMATE": exposure_retained,
+                "THRESHOLD": 0.50,
+                "STATUS": "PASS" if exposure_retained >= 0.50 else "FAIL",
+            },
+            {
+                "CONDITION": "team exposure-rank rho >= 0.50",
+                "ESTIMATE": rank["SPEARMAN_RHO"],
+                "THRESHOLD": 0.50,
+                "STATUS": "PASS" if rank["SPEARMAN_RHO"] >= 0.50 else "FAIL",
+            },
+            {
+                "CONDITION": "open and wide-open cases exceed matched controls",
+                "ESTIMATE": min(open_wide_differences) if open_wide_differences else np.nan,
+                "THRESHOLD": 0.0,
+                "STATUS": "PASS" if open_survives else "FAIL",
+            },
+        ]
+    )
+    summary["LOGLOSS_CI_LOW"] = logloss.LOW
+    summary["LOGLOSS_CI_HIGH"] = logloss.HIGH
+    summary["PAINT_EXPOSURE_RETAINED"] = paint_retained
+    summary["PUBLISHED_TO_AWARE_RANK_RHO"] = published_rank["SPEARMAN_RHO"]
+    summary.to_csv(REPORTS / "team_validation_gate2_summary.csv", index=False)
+    print("=== Gate 2: closest-defender distance ===")
+    print(summary.round(5).to_string(index=False))
+    print("\n=== model calibration ===")
+    print(model_metrics.round(5).to_string(index=False))
+    print(improvement.round(5).to_string(index=False))
+    print("\n=== open-shot matched controls ===")
+    print(open_control.round(5).to_string(index=False))
+
+
+def cmd_team_review_sample() -> None:
+    """Build the frozen, private 200-possession worksheet for human Gate-4 coding."""
+    from pathlib import Path
+
+    from possval.models.foul_value import (
+        foul_repriced_actions,
+        historical_foul_premium,
+        shooting_foul_events,
+    )
+    from possval.models.rebound import possession_panel
+    from possval.models.review import select_review_sample
+    from possval.models.team_profiles import score_against_team_curve
+    from possval.models.value import shot_value, team_curves
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots_all = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    shots = shots_all[shots_all.GAME_CLOCK_EXPIRING.eq(0)]
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+    held = panel[panel.SEASON.between(2022, 2023)]
+    chained = possession_panel(held, points_column="PTS_ALL")
+    chained = chained[~chained.PERIOD_EXPIRED]
+    curves = team_curves(chained, min_possessions=5_000)
+    second_chance = float(
+        chained[chained.START_TYPE.eq("off_rebound")].PTS_POSS.mean()
+    )
+    official = shot_value(
+        shots[shots.SEASON.between(2022, 2023)],
+        outcomes[outcomes.SEASON.between(2022, 2023)],
+        second_chance,
+    )
+    fouls = pd.concat(
+        [
+            shooting_foul_events(
+                pd.read_parquet(PROCESSED / f"pbp_clock_{season}.parquet")
+            )
+            for season in range(2015, 2024)
+        ],
+        ignore_index=True,
+    )
+    foul_only = fouls[~fouls.AND_ONE]
+    denominator = pd.concat(
+        [shots_all[["PLAYER_ID", "SEASON"]], foul_only[["PLAYER_ID", "SEASON"]]],
+        ignore_index=True,
+    )
+    premiums = historical_foul_premium(
+        denominator,
+        fouls,
+        train_through=2021,
+        prior_strength=200,
+    )
+    held_foul = foul_only[
+        foul_only.SEASON.between(2022, 2023)
+        & foul_only.SHOT_CLOCK.notna()
+        & foul_only.GAME_CLOCK.ge(3)
+    ]
+    valued = foul_repriced_actions(official, held_foul, premiums)
+    scored = score_against_team_curve(valued, curves)
+    worksheet, key = select_review_sample(scored)
+    private = Path(".review")
+    private.mkdir(exist_ok=True)
+    worksheet.to_csv(private / "team_review_worksheet.csv", index=False)
+    key.to_csv(private / "team_review_key.csv", index=False)
+    print("wrote blinded worksheet and closed key under .review/ (gitignored)")
+    print(key.SAMPLE_GROUP.value_counts().to_string())
+
+
+
 def cmd_endgame(window: str) -> None:
     """Is there a sawtooth in end-of-period possession value for a 2-for-1 to exploit?
 
@@ -1280,6 +2029,16 @@ def main() -> None:
 
     sub.add_parser("prospective")
     sub.add_parser("mechanisms")
+    validation = sub.add_parser("team-validation")
+    validation.add_argument("--null-draws", type=int, default=50)
+    temporal = sub.add_parser("team-temporal-validation")
+    temporal.add_argument("--null-draws", type=int, default=50)
+    defender = sub.add_parser("defender-extract")
+    defender.add_argument("--source", required=True)
+    defender.add_argument("--output", required=True)
+    defender_validation = sub.add_parser("defender-validation")
+    defender_validation.add_argument("--tracking", required=True)
+    sub.add_parser("team-review-sample")
 
     args = parser.parse_args()
     if args.command == "project":
@@ -1290,6 +2049,21 @@ def main() -> None:
         return
     if args.command == "mechanisms":
         cmd_mechanisms()
+        return
+    if args.command == "team-validation":
+        cmd_team_validation(args.null_draws)
+        return
+    if args.command == "team-temporal-validation":
+        cmd_team_temporal_validation(args.null_draws)
+        return
+    if args.command == "defender-extract":
+        cmd_defender_extract(args.source, args.output)
+        return
+    if args.command == "defender-validation":
+        cmd_defender_validation(args.tracking)
+        return
+    if args.command == "team-review-sample":
+        cmd_team_review_sample()
         return
     if args.command in ("situational", "twoforone", "endgame", "value"):
         {

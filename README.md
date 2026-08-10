@@ -1,13 +1,19 @@
-# Possession Value
+# The NBA's 2-for-1 is a fair trade, not free points
 
-The NBA does not publish a shot clock for each shot. This project reconstructs one from
-play-by-play, validates it against the NBA's independent shot-clock splits, and uses it to study
-the value of continuing a possession.
+NBA teams hurry by **3.6 seconds** when a 2-for-1 is available. The extra trip is real—but in a
+held-out test its net value is statistically indistinguishable from zero. Teams surrender about
+**0.073 points of continuation value** by shooting early, almost exactly what the extra possession
+returns. Real possession durations blur the textbook alternating-possession advantage: the
+measured end-period sawtooth is only **0.035–0.041 points**, not roughly 0.49.
 
-The resulting dataset contains **2,018,360 shots from 2015-16 through 2024-25**. The main lesson
-is not that every offense should shoot earlier or later. It is that the shot clock is most useful
-as a possession-level measurement tool: it reveals what an offense still had available when it
-decided to shoot.
+That result comes from reconstructing the shot clock for **2,018,360 NBA shots from 2015-16
+through 2024-25**, validating it against independent NBA splits, and valuing the option to keep a
+possession alive. The same machinery produces a second, more ambitious application: team
+continuation profiles that identify possessions for film review. Those profiles are persistent
+and robust, but they are not causal coaching grades.
+
+Read the [short paper](PAPER.md), browse the [shareable dashboard](docs/index.html), or inspect the
+complete [results registry](RESULTS.md).
 
 ## The project in one minute
 
@@ -17,9 +23,9 @@ decided to shoot.
 | Raw efficiency | Efficiency declines late, but possessions surviving that long are selected on earlier actions failing. The raw curve is descriptive, not causal. |
 | Shoot or continue | Offenses lower their accepted-shot standard more slowly than continuation value decays. Because the continuation sample is adversely selected, this is an upper-bound diagnosis rather than recovered points. |
 | Miss value | Offensive-rebound value matters most late: retention is 23.2% at 0-3 seconds versus roughly 14% mid-clock. Pricing it strengthens the stopping result. |
-| 2-for-1 | Teams clearly hurry to create the extra trip, but the measured payoff is near zero. The end-of-period value “sawtooth” is real and only 0.035-0.041 points, not the roughly 0.49 implied by a rigid possession model. |
-| Team profiles | Team below-curve share is real, persists across eras (ρ = +0.398), and is not ordinary shot timing renamed. It is descriptive, not a coaching grade. |
-| Houston and Orlando | Both combine weak offense with high exposure. Orlando is largely explained by shot mix; Houston remains unusual within similar contexts and is especially elevated in close fourth quarters despite ordinary timing. |
+| 2-for-1 | Teams hurry by 3.6 seconds, surrender 0.073 points of continuation value, and gain no detectable net advantage. Duration variance explains why. |
+| Team profiles | The construct survives foul repricing, a new-season test, specification changes, and defender adjustment on a valid tracking subset. It remains a film-review queue, not a coaching grade. |
+| Prescriptive validation | Accounting and temporal gates passed. The public tracking gate missed its frozen coverage threshold (78.55% versus 80%), and the 200-possession blinded film sample still needs two human coders. |
 | Forecasting | Current below-curve share does not robustly predict the next 20 games after current offense, shot value, and timing are controlled (p = 0.378). |
 | Useful nulls | Creation-profile overlap adds essentially nothing beyond usage; player stopping scores mostly identify who finishes possessions; short-run possession “momentum” changes next-shot timing by only 0.30 seconds. |
 

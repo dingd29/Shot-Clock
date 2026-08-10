@@ -12,8 +12,12 @@ betting edge or issue decontextualized coaching grades.
 
 ## Current research thesis
 
-The shot clock matters most at possession scale. It contributes little to shot-make prediction and
-almost nothing to live win probability, but it makes continuation value measurable.
+The public headline is the held-out 2-for-1 result: NBA teams plainly hurry for the extra trip, but
+the continuation value they surrender is approximately the value they gain. Real possession-length
+variance collapses the textbook end-period sawtooth.
+
+The highest-upside secondary application is team profiling. It is robust enough to identify film,
+but not yet identified strongly enough to issue coaching recommendations.
 
 The current team work distinguishes:
 
@@ -29,6 +33,10 @@ should shoot sooner.
 ## Most important current results
 
 - Reconstruction validation: 96.0% usable clocks and player/bucket FGA R² = 0.973.
+- 2-for-1: teams hurry by 3.60 seconds in holdout, surrender 0.0726 points of continuation value,
+  and gain +0.030 points net (SE 0.064), statistically indistinguishable from zero.
+- End-period handover value: the empirical sawtooth is 0.035–0.041 points, about one-twelfth of a
+  rigid alternating-possession benchmark.
 - Possession-value curve: held-out shape calibrates to 0.0093 mean absolute error after one
   league-level shift.
 - Team below-curve share: 79.5% signal beyond a team-game permutation null; cross-window
@@ -44,6 +52,9 @@ should shoot sooner.
 - Player-relative tendencies partly travel across teams (+0.462), but the new team environment
   moves the raw measure more strongly (+0.785).
 - Previous possession outcome changes next first-shot timing by only 0.30 seconds.
+- Team-profile validation: foul accounting and temporal gates passed. Defender adjustment was
+  supportive on the valid subset, but defensible tracking coverage missed the frozen requirement
+  (78.55% versus 80%), and blinded film coding is unresolved. “Should wait longer” is not licensed.
 
 See [RESULTS.md](RESULTS.md) before repeating or extending an analysis.
 
@@ -89,6 +100,9 @@ Primary implementation files:
 - `src/possval/models/rebound.py`: possession chaining and rebound option.
 - `src/possval/models/twoforone.py`, `endgame.py`: end-period decisions.
 - `src/possval/models/team_profiles.py`: team/player diagnostics and context standardization.
+- `src/possval/models/team_validation.py`, `foul_value.py`, `defender.py`: registered team-profile
+  accounting, stability, and defender validation.
+- `src/possval/models/review.py`: blinded possession-review sampler.
 - `src/possval/models/prospective.py`: next-block prediction test.
 - `src/possval/models/mechanisms.py`: season, mover, game-state, and sequence analysis.
 - `src/possval/pipeline.py`: CLI orchestration.
@@ -140,6 +154,6 @@ frozen pre-amendment artifact retained for auditability.
 
 ## Verification baseline
 
-At the time this context file was written, the full suite passed **152 tests**, lint was clean, both
-`make value` windows and `make mechanisms` completed, and the Streamlit app loaded without
-exceptions. Re-run the checks after modifying code or public numerical claims.
+The previous public baseline was **152 tests** with clean lint. The validation sprint adds dedicated
+accounting, temporal, defender, and review tests. Re-run the full suite and lint after modifying
+code or public numerical claims.

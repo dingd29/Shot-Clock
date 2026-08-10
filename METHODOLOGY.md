@@ -909,7 +909,47 @@ accounting tests are in `tests/test_value.py` and `tests/test_mechanisms.py`.
 
 ---
 
-## 14. Open limitations and extensions
+## 14. Registered team-profile validation
+
+The exploratory team result was subjected to four gates registered before their corresponding
+outputs were inspected. Full thresholds, chronology, rejected intermediate methods, and results
+are preserved in [reports/preregistration_team_validation.md](reports/preregistration_team_validation.md).
+
+**Foul accounting.** The original continuation curve and shot value were both field-goal-only;
+free throws were not asymmetrically present in continuation. The real omission was foul-only
+shooting exercises, which do not appear as official FGA, plus the foul premium attached to ordinary
+attempts. The audit constructs `PTS_ALL` possession curves, historical player foul premiums with
+shrinkage, and explicit foul-only exercise rows. All accounting specifications are joined by team
+before rank comparison. The final repriced profile has rho +0.946 with the registered baseline and
+signal share 0.865.
+
+**Temporal stability.** For the 2024-25 score season, team curves, rebound values, foul premiums,
+and all nuisance estimates are frozen on 2022-24. The permutation null jointly relabels whole team-
+games on the historical and score sides while continuing to fit curves on historical seasons only.
+The same estimator is rerun across minimum samples, clock rounding, period-expiry rules, leave-one-
+season-out training, leave-one-shot-family-out scoring, and team-game cluster bootstrap intervals.
+
+**Defender distance.** Public 2015-16 SportVU movement archives are joined by game, event, shooter,
+period, game clock, and result. The source's precomputed release index was rejected after code and
+trajectory inspection showed that it often selects a frame near ball apex. The replacement defines
+release as the final shooter-possession frame in a fixed backward window where the ball is within
+three horizontal feet at 3–13 feet of height and is rising and separating 0.2 seconds later. A
+close-frame fallback is flagged. Defender-aware and baseline shot models use identical game-level
+cross-fitting. Valid release coverage is 78.55%, below the frozen 80% gate, so the prescriptive
+claim fails even though all valid-subset estimands are supportive.
+
+**Blinded review.** `models/review.py` freezes 50 Houston, 50 Orlando, 50 Boston, and 50 exact-
+context low-exposure control possessions. The worksheet hides case status and model gap; a separate
+key lives under gitignored `.review/`. The public protocol requires two coders, 40 overlapping
+labels, and Cohen's kappa before any film-based claim is promoted.
+
+Artifacts: `reports/team_validation_*.csv` and `reports/team_validation_review_protocol.md`.
+Estimator and accounting tests are in `tests/test_foul_value.py`, `tests/test_team_validation.py`,
+`tests/test_defender.py`, and `tests/test_review.py`.
+
+---
+
+## 15. Open limitations and extensions
 
 Closed, with where they landed:
 
@@ -926,14 +966,15 @@ Still open:
 - **The published 2026-27 calendar**, when it appears. The sampler reproduces the league's
   structure exactly, 2/3/4 meetings, 41 home games, but not the actual opponent draw, and
   strength of schedule differs by conference.
-- **Defender proximity.** No public feed carries it, so xPTS is a shot-*selection* model. This
-  is a ceiling on the whole shot-quality layer, not a task.
+- **Defender proximity outside the partial 2015-16 tracking overlap.** The validation subset shows
+  that defender distance matters but does not explain the profile away. Full-coverage tracking is
+  still needed before the model is treated as a coaching instrument.
 - **Role versus judgment in per-player exercise.** Surplus correlates +0.59 with late-clock rim
   share, so it grades finishers rather than decision-makers. Attributing the choice to the
   ball-handler would need the passer's option set, which this data does not contain.
 - **Passed-up shots.** The public record identifies taken shots but not the quality of looks a
   player declined. Without a design for that missing option set, “shoot sooner” is not identified.
-- **Film or tracking validation.** The high-exposure early/middle-clock queue should be checked
-  against lineup, coverage, and play-call context before it is interpreted as actionable.
+- **Human film coding.** The blinded 200-possession queue is frozen but uncoded. Until two coders
+  complete it, “credible continuation available” is unmeasured and the word “should” is blocked.
 - **Lineup-conditioned curves.** Team curves average over roster combinations. Estimating stable
   five-man continuation curves requires stronger pooling or substantially more data per unit.
