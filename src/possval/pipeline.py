@@ -874,6 +874,13 @@ def cmd_value(window: str) -> None:
     from scipy import stats
 
     from possval.models.rebound import possession_panel
+    from possval.models.team_profiles import (
+        player_diagnostics,
+        score_against_team_curve,
+        team_clock_bands,
+        team_context_decomposition,
+        team_diagnostics,
+    )
     from possval.models.value import (
         calibration,
         calibration_summary,
@@ -918,6 +925,7 @@ def cmd_value(window: str) -> None:
 
     valued = shot_value(shots[shots.SEASON.between(first, last)], outcomes, second_chance)
     curves = team_curves(chained, min_possessions=5_000)
+    curves.to_csv(REPORTS / f"value_team_curves_{window}.csv", index=False)
 
     print("\n=== 1. where teams sit on the curve (style) ===")
     timing = team_shot_timing(valued, min_shots=2_000)
@@ -928,6 +936,28 @@ def cmd_value(window: str) -> None:
     observed = premature_share(valued, curves, min_shots=2_000)
     observed.to_csv(REPORTS / f"value_premature_{window}.csv", index=False)
     print(pd.concat([observed.head(4), observed.tail(4)]).round(4).to_string(index=False))
+
+    scored = score_against_team_curve(valued, curves)
+    diagnostics = team_diagnostics(valued, curves, chained, min_shots=2_000)
+    bands = team_clock_bands(scored)
+    context_summary, context_details = team_context_decomposition(scored)
+    players = player_diagnostics(scored, min_shots=300)
+    diagnostics.to_csv(REPORTS / f"value_team_diagnostics_{window}.csv", index=False)
+    bands.to_csv(REPORTS / f"value_team_clock_bands_{window}.csv", index=False)
+    context_summary.to_csv(
+        REPORTS / f"value_team_context_summary_{window}.csv", index=False
+    )
+    context_details.to_csv(
+        REPORTS / f"value_team_context_details_{window}.csv", index=False
+    )
+    players.to_csv(REPORTS / f"value_player_diagnostics_{window}.csv", index=False)
+    print("\n=== review queue: bottom-third offense + top-third exposure ===")
+    review = diagnostics[diagnostics.REVIEW_FLAG]
+    columns = [
+        "TEAM_ABBREVIATION", "OFFENSE_RANK", "PPP", "PREMATURE",
+        "EXPOSURE_PER_SHOT", "MEAN_SECOND",
+    ]
+    print(review[columns].round(4).to_string(index=False) if len(review) else "  none")
 
     null = premature_null(valued, chained, n_draws=50, min_possessions=5_000)
     variance = observed.PREMATURE.var(ddof=1)
@@ -945,6 +975,131 @@ def cmd_value(window: str) -> None:
         print("\n=== H7b: does the ranking persist across windows? ===")
         print(f"  {len(shared)} franchises | Spearman rho {rho:+.3f}, "
               f"one-sided p {p_value / 2:.4f}")
+
+
+def cmd_prospective() -> None:
+    """Exploratory: does current premature share predict the next 20 games?"""
+    from possval.models.prospective import (
+        fixed_effect_regression,
+        prospective_panel,
+        prospective_specifications,
+    )
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+    result = prospective_panel(panel, shots, outcomes)
+    specifications = prospective_specifications(result)
+
+    result.to_csv(REPORTS / "value_prospective_panel.csv", index=False)
+    specifications.to_csv(REPORTS / "value_prospective_specifications.csv", index=False)
+
+    controls = ("PPP", "MEAN_SHOT_VALUE", "MEAN_SECOND")
+    robustness = []
+    for games_per_block in (15, 20, 25):
+        sized = result if games_per_block == 20 else prospective_panel(
+            panel, shots, outcomes, games_per_block=games_per_block
+        )
+        robustness.append(
+            {
+                "check": "block_length",
+                "games_per_block": games_per_block,
+                "omitted_season": np.nan,
+                **fixed_effect_regression(sized, controls),
+            }
+        )
+    for omitted in sorted(result.SEASON.unique()):
+        robustness.append(
+            {
+                "check": "leave_one_season_out",
+                "games_per_block": 20,
+                "omitted_season": omitted,
+                **fixed_effect_regression(result[result.SEASON != omitted], controls),
+            }
+        )
+    robustness = pd.DataFrame(robustness)
+    robustness.to_csv(REPORTS / "value_prospective_robustness.csv", index=False)
+
+    print("=== premature share now -> offensive efficiency in the next 20 games ===")
+    print(f"{len(result)} team-blocks, {result.TEAM.nunique()} teams, "
+          f"{result.SEASON.nunique()} seasons")
+    print(specifications.round(5).to_string(index=False))
+    final = specifications.iloc[-1]
+    print("\nThe first row asks whether the measure predicts at all. The last asks whether it ")
+    print("adds information beyond current efficiency, shot value, and timing.")
+    print(f"Fully controlled: {final.effect_per_1pp:+.5f} next-block points/possession "
+          f"per +1pp premature share (p={final.p:.3f}).")
+    print("\n=== exploratory robustness, fully controlled ===")
+    print(robustness[[
+        "check", "games_per_block", "omitted_season", "estimate", "std_error", "p"
+    ]].round(5).to_string(index=False))
+    print("Exploratory: the design and historical result were first produced together.")
+
+
+def cmd_mechanisms() -> None:
+    """Exploratory: context, roster, game-state, and sequence anatomy of team profiles."""
+    from possval.models.mechanisms import (
+        game_state_profiles,
+        mover_pairs,
+        persistence_summary,
+        possession_sequence_profiles,
+        season_profiles,
+    )
+    from possval.models.rebound import possession_panel
+    from possval.models.team_profiles import score_against_team_curve
+    from possval.models.value import shot_value, team_curves
+
+    panel = pd.read_parquet(PROCESSED / "chance_panel.parquet")
+    shots = pd.read_parquet(PROCESSED / "shots_scored.parquet")
+    outcomes = pd.read_parquet(PROCESSED / "shot_outcomes.parquet")
+    chained = possession_panel(panel)
+    chained = chained[~chained.PERIOD_EXPIRED]
+
+    team_seasons, player_seasons = season_profiles(chained, shots, outcomes)
+    movers = mover_pairs(team_seasons, player_seasons)
+    persistence = persistence_summary(team_seasons, movers)
+    team_seasons.to_csv(REPORTS / "mechanism_team_seasons.csv", index=False)
+    player_seasons.to_csv(REPORTS / "mechanism_player_seasons.csv", index=False)
+    movers.to_csv(REPORTS / "mechanism_movers.csv", index=False)
+    persistence.to_csv(REPORTS / "mechanism_persistence.csv", index=False)
+
+    first, last = SITUATIONAL_WINDOWS["holdout"]
+    held_panel = chained[chained.SEASON.between(first, last)]
+    held_shots = shots[shots.SEASON.between(first, last) & shots.GAME_CLOCK_EXPIRING.eq(0)]
+    second_chance = float(
+        held_panel.loc[held_panel.START_TYPE.eq("off_rebound"), "PTS_POSS"].mean()
+    )
+    valued = shot_value(
+        held_shots,
+        outcomes[outcomes.SEASON.between(first, last)],
+        second_chance,
+    )
+    scored = score_against_team_curve(
+        valued,
+        team_curves(held_panel, min_possessions=5_000),
+    )
+    states = game_state_profiles(scored)
+    states.to_csv(REPORTS / "mechanism_game_states_holdout.csv", index=False)
+
+    sequence_league, sequence_teams = possession_sequence_profiles(held_panel, held_shots)
+    sequence_league.to_csv(REPORTS / "mechanism_sequence_league_holdout.csv", index=False)
+    sequence_teams.to_csv(REPORTS / "mechanism_sequence_teams_holdout.csv", index=False)
+
+    print("=== roster and system persistence ===")
+    print(persistence.round(4).to_string(index=False))
+    print("\n=== close fourth-quarter profiles: review teams ===")
+    close = states[
+        states.GAME_PHASE.eq("fourth quarter")
+        & states.SCORE_STATE.astype(str).eq("within 3")
+        & states.TEAM_ABBREVIATION.isin(["HOU", "ORL"])
+    ]
+    print(close[[
+        "TEAM_ABBREVIATION", "N_SHOTS", "EXPOSURE_PER_SHOT", "LEAGUE_EXPOSURE",
+        "MEAN_SECOND", "LEAGUE_CLOCK",
+    ]].round(4).to_string(index=False))
+    print("\n=== previous possession result -> next first shot ===")
+    print(sequence_league.round(4).to_string(index=False))
+    print("\nExploratory mechanism search; none of these tables is a causal coaching grade.")
 
 
 def cmd_endgame(window: str) -> None:
@@ -1123,9 +1278,18 @@ def main() -> None:
         p = sub.add_parser(name)
         p.add_argument("--window", choices=sorted(SITUATIONAL_WINDOWS), default="explore")
 
+    sub.add_parser("prospective")
+    sub.add_parser("mechanisms")
+
     args = parser.parse_args()
     if args.command == "project":
         cmd_project(args.sims, args.games, args.rating_sd)
+        return
+    if args.command == "prospective":
+        cmd_prospective()
+        return
+    if args.command == "mechanisms":
+        cmd_mechanisms()
         return
     if args.command in ("situational", "twoforone", "endgame", "value"):
         {

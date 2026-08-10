@@ -12,6 +12,20 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from possval.models.prospective import (
+    block_efficiency,
+    fixed_effect_regression,
+    game_blocks,
+)
+from possval.models.team_profiles import (
+    add_basketball_context,
+    player_diagnostics,
+    score_against_team_curve,
+    team_clock_bands,
+    team_context_decomposition,
+    team_diagnostics,
+    team_offensive_efficiency,
+)
 from possval.models.value import (
     calibration_summary,
     curve_shape,
@@ -209,3 +223,157 @@ def test_shot_value_never_falls_below_expected_points():
     out = shot_value(shots, outcomes, second_chance=1.0)
     assert (out.SHOT_VALUE >= out.XPTS).all()
     assert out.RETAIN.iloc[0] == pytest.approx(0.2)
+
+
+def test_game_blocks_are_chronological_within_team_and_season():
+    rows = []
+    for game in range(1, 46):
+        rows.append({"SEASON": 2024, "TEAM": "A", "GAME_ID": game})
+        rows.append({"SEASON": 2024, "TEAM": "B", "GAME_ID": game})
+    out = game_blocks(pd.DataFrame(rows), games_per_block=20)
+    a = out[out.TEAM == "A"]
+    assert list(a.groupby("BLOCK").size()) == [20, 20, 5]
+    assert a.loc[a.GAME_ID == 21, "BLOCK"].iloc[0] == 1
+
+
+def test_block_efficiency_counts_possessions_not_chances():
+    chained = pd.DataFrame(
+        {
+            "SEASON": [2024, 2024, 2024],
+            "TEAM": ["A", "A", "A"],
+            "GAME_ID": [1, 1, 1],
+            "PERIOD": [1, 1, 1],
+            "POSSESSION_ID": [1, 1, 2],
+            "PTS_ALL": [0.0, 2.0, 1.0],
+        }
+    )
+    blocks = pd.DataFrame({"SEASON": [2024], "TEAM": ["A"], "GAME_ID": [1], "BLOCK": [0]})
+    out = block_efficiency(chained, blocks).iloc[0]
+    assert out.N_POSS == 2
+    assert out.PPP == pytest.approx(1.5)
+
+
+def test_fixed_effect_regression_recovers_known_within_team_effect():
+    rows = []
+    for team_at, team in enumerate(["A", "B", "C", "D"]):
+        for season in (2022, 2023):
+            for block in range(8):
+                premature = 0.02 + 0.005 * block + 0.002 * team_at
+                rows.append(
+                    {
+                        "TEAM": team,
+                        "SEASON": season,
+                        "PREMATURE": premature,
+                        "NEXT_PPP": 1.2 + 0.02 * team_at + 0.01 * (season - 2022) - 0.5 * premature,
+                    }
+                )
+    fit = fixed_effect_regression(pd.DataFrame(rows))
+    assert fit["estimate"] == pytest.approx(-0.5, abs=1e-8)
+    assert fit["effect_per_1pp"] == pytest.approx(-0.005, abs=1e-10)
+
+
+def _profile_curves() -> pd.DataFrame:
+    return pd.DataFrame(
+        {"TEAM": ["A", "B"], **{f"V{second}": [1.0, 0.8] for second in range(25)}}
+    )
+
+
+def test_score_against_team_curve_preserves_direction_and_clock_phase():
+    shots = _valued([("G1", "A", 18, 0.7), ("G2", "A", 10, 1.2), ("G3", "A", 4, 0.9)])
+    shots["PLAYER_ID"] = 1
+    shots["PLAYER_NAME"] = "P"
+    out = score_against_team_curve(shots, _profile_curves()).sort_values("SECOND")
+    assert list(out.BELOW) == [True, False, True]
+    assert list(out.CLOCK_PHASE.astype(str)) == [
+        "late (0–7)", "middle (8–15)", "early (16–23)"
+    ]
+    assert out.EXPOSURE.sum() == pytest.approx(0.4)
+
+
+def test_team_efficiency_counts_one_possession_after_multiple_chances():
+    chained = pd.DataFrame(
+        {
+            "GAME_ID": [1, 1, 1], "PERIOD": [1, 1, 1],
+            "POSSESSION_ID": [1, 1, 2], "TEAM": ["A", "A", "A"],
+            "PTS_ALL": [0.0, 2.0, 1.0],
+        }
+    )
+    out = team_offensive_efficiency(chained).iloc[0]
+    assert out.N_POSS == 2
+    assert out.PPP == pytest.approx(1.5)
+
+
+def test_team_diagnostics_flags_only_poor_offense_with_high_exposure():
+    rows = []
+    chained_rows = []
+    for at, team in enumerate(["A", "B", "C"]):
+        value = [0.4, 0.9, 1.1][at]
+        for shot in range(400):
+            rows.append((f"{team}{shot}", team, 12, value))
+            chained_rows.append(
+                {
+                    "GAME_ID": f"{team}{shot}", "PERIOD": 1, "POSSESSION_ID": shot,
+                    "TEAM": team, "PTS_ALL": float(at),
+                }
+            )
+    valued = _valued(rows)
+    out = team_diagnostics(
+        valued, _profile_curves().pipe(
+            lambda frame: pd.concat([
+                frame, pd.DataFrame({"TEAM": ["C"], **{f"V{s}": [1.0] for s in range(25)}})
+            ], ignore_index=True)
+        ),
+        pd.DataFrame(chained_rows), min_shots=100,
+    ).set_index("TEAM_ABBREVIATION")
+    assert bool(out.loc["A", "REVIEW_FLAG"])
+    assert not bool(out.loc["B", "REVIEW_FLAG"])
+
+
+def test_player_profile_is_relative_to_team_and_keeps_late_burden():
+    shots = _valued(
+        [(f"G{i}", "A", 4 if i < 100 else 12, 0.5 if i < 100 else 1.2) for i in range(200)]
+    )
+    shots["PLAYER_ID"] = [1] * 100 + [2] * 100
+    shots["PLAYER_NAME"] = ["Closer"] * 100 + ["Starter"] * 100
+    scored = score_against_team_curve(shots, _profile_curves())
+    out = player_diagnostics(scored, min_shots=50).set_index("PLAYER_NAME")
+    assert out.loc["Closer", "LATE_SHARE"] == pytest.approx(1.0)
+    assert out.loc["Closer", "PREMATURE_MINUS_TEAM"] > 0
+    bands = team_clock_bands(scored, min_shots=1)
+    assert set(bands.CLOCK_PHASE.astype(str)) == {"late (0–7)", "middle (8–15)"}
+
+
+def test_context_labels_are_basketball_readable():
+    frame = pd.DataFrame(
+        {
+            "CHANCE_START_TYPE": ["after_turnover", "def_rebound", "off_rebound"],
+            "SHOT_ZONE_BASIC": ["Restricted Area", "In The Paint (Non-RA)", "Left Corner 3"],
+        }
+    )
+    out = add_basketball_context(frame)
+    assert list(out.POSSESSION_CONTEXT) == ["turnover attack", "rebound push", "second chance"]
+    assert list(out.SHOT_FAMILY) == ["rim", "paint (non-RA)", "three"]
+
+
+def test_context_decomposition_separates_mix_from_within_cell_difference():
+    rows = []
+    # Identical 50/50 context mix. Team A has extra exposure inside both contexts.
+    for team, extra in (("A", 0.2), ("B", 0.0)):
+        for zone, base in (("Restricted Area", 0.1), ("Mid-Range", 0.3)):
+            for _ in range(10):
+                rows.append(
+                    {
+                        "TEAM_ABBREVIATION": team,
+                        "CHANCE_START_TYPE": "def_rebound",
+                        "SHOT_ZONE_BASIC": zone,
+                        "CLOCK_PHASE": "middle (8–15)",
+                        "EXPOSURE": base + extra,
+                        "BELOW": True,
+                        "SHOT_VALUE": 1.0,
+                    }
+                )
+    summary, details = team_context_decomposition(pd.DataFrame(rows), min_cell_shots=1)
+    result = summary.set_index("TEAM_ABBREVIATION")
+    assert result.loc["A", "WITHIN_CONTEXT_EXCESS"] == pytest.approx(0.1)
+    assert result.loc["B", "WITHIN_CONTEXT_EXCESS"] == pytest.approx(-0.1)
+    assert details.groupby("TEAM_ABBREVIATION").EXPOSURE_SHARE.sum().eq(1).all()

@@ -1,4 +1,4 @@
-.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational twoforone endgame value ratings project scorecard test lint app clean
+.PHONY: install data clock validate backfill train score lineups synergy lineup-test ablate rulechange stopping rebound winprob situational twoforone endgame value prospective mechanisms ratings project scorecard test lint app clean
 
 SEASON ?= 2024
 FIRST  ?= 2015
@@ -49,6 +49,12 @@ rebound:  ## conditional rebound rates; re-price finding 7 with the rebound opti
 
 value:  ## the possession valuation curve, its calibration, and team deviation
 	$(PY) -m possval.pipeline value --window $(or $(WINDOW),explore)
+
+prospective:  ## exploratory: does premature share predict the next 20 games?
+	$(PY) -m possval.pipeline prospective
+
+mechanisms:  ## explain team profiles through context, roster, game state, and sequencing
+	$(PY) -m possval.pipeline mechanisms
 
 endgame:  ## post hoc: is there a sawtooth in end-of-period possession value?
 	$(PY) -m possval.pipeline endgame --window $(or $(WINDOW),explore)

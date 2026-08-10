@@ -1338,6 +1338,170 @@ Reproduce: `make value` (and `WINDOW=holdout`); `reports/value_*.csv`.
 
 ---
 
+## 18. Does a change in premature share predict what the team does next?
+
+**Exploratory.** The design and the historical result were first produced together on 6 August
+2026. This is a prospective chronology, not a pre-registered confirmation.
+
+The persistence result in section 17 says franchises differ. It does not say the measure is
+actionable. To ask the latter without allowing the future to define the present, each team is
+scored against a continuation curve, rebound lookup and second-chance value fitted only on the
+two preceding seasons. Premature share is measured in one non-overlapping 20-game block and the
+outcome is all-points offensive efficiency in the next 20 games.
+
+Across 712 team-blocks, 30 teams and eight seasons:
+
+| Specification | Effect on next-block PPP per +1pp premature | SE | p |
+|---|---:|---:|---:|
+| Team and season fixed effects | −0.00298 | 0.00131 | 0.030 |
+| + current efficiency | −0.00098 | 0.00083 | 0.246 |
+| + current shot value and timing | **−0.00074** | 0.00083 | **0.378** |
+
+The first row says the measure predicts at all. The last asks the useful question: does it add
+information beyond how well the team is already playing and the shots it is currently
+generating? **Not robustly here.** The sign remains in the expected direction, but a ten-point
+increase in premature share implies only −0.0074 future points per possession and the interval
+comfortably includes zero.
+
+That conclusion does not depend on treating twenty games as a magic number. Holding the fully
+controlled specification fixed, 15-game blocks give −0.00019 per +1pp (p = 0.842), 20-game
+blocks −0.00074 (p = 0.378), and 25-game blocks −0.00203 (p = 0.066). The direction is stable;
+the magnitude and inference are not. Leave-one-season-out estimates run from −0.00026 to
+−0.00286 per +1pp. This is exactly the pattern to treat as a mechanism lead rather than a
+forecasting claim.
+
+This narrows the interpretation of section 17. Premature share is a stable team characteristic
+and is not shot timing renamed. It is not, on this evidence, a short-horizon leading indicator
+of offensive performance. That makes it suitable for a descriptive team profile and a target
+for mechanism work, not yet a forecasting product or a causal coaching grade.
+
+Reproduce: `make prospective`; `reports/value_prospective_panel.csv`,
+`reports/value_prospective_specifications.csv`, and `reports/value_prospective_robustness.csv`.
+
+---
+
+## 19. From a team characteristic to a possession review queue
+
+**Exploratory.** This section was designed after the team result in section 17 and the prospective
+null in section 18 were known. It is a way to choose possessions for review, not a confirmatory
+test or a league table of decision quality.
+
+The tempting analysis is to sort teams by below-curve exposure and call the top one wasteful. The
+data reject that reading. Team exposure per shot is **positively** correlated with offensive
+efficiency: +0.378 in exploration (p = 0.039) and +0.398 held out (p = 0.029). Continuation-curve
+level is even more strongly associated with efficiency (+0.877 and +0.778). A strong offense has
+more valuable alternatives to compare each taken shot with, so it can accumulate more measured
+opportunity cost while making entirely defensible decisions.
+
+That changes the useful question from “who is high?” to “where do poor results and high exposure
+coexist?” A deliberately simple review rule flags the bottom third in all-points offensive
+efficiency and the top third in mean positive continuation gap per shot. It produces:
+
+| Window | Review candidate | Offensive rank | Below own curve | Positive gap / shot |
+|---|---|---:|---:|---:|
+| 2015-16 to 2021-22 | Sacramento | 25 | 9.2% | 0.0100 |
+| 2015-16 to 2021-22 | Detroit | 27 | 9.1% | 0.0102 |
+| 2022-23 to 2023-24 | Orlando | 23 | 5.4% | 0.0050 |
+| 2022-23 to 2023-24 | Houston | 25 | 7.9% | 0.0078 |
+
+The changing names are a reason for restraint, not an inconvenience to hide: this is not yet a
+stable franchise label. The held-out cases are useful because the clock decomposition makes a
+specific hypothesis available. Houston's positive gap per shot is 0.0081 early (16-23 seconds),
+0.0089 in the middle (8-15), and 0.0053 late. Orlando's is 0.0062 early, 0.0061 middle, and 0.0017
+late. Neither profile is principally a last-second burden. For those teams, film can ask whether
+early and middle-clock attempts ended actions before a historically valuable continuation; the
+table cannot answer whether that continuation was available on the possession in question.
+
+Player rows narrow the film search but do not locate responsibility. For example, among players
+with at least 300 shots, Amen Thompson and Tari Eason end the highest-exposure Houston possessions;
+Bol Bol and Paolo Banchero do so for Orlando. That may reflect shot selection, role, lineup quality,
+play design, a teammate passing up an earlier look, or simply who receives the ball. The report
+therefore also carries each player's clock timing and late-shot share and calls the row a
+**possession-ender profile**, not a player grade.
+
+There is a one-sided identification limit. Taken shots reveal possible “wait longer” cases. Passed-up
+shots leave no comparable record of their value, so low exposure cannot establish that a team
+should shoot sooner. Even in the direction the data can see, the continuation curve is a historical
+conditional average rather than the counterfactual for this exact lineup and defensive coverage.
+The next credible step is matched film or tracking-data validation of the early/middle-clock queue,
+not converting the positive gaps into “points left on the table.”
+
+Reproduce: `make value` (and `WINDOW=holdout`);
+`reports/value_team_diagnostics_*.csv`, `reports/value_team_clock_bands_*.csv`, and
+`reports/value_player_diagnostics_*.csv`.
+
+---
+
+## 20. Four mechanism paths: what the team profile is actually describing
+
+**Exploratory.** All four paths were chosen after the team signal was known. Their purpose is to
+make the descriptive result line up—or fail to line up—with recognizable NBA mechanisms. They
+should not inherit the confirmatory status of section 17.
+
+### Path 1: shot and possession context
+
+The dominant source of measured exposure is not mysterious clock behavior. In the 2022-24
+holdout, **67.4% of all positive gap comes from non-restricted-area paint shots**, another 18.1%
+from mid-range attempts, 13.6% at the rim, and less than 1% from threes. This follows directly
+from the comparison: most threes already clear a continuation curve near one expected point;
+floaters, hooks and short paint attempts often do not.
+
+Houston gets 77.3% of its exposure from non-RA paint attempts and Orlando 75.3%. A standardization
+using each team's own mix of shot family × clock phase × possession origin clarifies the difference:
+
+| Team | Observed gap / shot | Expected from context mix | Within-context excess | League rank |
+|---|---:|---:|---:|---:|
+| Houston | 0.00782 | 0.00427 | +0.00356 | 2 |
+| Orlando | 0.00500 | 0.00415 | +0.00084 | 8 |
+
+Orlando's profile is mostly explained by *what kinds of attempts it generates*. Houston remains
+unusually high even within coarse like-for-like contexts. That residual can still be player skill,
+defensive coverage or an over-high team curve; it is not recovered waste. But the two teams should
+not receive the same diagnosis merely because they entered the same review quadrant.
+
+### Path 2: roster or system?
+
+Using a new curve for every team-season, same-franchise exposure has Pearson correlation **+0.756**
+across 240 adjacent-season pairs (Spearman +0.534). The profile has substantial year-to-year
+continuity. Players who change primary teams also retain a smaller team-relative fingerprint:
+their relative exposure correlates **+0.462** across 664 moves (Spearman +0.436).
+
+But a mover's change in raw exposure correlates **+0.785** with the change in his team environment.
+That number is partly mechanical—the team curve is the reference—and should not be sold as an
+estimate of coaching influence. The defensible read is mixed: shot diet and role travel with the
+player, while teammates and the team's continuation capability reset the scale around him. “Roster”
+and “system” are both present in the measure.
+
+### Path 3: game-state creation pressure
+
+League-wide exposure rises in close fourth quarters even though teams use more clock. Within three
+points in quarters 1-3, exposure is 0.00419 per shot at 11.88 seconds remaining. In the fourth it is
+0.00558 at 10.64 seconds. Waiting longer does not prevent shot quality from deteriorating when the
+defense tightens and the action becomes predictable.
+
+Houston is the clearest example: in 631 held-out close-fourth shots it records **0.0162 exposure per
+shot**, almost three times the 0.0055 league rate, while shooting at 10.72 seconds—essentially the
+10.64 league timing. Orlando is elevated at 0.0077 with similarly ordinary timing (10.48). This is
+much more consistent with half-court creation difficulty under pressure than with indiscriminate
+rushing. It aligns with the observable roster/style story without proving which piece of the
+offense causes it.
+
+### Path 4: does one bad possession change the next one?
+
+Very little. After removing team × current possession-origin × quarter averages, the first shot
+after an empty shooting possession arrives 0.175 seconds later on the shot clock than normal; after
+a scoring possession it arrives 0.125 seconds earlier. The difference is only **0.30 seconds**.
+Expected shot value differs by 0.0076 points in the same direction. With more than 250,000 sequences
+these differences are precisely estimated but substantively small, and opponent response, lineups
+and play calls remain uncontrolled.
+
+The useful conclusion is negative: short-run possession “momentum” is not a major explanation for
+the persistent team profiles. Stable personnel, shot diet and half-court context deserve attention
+first.
+
+Reproduce: `make mechanisms`; `reports/mechanism_*.csv`. Context standardization is reproduced by
+`make value` and written to `reports/value_team_context_{summary,details}_*.csv`.
+
 ## Caveats
 
 Buzzer-beater heaves are excluded from sections 1 to 3 (game clock under 3 seconds, 1.85% of shots),

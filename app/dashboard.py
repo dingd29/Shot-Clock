@@ -127,10 +127,11 @@ if team != "All teams":
 if not keep_heaves:
     view = view[view.GAME_CLOCK_EXPIRING == 0]
 
-(tab_curve, tab_stop, tab_valid, tab_rule, tab_grade, tab_late, tab_proj,
- tab_data) = st.tabs(
-    ["Efficiency curve", "Shoot or hold", "Validation", "2018-19 rule change",
-     "Shot Quality Grade", "Late clock", "2026-27 projection", "Data"]
+(tab_curve, tab_stop, tab_teams, tab_valid, tab_rule, tab_grade, tab_late,
+ tab_proj, tab_data) = st.tabs(
+    ["Efficiency curve", "Decision Atlas", "Team profiles", "Validation",
+     "2018-19 rule change", "Shot Quality Grade", "Late clock",
+     "2026-27 projection", "Data"]
 )
 
 # --------------------------------------------------------------------------- curve
@@ -203,9 +204,10 @@ with tab_curve:
 # --------------------------------------------------------------------------- stopping
 
 with tab_stop:
-    st.subheader("Shooting as an option, and when teams exercise it")
+    st.subheader("Decision Atlas · Chapter 1: shoot or hold")
     st.caption(
-        "The efficiency curve is a selected sample at every second — possessions alive at 5 "
+        "The first chapter in an atlas of choices hidden inside possessions. The efficiency "
+        "curve is a selected sample at every second — possessions alive at 5 "
         "seconds are the ones where nothing worked earlier. This asks a question that is "
         "answerable instead: at each moment, is the shot on offer worth more than holding?"
     )
@@ -311,6 +313,489 @@ with tab_stop:
             "value can be computed at all, and it cannot be computed without a shot clock.",
             icon="🔭",
         )
+
+        st.divider()
+        st.markdown("### Chapter 2: hand over now, or create a second trip?")
+        st.caption(
+            "At the end of a period, finishing earlier hands the ball to the opponent earlier. "
+            "The familiar 2-for-1 idea assumes there are large good and bad handover moments. "
+            "The question is how much value is actually there to exploit."
+        )
+        ball_explore = load_report("endgame_ball_value_explore.csv")
+        ball_holdout = load_report("endgame_ball_value_holdout.csv")
+        timing_explore = load_report("twoforone_profile_explore.csv")
+        timing_holdout = load_report("twoforone_profile_holdout.csv")
+        if ball_explore.empty or ball_holdout.empty or timing_explore.empty:
+            st.info("No endgame atlas output found. Run `make endgame` and `make twoforone`.")
+        else:
+            left, right = st.columns(2)
+            with left:
+                fig = go.Figure()
+                for frame, name, color in (
+                    (ball_explore, "2015–22", C[0]),
+                    (ball_holdout, "2022–24", C[1]),
+                ):
+                    fig.add_trace(go.Scatter(
+                        x=frame.S, y=frame.V_BALL, name=name, mode="lines+markers",
+                        line={"color": color, "width": 2}, marker={"size": 5},
+                        hovertemplate=(
+                            f"{name}<br>%{{x:.0f}}s left · %{{y:.3f}} net points"
+                            "<extra></extra>"
+                        ),
+                    ))
+                fig.update_layout(
+                    template=TEMPLATE, height=410,
+                    xaxis_title="Game seconds left in the period",
+                    yaxis_title="Value of holding the ball (net points to buzzer)",
+                    legend={"orientation": "h", "y": 1.1, "x": 0},
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "The wobbles are real but tiny: the structure beyond a smooth trend is "
+                    "0.041 points on exploration and 0.035 held out, not the 0.49-point "
+                    "sawtooth a clean alternating-possession model predicts."
+                )
+            with right:
+                fig = go.Figure()
+                for frame, name, color in (
+                    (timing_explore, "2015–22", C[0]),
+                    (timing_holdout, "2022–24", C[1]),
+                ):
+                    fig.add_trace(go.Scatter(
+                        x=frame.GC_BIN, y=frame.CLOCK_USED, name=name, mode="lines+markers",
+                        line={"color": color, "width": 2}, marker={"size": 5},
+                        hovertemplate=(
+                            f"{name}<br>Ball gained at %{{x:.0f}}s · "
+                            "%{y:.1f}s used<extra></extra>"
+                        ),
+                    ))
+                fig.add_vline(x=32, line={"color": PAL["muted"], "dash": "dash"})
+                fig.add_annotation(
+                    x=32, y=15.2, text="second trip becomes feasible", showarrow=False,
+                    yshift=12, font={"size": 11, "color": PAL["text_secondary"]},
+                )
+                fig.update_layout(
+                    template=TEMPLATE, height=410,
+                    xaxis_title="Game seconds left when possession begins",
+                    yaxis_title="Seconds used before shooting",
+                    legend={"orientation": "h", "y": 1.1, "x": 0},
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                st.caption(
+                    "Teams clearly speed up where a second trip becomes available—the timing "
+                    "effect reproduces to a tenth of a second. The measured payoff is near zero "
+                    "because the option they are buying is almost free, not because it is large."
+                )
+
+# --------------------------------------------------------------------------- team profiles
+
+with tab_teams:
+    st.subheader("Team possession profiles")
+    st.caption(
+        "Three questions that look alike and are not: when a team shoots is style; what its "
+        "continuation curve is worth is capability; how often it shoots below its own curve "
+        "is deviation. Only the last is even a candidate measure of decision quality."
+    )
+
+    premature_frames, timing_frames, curve_frames = [], [], []
+    diagnostic_frames, band_frames, player_frames = [], [], []
+    for window in ("explore", "holdout"):
+        premature = load_report(f"value_premature_{window}.csv")
+        timing = load_report(f"value_team_timing_{window}.csv")
+        curves = load_report(f"value_team_curves_{window}.csv")
+        diagnostics = load_report(f"value_team_diagnostics_{window}.csv")
+        bands = load_report(f"value_team_clock_bands_{window}.csv")
+        players = load_report(f"value_player_diagnostics_{window}.csv")
+        if not premature.empty:
+            premature_frames.append(premature.assign(WINDOW=window))
+        if not timing.empty:
+            timing_frames.append(timing.assign(WINDOW=window))
+        if not curves.empty:
+            curve_frames.append(curves.assign(WINDOW=window))
+        if not diagnostics.empty:
+            diagnostic_frames.append(diagnostics.assign(WINDOW=window))
+        if not bands.empty:
+            band_frames.append(bands.assign(WINDOW=window))
+        if not players.empty:
+            player_frames.append(players.assign(WINDOW=window))
+
+    if (
+        not premature_frames or not timing_frames or not curve_frames
+        or not diagnostic_frames or not band_frames or not player_frames
+    ):
+        st.info("No team-profile output found. Run `make value` for both windows.")
+    else:
+        premature = pd.concat(premature_frames, ignore_index=True)
+        timing = pd.concat(timing_frames, ignore_index=True)
+        profile = premature.merge(
+            timing.drop(columns="N_SHOTS"), on=["TEAM_ABBREVIATION", "WINDOW"],
+            how="left",
+        )
+        available = sorted(profile.TEAM_ABBREVIATION.unique())
+        initial = team if team in available else "PHI"
+        profile_team = st.selectbox(
+            "Profile team", available, index=available.index(initial), key="profile_team"
+        )
+        selected = profile[profile.TEAM_ABBREVIATION == profile_team].set_index("WINDOW")
+        diagnostics = pd.concat(diagnostic_frames, ignore_index=True)
+        holdout_diagnostics = diagnostics[diagnostics.WINDOW == "holdout"].copy()
+        selected_diagnostic = holdout_diagnostics[
+            holdout_diagnostics.TEAM_ABBREVIATION == profile_team
+        ].iloc[0]
+
+        a, b, c, d = st.columns(4)
+        a.metric(
+            "Offensive efficiency",
+            f"{selected_diagnostic.PPP:.3f}",
+            f"rank {int(selected_diagnostic.OFFENSE_RANK)} of 30",
+        )
+        b.metric(
+            "Below own curve",
+            f"{selected_diagnostic.PREMATURE:.1%}",
+            f"rank {int(selected_diagnostic.PREMATURE_RANK)} high",
+        )
+        c.metric(
+            "Positive gap / shot",
+            f"{selected_diagnostic.EXPOSURE_PER_SHOT:.3f}",
+            f"rank {int(selected_diagnostic.EXPOSURE_RANK)} high",
+            help=(
+                "Mean positive difference between continuation value and taken-shot value, "
+                "counting zero for shots above the curve. Descriptive opportunity exposure, "
+                "not recoverable points."
+            ),
+        )
+        d.metric("Mean shot clock", f"{selected_diagnostic.MEAN_SECOND:.1f}s")
+
+        if bool(selected_diagnostic.REVIEW_FLAG):
+            st.warning(
+                f"**Review candidate, not a verdict.** {profile_team} combines a bottom-third "
+                "offense with top-third below-curve exposure. That makes its possessions worth "
+                "film and lineup review; it does not establish that waiting would have caused "
+                "better shots.",
+                icon="🔎",
+            )
+        else:
+            st.info(
+                "The profile is a conjunction, not a grade. High exposure on a strong offense "
+                "can be the shadow of high continuation capability; low exposure on a weak "
+                "offense does not prove that team is shooting at the right time."
+            )
+
+        st.markdown("##### Where poor offense and unrealised continuation overlap")
+        colors = np.where(
+            holdout_diagnostics.TEAM_ABBREVIATION == profile_team,
+            C[1],
+            np.where(holdout_diagnostics.REVIEW_FLAG, C[2], C[0]),
+        )
+        fig = go.Figure(go.Scatter(
+            x=holdout_diagnostics.PPP,
+            y=holdout_diagnostics.EXPOSURE_PER_SHOT,
+            mode="markers+text",
+            text=holdout_diagnostics.TEAM_ABBREVIATION,
+            textposition="top center",
+            marker={"color": colors, "size": 10},
+            customdata=holdout_diagnostics[["OFFENSE_RANK", "EXPOSURE_RANK"]].to_numpy(),
+            hovertemplate=(
+                "%{text}<br>%{x:.3f} pts/possession (rank %{customdata[0]})"
+                "<br>%{y:.4f} positive gap/shot (rank %{customdata[1]})<extra></extra>"
+            ),
+        ))
+        fig.add_vline(
+            x=holdout_diagnostics.PPP.quantile(1 / 3),
+            line={"color": PAL["muted"], "dash": "dot"},
+        )
+        fig.add_hline(
+            y=holdout_diagnostics.EXPOSURE_PER_SHOT.quantile(2 / 3),
+            line={"color": PAL["muted"], "dash": "dot"},
+        )
+        fig.update_layout(
+            template=TEMPLATE, height=500,
+            xaxis_title="Offensive points per possession →",
+            yaxis_title="Below-curve exposure per shot →",
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Orange teams are the review queue: bottom-third offense and top-third exposure. "
+            "The overall relationship slopes the other way—strong offenses often have higher "
+            "exposure because their continuation option is more valuable."
+        )
+
+        holdout = profile[profile.WINDOW == "holdout"].sort_values("PREMATURE")
+        colors = np.where(holdout.TEAM_ABBREVIATION == profile_team, C[1], C[0])
+        fig = go.Figure(go.Bar(
+            x=holdout.PREMATURE * 100,
+            y=holdout.TEAM_ABBREVIATION,
+            orientation="h",
+            marker_color=colors,
+            customdata=holdout[["SE"]].to_numpy(),
+            hovertemplate="%{y} · %{x:.1f}% premature<extra></extra>",
+        ))
+        fig.update_layout(
+            template=TEMPLATE, height=720,
+            xaxis_title="Shots below the team's own continuation value (%)",
+            yaxis_title=None, showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("##### Capability: what this team can still create by waiting")
+        team_curves = pd.concat(curve_frames, ignore_index=True)
+        selected_curves = team_curves[team_curves.TEAM == profile_team]
+        fig = go.Figure()
+        for window, label, color in (
+            ("explore", "2015–22", C[0]),
+            ("holdout", "2022–24", C[1]),
+        ):
+            row = selected_curves[selected_curves.WINDOW == window]
+            if row.empty:
+                continue
+            values = row.iloc[0][[f"V{second}" for second in range(25)]].to_numpy(dtype=float)
+            fig.add_trace(go.Scatter(
+                x=np.arange(25), y=values, name=label, mode="lines+markers",
+                line={"color": color, "width": 2}, marker={"size": 4},
+                hovertemplate=(
+                    f"{label}<br>%{{x}}s left · waiting worth %{{y:.3f}} pts"
+                    "<extra></extra>"
+                ),
+            ))
+        fig.update_layout(
+            template=TEMPLATE, height=420,
+            xaxis_title="Seconds remaining on the shot clock",
+            yaxis_title="Expected points from continuing",
+            legend={"orientation": "h", "y": 1.1, "x": 0},
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "This is capability, not a grade: a high line means the team historically had more "
+            "to gain by declining a shot and continuing the possession. League scoring levels "
+            "shift across eras, so compare the curve's shape more readily than its vertical level."
+        )
+
+        st.markdown("##### When on the clock does the exposure appear?")
+        band_table = pd.concat(band_frames, ignore_index=True)
+        selected_bands = band_table[
+            (band_table.WINDOW == "holdout")
+            & (band_table.TEAM_ABBREVIATION == profile_team)
+        ].copy()
+        selected_bands["CLOCK_PHASE"] = pd.Categorical(
+            selected_bands.CLOCK_PHASE,
+            ["early (16–23)", "middle (8–15)", "late (0–7)"],
+            ordered=True,
+        )
+        selected_bands = selected_bands.sort_values("CLOCK_PHASE")
+        fig = go.Figure(go.Bar(
+            x=selected_bands.CLOCK_PHASE,
+            y=selected_bands.EXPOSURE_PER_SHOT,
+            marker_color=[C[0], C[1], C[2]],
+            customdata=selected_bands[["PREMATURE", "N_SHOTS"]].to_numpy(),
+            hovertemplate=(
+                "%{x}<br>%{y:.4f} positive gap/shot"
+                "<br>%{customdata[0]:.1%} below curve · %{customdata[1]:,.0f} shots"
+                "<extra></extra>"
+            ),
+        ))
+        fig.update_layout(
+            template=TEMPLATE, height=360,
+            xaxis_title="Shot-clock phase", yaxis_title="Below-curve exposure per shot",
+            showlegend=False,
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            "Early and middle-clock exposure is the plausible patience signal: the offense had "
+            "time to continue. Late exposure is often burden—someone had to end the possession."
+        )
+
+        context_summary = load_report("value_team_context_summary_holdout.csv")
+        context_details = load_report("value_team_context_details_holdout.csv")
+        if not context_summary.empty and not context_details.empty:
+            st.markdown("##### What kind of shots create the signal?")
+            context_row = context_summary[
+                context_summary.TEAM_ABBREVIATION == profile_team
+            ].iloc[0]
+            family = (
+                context_details[context_details.TEAM_ABBREVIATION == profile_team]
+                .groupby("SHOT_FAMILY")
+                .agg(N_SHOTS=("N_SHOTS", "sum"), TOTAL_EXPOSURE=("TOTAL_EXPOSURE", "sum"))
+                .reset_index()
+            )
+            family["SHOT_SHARE"] = family.N_SHOTS / family.N_SHOTS.sum()
+            family["EXPOSURE_SHARE"] = family.TOTAL_EXPOSURE / family.TOTAL_EXPOSURE.sum()
+            family = family.sort_values("EXPOSURE_SHARE", ascending=False)
+            left, right = st.columns([2, 1])
+            with left:
+                fig = go.Figure()
+                for column, label, color in (
+                    ("SHOT_SHARE", "Share of attempts", C[0]),
+                    ("EXPOSURE_SHARE", "Share of exposure", C[1]),
+                ):
+                    fig.add_trace(go.Bar(
+                        x=family.SHOT_FAMILY,
+                        y=family[column] * 100,
+                        name=label,
+                        marker_color=color,
+                        hovertemplate=f"%{{x}}<br>{label}: %{{y:.1f}}%<extra></extra>",
+                    ))
+                fig.update_layout(
+                    template=TEMPLATE, height=380, barmode="group",
+                    xaxis_title="Shot family", yaxis_title="Share (%)",
+                    legend={"orientation": "h", "y": 1.12, "x": 0},
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            with right:
+                st.metric(
+                    "Observed gap / shot",
+                    f"{context_row.OBSERVED_EXPOSURE_PER_SHOT:.4f}",
+                )
+                st.metric(
+                    "Expected from context mix",
+                    f"{context_row.MIX_EXPECTED_EXPOSURE_PER_SHOT:.4f}",
+                )
+                st.metric(
+                    "Within-context excess",
+                    f"{context_row.WITHIN_CONTEXT_EXCESS:+.4f}",
+                    f"rank {int(context_row.WITHIN_CONTEXT_RANK)} high",
+                )
+            st.caption(
+                "The expected value applies league exposure rates to this team's own mix of "
+                "shot family × clock phase × possession origin. The remainder shows whether "
+                "the profile survives that coarse context—not whether the shot was a mistake."
+            )
+
+        game_states = load_report("mechanism_game_states_holdout.csv")
+        if not game_states.empty:
+            close_fourth = game_states[
+                (game_states.TEAM_ABBREVIATION == profile_team)
+                & (game_states.GAME_PHASE == "fourth quarter")
+                & (game_states.SCORE_STATE == "within 3")
+            ]
+            if not close_fourth.empty:
+                close = close_fourth.iloc[0]
+                st.markdown("##### Close-fourth creation pressure")
+                a, b, c = st.columns(3)
+                a.metric(
+                    "Exposure / shot",
+                    f"{close.EXPOSURE_PER_SHOT:.4f}",
+                    f"league {close.LEAGUE_EXPOSURE:.4f}",
+                )
+                b.metric(
+                    "Shot-clock second",
+                    f"{close.MEAN_SECOND:.1f}s",
+                    f"league {close.LEAGUE_CLOCK:.1f}s",
+                )
+                c.metric("Sample", f"{int(close.N_SHOTS):,} shots")
+                st.caption(
+                    "If exposure rises while timing stays ordinary, the more plausible reading "
+                    "is difficulty creating a valuable attempt under pressure—not simply rushing."
+                )
+
+        st.markdown("##### Which players ended these possessions?")
+        player_table = pd.concat(player_frames, ignore_index=True)
+        selected_players = player_table[
+            (player_table.WINDOW == "holdout")
+            & (player_table.TEAM_ABBREVIATION == profile_team)
+        ].sort_values("EXPOSURE_PER_SHOT", ascending=False)
+        shown_players = selected_players[[
+            "PLAYER_NAME", "N_SHOTS", "PREMATURE", "PREMATURE_MINUS_TEAM",
+            "EXPOSURE_PER_SHOT", "MEAN_SECOND", "LATE_SHARE",
+        ]].copy()
+        for column in ("PREMATURE", "PREMATURE_MINUS_TEAM", "LATE_SHARE"):
+            shown_players[column] *= 100
+        st.dataframe(
+            shown_players.rename(columns={
+                "PLAYER_NAME": "Player", "N_SHOTS": "Shots",
+                "PREMATURE": "Below curve %", "PREMATURE_MINUS_TEAM": "vs team pp",
+                "EXPOSURE_PER_SHOT": "Positive gap / shot",
+                "MEAN_SECOND": "Mean clock", "LATE_SHARE": "Late share %",
+            }).round(3),
+            use_container_width=True, hide_index=True,
+        )
+        st.warning(
+            "**Role context, not player blame.** This names the player who took the final shot. "
+            "It cannot tell who designed the action, passed up an earlier look, delivered the "
+            "ball late, or was assigned to rescue the possession.",
+            icon="⚠️",
+        )
+
+        left, right = st.columns(2)
+        with left:
+            st.markdown("##### Not timing under another name")
+            fig = go.Figure(go.Scatter(
+                x=holdout.MEAN_SECOND, y=holdout.PREMATURE * 100,
+                mode="markers+text", text=holdout.TEAM_ABBREVIATION,
+                textposition="top center", marker={"color": C[0], "size": 9},
+                hovertemplate=(
+                    "%{text}<br>%{x:.1f}s mean clock<br>"
+                    "%{y:.1f}% premature<extra></extra>"
+                ),
+            ))
+            fig.update_layout(
+                template=TEMPLATE, height=430,
+                xaxis_title="Mean shot-clock second", yaxis_title="Premature share (%)",
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            st.caption(
+                "Across the registered comparison, premature share correlates −0.048 with "
+                "mean timing and +0.026 with late-shot share. Style and deviation separate."
+            )
+        with right:
+            st.markdown("##### Real difference, unresolved meaning")
+            st.metric("Held-out signal share", "79.5%", help="Observed team variance after "
+                      "subtracting the team-game permutation-null variance.")
+            st.metric("Cross-window rank persistence", "+0.398", "one-sided p = 0.015")
+            st.warning(
+                "A high share may mean settling below an attainable ceiling. It may also mean "
+                "the team's curve is flattered by the selected possessions that declined to "
+                "shoot. This profile does not call either explanation proven.", icon="⚠️"
+            )
+
+        prospective = load_report("value_prospective_specifications.csv")
+        if not prospective.empty:
+            st.markdown("##### Does it predict the next 20 games?")
+            final = prospective.iloc[-1]
+            st.info(
+                f"Not robustly beyond what is already visible. After current efficiency, shot "
+                f"value, timing, team and season controls: {final.effect_per_1pp:+.4f} future "
+                f"points per possession per +1pp premature share (p = {final.p:.3f}). The sign "
+                "holds under nearby block definitions, but its magnitude and inference do not. "
+                "This is not a short-horizon forecasting product."
+            )
+            shown = prospective[[
+                "specification", "effect_per_1pp", "std_error", "p", "r2"
+            ]].copy()
+            st.dataframe(shown.round(4), use_container_width=True, hide_index=True)
+            robustness = load_report("value_prospective_robustness.csv")
+            if not robustness.empty:
+                st.caption("Fully controlled sensitivity to the current/future block length")
+                st.dataframe(
+                    robustness[robustness.check == "block_length"][[
+                        "games_per_block", "effect_per_1pp", "std_error", "p", "n"
+                    ]].round(4),
+                    use_container_width=True, hide_index=True,
+                )
+
+        persistence = load_report("mechanism_persistence.csv")
+        sequence = load_report("mechanism_sequence_league_holdout.csv")
+        if not persistence.empty and not sequence.empty:
+            with st.expander("What travels across seasons—and what changes after one possession?"):
+                st.markdown(
+                    "**Both player and environment matter.** Franchise exposure persists year to "
+                    "year; movers preserve a smaller team-relative fingerprint; their raw change "
+                    "still follows the new team environment most strongly."
+                )
+                st.dataframe(
+                    persistence[["COMPARISON", "N", "PEARSON", "SPEARMAN"]].round(3),
+                    use_container_width=True, hide_index=True,
+                )
+                st.markdown(
+                    "**Possession-to-possession memory is tiny.** After team, current possession "
+                    "origin, and quarter are removed, teams take the next first shot only about "
+                    "0.30 seconds earlier after an empty trip than after scoring."
+                )
+                st.dataframe(
+                    sequence[[
+                        "PREVIOUS_RESULT", "N", "CLOCK_RESIDUAL", "XPTS_RESIDUAL"
+                    ]].round(4),
+                    use_container_width=True, hide_index=True,
+                )
 
 # --------------------------------------------------------------------------- validation
 

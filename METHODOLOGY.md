@@ -822,7 +822,94 @@ minutes; +1.47 and 44.8 wins if 2025-26 availability repeats. See findings §12.
 
 ---
 
-## Open items
+## 11. Assembled possession value
+
+`models/value.py`. The stopping and rebound layers are assembled into a shot-level comparison.
+For a taken shot at second `t`:
+
+```text
+SHOT_VALUE = XPTS + P(retain | zone, clock band) × second-chance value
+GAP        = V_team(t) - SHOT_VALUE
+```
+
+`possession_panel` chains chances until the offensive team changes. `V(t)` therefore uses all
+field-goal points remaining in the possession, including those scored after an offensive rebound.
+Shots at exactly 24 seconds are excluded from boundary comparisons because they are overwhelmingly
+tips and putbacks landing on the reset instant rather than new shoot-or-hold decisions.
+
+### Held-out calibration
+
+The exploration curve uses 2015-16 through 2021-22 and the holdout uses 2022-23 through 2023-24.
+Applied directly across eras, the exploration curve has 0.0403 mean absolute error and +0.0402
+bias. After fitting one league-wide level shift, mean absolute error is **0.0093** and bias is zero.
+The shape transfers; the scoring level moves with the league.
+
+Artifacts: `reports/value_curve_{explore,holdout}.csv` and `reports/value_calibration.csv`.
+
+## 12. Team and player continuation profiles
+
+`models/team_profiles.py`. The analysis keeps four quantities separate:
+
+1. all-points offensive efficiency, counted once per possession;
+2. shot-clock timing style;
+3. the team's continuation-curve level and decay;
+4. below-curve frequency and positive gap per taken shot.
+
+The continuation reference is the shooting team's own curve. Team-game labels are permuted
+together when estimating the null, preserving within-game clustering and keeping each permuted
+team's curve paired with its shots. Observed cross-team SD in below-curve share is 0.01263 against
+a 0.00542 null in exploration and 0.01514 against 0.00686 held out. The corresponding signal shares
+are 0.816 and 0.795. Franchise rank persistence across windows is Spearman +0.398 (one-sided
+p = 0.015).
+
+### Context standardization
+
+The scored shots are collapsed into shot family × clock phase × possession-origin cells. For each
+team, `team_context_decomposition` applies league exposure rates to that team's own cell shares:
+
+```text
+mix-expected exposure = Σ team cell share × league cell exposure
+within-context excess = observed exposure - mix-expected exposure
+```
+
+This is descriptive standardization, not a causal shot-mix intervention. Team curves still differ
+in level, and the cells do not observe defense, lineup, play call, or the option set at the moment
+of the shot.
+
+Player profiles require at least 300 attempts in an analysis window and carry team-relative share,
+clock timing, and late-shot burden. They identify the player who ended the possession, not who made
+the relevant tactical decision.
+
+Artifacts: `reports/value_team_*.csv` and `reports/value_player_diagnostics_*.csv`.
+
+## 13. Prospective and mechanism checks
+
+`models/prospective.py`. To test actionability without future leakage, a team's curve, rebound
+lookup, and second-chance value are fitted on the two preceding seasons. Premature share is measured
+in one non-overlapping 20-game block and all-points efficiency in the next. OLS includes team and
+season fixed effects with team-clustered CR1 standard errors. The fully controlled specification
+adds current efficiency, mean shot value, and mean clock; its effect is −0.00074 future points per
+possession per +1 percentage point premature share (p = 0.378). Fifteen-, twenty-, and twenty-five-
+game definitions and leave-one-season-out results are reported rather than selecting one favorable
+window.
+
+`models/mechanisms.py` adds four exploratory descriptions:
+
+- season-specific curves for adjacent-franchise persistence;
+- adjacent-season primary-team movers, with player exposure centered on team exposure;
+- offense-relative margin × game-phase profiles;
+- the next possession's first shot conditional on the previous result.
+
+The sequence residual removes team × current possession start type × period averages. It does not
+control opponent response, lineup, or play call and is not a causal momentum estimate. The mover
+analysis is also partly mechanical because changing teams changes the reference curve itself.
+
+Artifacts: `reports/value_prospective_*.csv` and `reports/mechanism_*.csv`. Estimator-recovery and
+accounting tests are in `tests/test_value.py` and `tests/test_mechanisms.py`.
+
+---
+
+## 14. Open limitations and extensions
 
 Closed, with where they landed:
 
@@ -841,11 +928,12 @@ Still open:
   strength of schedule differs by conference.
 - **Defender proximity.** No public feed carries it, so xPTS is a shot-*selection* model. This
   is a ceiling on the whole shot-quality layer, not a task.
-- **Robustness of the stopping result.** `V(t)` is unconditional: it does not know the score
-  margin, so blowouts and late-game fouling sit inside it. Conditioning on game state is the
-  check most likely to move the relaxation finding.
-- **Per-season stability of the relaxation ratio.** Finding 4c did this for the efficiency
-  curves and it paid off; the stopping result is currently one pooled number.
 - **Role versus judgment in per-player exercise.** Surplus correlates +0.59 with late-clock rim
   share, so it grades finishers rather than decision-makers. Attributing the choice to the
   ball-handler would need the passer's option set, which this data does not contain.
+- **Passed-up shots.** The public record identifies taken shots but not the quality of looks a
+  player declined. Without a design for that missing option set, “shoot sooner” is not identified.
+- **Film or tracking validation.** The high-exposure early/middle-clock queue should be checked
+  against lineup, coverage, and play-call context before it is interpreted as actionable.
+- **Lineup-conditioned curves.** Team curves average over roster combinations. Estimating stable
+  five-man continuation curves requires stronger pooling or substantially more data per unit.
